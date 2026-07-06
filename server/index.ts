@@ -4,12 +4,12 @@ import { createServer as createViteServer } from 'vite';
 import { authMiddleware } from './middleware/auth.ts';
 
 // Route Imports
-import userRoutes from './routes/users.ts';
-import roleRoutes from './routes/roles.ts';
-import roomRoutes from './routes/rooms.ts';
-import bookingRoutes from './routes/bookings.ts';
-import banRoutes from './routes/bans.ts';
-import auditRoutes from './routes/audit.ts';
+import userRoutes from './modules/users/users.routes.ts';
+import roleRoutes from './modules/roles/roles.routes.ts';
+import roomRoutes from './modules/rooms/rooms.routes.ts';
+import bookingRoutes from './modules/bookings/bookings.routes.ts';
+import banRoutes from './modules/bans/bans.routes.ts';
+import auditRoutes from './modules/audit/audit.routes.ts';
 
 const PORT = 3000;
 

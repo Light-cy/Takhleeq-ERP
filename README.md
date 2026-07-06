@@ -1,18 +1,43 @@
 # Takhleeq ERP - Modular Facility Booking & Management System
 
-A high-performance full-stack ERP system engineered with **React (Vite)** on the frontend and an **Express (Node.js)** server on the backend. This system integrates **Microsoft SSO OAuth 2.0 (Azure Active Directory / Entra ID)** for authentication and features a hybrid dual-mode database engine (**PostgreSQL** with an automatic **local JSON file fallback**).
+Takhleeq ERP is a high-performance, full-stack enterprise resource planning and room booking system engineered with **React (Vite)** on the frontend and a modular **Express (Node.js)** server on the backend. 
+
+The application integrates **Microsoft SSO OAuth 2.0 (Azure Active Directory / Entra ID)** for secure authentication, features a **hybrid dual-mode database engine** (PostgreSQL with a seamless local JSON database fallback for zero-dependency local testing), and enforces strict domain-driven business rules.
+
+---
+
+## ✨ Architectural Features & Key Milestones
+
+### 1. Domain-Driven Modular Backend Restructuring
+We have evolved the backend from a traditional flat router layout into a clean, modern **Modular/Domain-driven directory structure** located under `/server/modules/`. Each major functional boundary is isolated with its own dedicated controller, router, and business models:
+*   **`users/`**: Manages Microsoft Graph authentication, local simulated logins for development bypass, and administrative user registration.
+*   **`roles/`**: Controls role definition, privilege assignments, and safeguards against administrative role deletion or system privilege escalation.
+*   **`rooms/`**: Administers workspace details (capacities, operating hours, active statuses, and minimum/maximum reservation windows).
+*   **`bookings/`**: Handles public submission validation, automated overlapping conflict detection, and staff calendar overrides.
+*   **`bans/`**: Handles email-based user banning with duration ceilings aligned with staff-member seniority levels.
+*   **`audit/`**: Tracks system actions, compiling precise JSON diff logs and summarizing key administrative reports.
+
+### 2. Deep-Tiered Privilege Enforcement (Security & Business Logic)
+*   **Privilege Escalation Block**: A role creator is strictly forbidden from granting permissions to custom roles that they do not hold themselves.
+*   **System Integrity Safeguards**: System-critical roles (such as `Administrator` or `UCP Member`) and custom roles with active users assigned to them are locked against deletion.
+*   **Staff Ban Ceilings**: Enforces ban-issuance restrictions based on the issuer's role. Non-administrative staff have set duration ceilings (e.g., 7, 30, or 90 days) and cannot grant unlimited or permanent bans without explicit administrator clearance.
+*   **Administrator Restrictions (BR-11)**: Prevents custom roles from being assigned sensitive permissions like `MANAGE_ROLES`, `VIEW_AUDIT_LOGS`, `MANAGE_USERS`, `CONFIGURE_ROOMS`, `CONFIGURE_POLICIES`, or `LIFT_BAN`.
+*   **Conflict & Notice Auto-Detection**: Real-time calendar overlap checks flag incoming requests as `CONFLICT_DETECTED` when overlapping with approved entries. Additionally, cancellations under a 1-hour notice period are marked with a policy-violation flag.
+
+### 3. Shared Type & Constant Synchronization
+We established `/server/shared/` to serve as a bridge between the frontend React application and the backend Express server, guaranteeing complete type safety:
+*   **`/server/shared/types/index.ts`**: Implements custom type interfaces (e.g., `AuthenticatedRequest`) to extend the standard Express Request handler.
+*   **`/server/shared/constants/`**: Directly exports status lists and permission values from `/src/constants/` to ensure frontend and backend validators are aligned.
 
 ---
 
 ## 🚀 Quick Start (Local Setup)
 
-Follow these steps to run the complete system (frontend + backend) on your local machine:
-
 ### 1. Prerequisites
 Ensure you have the following installed on your machine:
-- [Node.js](https://nodejs.org/) (Version 18.x or newer)
-- [npm](https://www.npmjs.com/) (usually bundled with Node.js)
-- *Optional:* [PostgreSQL](https://www.postgresql.org/) database. If you do not have PostgreSQL, the server will automatically fallback to a lightweight, built-in JSON-based database (`server/local_db.json`) so the app remains fully functional without any external services!
+*   [Node.js](https://nodejs.org/) (Version 18.x or newer)
+*   [npm](https://www.npmjs.com/) (usually bundled with Node.js)
+*   *Optional:* [PostgreSQL](https://www.postgresql.org/) database. If you do not have PostgreSQL, the server will automatically fall back to a lightweight, built-in JSON-based database (`server/local_db.json`) so the app remains fully functional out of the box!
 
 ### 2. Installation
 Open your terminal in the project root directory and run:
@@ -22,144 +47,130 @@ npm install
 ```
 
 ### 3. Setting up Environment Variables (`.env`)
-The project utilizes a `.env` file to manage secrets and client configurations. Since `.env` is omitted from Git for security, you must create one:
+The project utilizes a `.env` file to manage secrets and client configurations. Copy the template and customize your settings:
 
-1. Copy the `.env.example` file to create your `.env` file:
-   ```bash
-   cp .env.example .env
-   ```
-2. Open the new `.env` file and configure your values:
-   ```env
-   # Gemini API Key (Optional, for AI features)
-   GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+```bash
+cp .env.example .env
+```
 
-   # App hosting URL (For local development, keep it http://localhost:3000)
-   APP_URL="http://localhost:3000"
+Open the new `.env` file and configure your values:
+```env
+# Gemini API Key (Optional, for AI assistance)
+GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
 
-   # PostgreSQL Connection String (Optional)
-   # Leave this as is, or comment it out/leave empty if you want the app to automatically use the local JSON DB fallback (highly recommended for immediate offline testing!)
-   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/takhleeq"
+# App hosting URL (For local development, keep http://localhost:3000)
+APP_URL="http://localhost:3000"
 
-   # Secret key used to sign session JWTs (Change to any secure random string)
-   JWT_SECRET="your-secret-key-change-this-in-production"
+# PostgreSQL Connection String (Optional)
+# Leave empty to automatically use the built-in local JSON DB fallback for immediate offline testing
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/takhleeq"
 
-   # Comma-separated list of Microsoft domains permitted to log in (e.g., ucp.edu.pk, pgc.edu.pk, gmail.com)
-   ALLOWED_EMAIL_DOMAINS="ucp.edu.pk,pgc.edu.pk,gmail.com"
+# Secret key used to sign session JWTs (Change to any secure random string)
+JWT_SECRET="your-secret-key-change-this-in-production"
 
-   # Your Microsoft Azure Active Directory App Registration Client ID (Details below)
-   VITE_MICROSOFT_CLIENT_ID="your-microsoft-client-id-here"
+# Comma-separated list of Microsoft domains permitted to log in
+ALLOWED_EMAIL_DOMAINS="ucp.edu.pk,pgc.edu.pk,gmail.com"
 
-   # Server port & environment configuration
-   PORT=3000
-   NODE_ENV=development
-   ```
+# Your Microsoft Azure Active Directory App Registration Client ID
+VITE_MICROSOFT_CLIENT_ID="your-microsoft-client-id-here"
+
+# Server port & environment configuration
+PORT=3000
+NODE_ENV=development
+```
 
 ### 4. Running the Application (Development Mode)
-This is a full-stack integrated application. You do **NOT** need to run separate commands for the frontend and backend. The Express server serves as a proxy and mounts the Vite bundler in development mode.
+This is a unified, full-stack application. You do **not** need to run separate terminals for the frontend and backend. The Express server serves as a proxy and mounts the Vite dev server dynamically.
 
-To boot up both parts simultaneously, run:
+To boot up the integrated application, run:
 ```bash
 npm run dev
 ```
 
-Your terminal will print:
-`Takhleeq ERP Modular Express server running on http://localhost:3000`
-
-Now, open your browser and navigate to **`http://localhost:3000`**.
+Now, navigate to **`http://localhost:3000`** in your browser.
 
 ---
 
-## 🔑 Microsoft SSO (Azure Active Directory / Entra ID) Setup
-
-To connect real Microsoft login flows to your application, you must register it on the Azure Portal. Follow these exact configuration steps:
+## 🔑 Microsoft SSO Integration Setup
+To connect Microsoft login flows to your application, register it on the Azure/Entra ID Portal:
 
 ### Step 1: Register the Application
 1. Sign in to the [Azure Portal](https://portal.azure.com/).
-2. Search for and select **Microsoft Entra ID** (formerly Azure Active Directory).
-3. In the left navigation pane, select **App registrations** -> **New registration**.
-4. Enter a name for your app (e.g., `Takhleeq ERP`).
-5. Select **Supported account types**:
-   - Choose *Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts (e.g. Skype, Xbox)* if you want users with both university/work accounts and personal hotmail/live accounts to sign in.
-   - Choose *Single-tenant* if you want to restrict login strictly to your university domain users.
+2. Search for and select **Microsoft Entra ID**.
+3. Navigate to **App registrations** -> **New registration**.
+4. Enter a name (e.g., `Takhleeq ERP`) and select your target organizational tenancy type.
 
 ### Step 2: Configure Platforms & Redirect URIs
-1. In the sidebar of your Registered App, click on **Authentication**.
-2. Click **Add a platform** and choose **Single-page application (SPA)** (Important: Do not choose "Web").
-3. In the Redirect URIs field, add your local callback address:
+1. Under **Authentication** inside your registered app sidebar, select **Add a platform** and choose **Single-page application (SPA)**.
+2. In the Redirect URIs field, add your callback address:
    ```text
    http://localhost:3000/microsoft-callback.html
    ```
-   *(When deploying to production, add your deployed domain URL, e.g., `https://your-domain.com/microsoft-callback.html`)*
+   *(For production, swap this with your deployed domain, e.g., `https://your-domain.com/microsoft-callback.html`)*
 
 ### Step 3: Enable Implicit & Hybrid Grant Flows
-*(This solves the **`AADSTS700051`** error)*
+*(This solves the **`AADSTS700051`** token authorization error)*
 1. Scroll down on the **Authentication** page to the section labeled **Implicit grant and hybrid flows**.
 2. Check **both** checkboxes:
-   - [x] **Access tokens (used for implicit flows)**
-   - [x] **ID tokens (used for implicit and hybrid flows)**
-3. Click the **Save** button at the bottom of the page.
+   *   [x] **Access tokens (used for implicit flows)**
+   *   [x] **ID tokens (used for implicit and hybrid flows)**
+3. Click the **Save** button.
 
-### Step 4: Copy Client ID to your `.env`
-1. Go back to the **Overview** page of your Azure app registration.
-2. Copy the **Application (client) ID** (a long guid like `a1b2c3d4-e5f6-...`).
-3. Paste this value into your `.env` file for **`VITE_MICROSOFT_CLIENT_ID`**.
-4. Restart your local server (`npm run dev`) to apply the new environment variables.
+### Step 4: Configure Client ID
+1. Navigate back to the **Overview** page.
+2. Copy the **Application (client) ID** GUID.
+3. Paste this value into your `.env` file as `VITE_MICROSOFT_CLIENT_ID`.
+4. Restart your development server (`npm run dev`) to apply.
 
 ---
 
-## 🛠️ Production Build & Deployment
+## 📁 Updated Directory Structure Overview
 
-When you are ready to compile the application and bundle it for server-optimized production, run:
+```text
+├── server/
+│   ├── db.ts               # Database layer (Postgres connection pool & Local JSON Fallback DB)
+│   ├── index.ts            # Express server entry point, routing hooks, and Vite middlewares
+│   ├── server.ts           # Root server execution point
+│   ├── middleware/
+│   │   └── auth.ts         # Session JWT validation and role-based permissions gates
+│   ├── shared/             # Shared validation models and constants
+│   │   ├── constants/      # Shared status lists and permissions mapping
+│   │   └── types/          # Express Request typings (AuthenticatedRequest)
+│   └── modules/            # Isolated domain boundaries
+│       ├── audit/          # Change tracking, JSON diff logs & aggregated reports
+│       ├── bans/           # Safety bans, duration limits & active ban filters
+│       ├── bookings/       # Overlap checks, submissions & override endpoints
+│       ├── roles/          # Custom roles & privilege escalation rules
+│       ├── rooms/          # Workspace capacities and hours configurations
+│       └── users/          # SSO auth, Simulated Dev bypass and member indexing
+├── src/
+│   ├── app/                # Frontend main router, app contexts & page headers
+│   ├── components/         # Highly stylized interactive layouts (Calendar, BookingForm, UsersManager, etc.)
+│   ├── constants/          # Client-side statuses and systems configurations
+│   ├── features/           # Component-specific sub-features
+│   ├── types/              # Client-side schema definitions
+│   ├── index.css           # Global custom styles and Tailwind variables
+│   ├── main.tsx            # React root bootstrap element
+│   └── App.tsx             # Universal layout and auth state managers
+├── .env.example            # Environment variables placeholder definitions
+├── index.html              # Main single-page application document
+└── package.json            # Node project configuration and run scripts
+```
+
+---
+
+## 🛠️ Production Build & Optimization
+
+When compiling the application for high-performance server hosting, run:
 
 ```bash
-# 1. Clean previous builds and generate production client assets & optimized server bundles
+# Clean previous builds and bundle both frontend & backend
 npm run build
 
-# 2. Start the production server
+# Start the production bundle
 npm run start
 ```
 
 ### Production Build Mechanics
-Under the hood:
-- `vite build` compiles frontend assets into static HTML, CSS, and JS inside the `dist/` folder.
-- `esbuild` bundles the Node.js TypeScript backend server into a single, high-performance CommonJS file at `dist/server.cjs` for lightning-fast container cold-start speeds.
-
----
-
-## 📁 Directory Structure Overview
-
-```text
-├── server/
-│   ├── db.ts             # Database layer (PostgreSQL connection pool & local JSON DB engine fallback)
-│   ├── index.ts          # Express server entry and Vite integration middleware
-│   ├── middleware/       # Authentication and session middlewares
-│   └── routes/           # REST API routes (Users, Bookings, Rooms, Bans, Audit Logs)
-├── src/
-│   ├── components/       # React interactive components (LoginPage, AdminDashboard, BookingForm, etc.)
-│   ├── App.tsx           # Main client-side router and state root
-│   ├── types.ts          # Universal TypeScript type definitions shared across client & server
-│   └── index.css         # Styling with Tailwind CSS
-├── .env.example          # Template for local environment variable configuration
-├── index.html            # Main SPA entry page
-├── server.ts             # Root server execution entry
-├── migration.sql         # PostgreSQL schema definition and seed scripts
-└── package.json          # Node scripts and dependencies manifests
-```
-
----
-
-## 💡 Troubleshooting & FAQs
-
-### Q1: I see PostgreSQL warnings in my terminal console?
-```text
-Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases...
-```
-This is a standard warning from the Node Postgres library (`pg` connection parser) alert regarding future changes to default SSL behaviors. **This warning is safe to ignore** and does not impact your database operations or app performance.
-
-### Q2: What is the "Approval required" screen when logging in?
-If you are logging in with a university/work Microsoft account (like `@ucp.edu.pk` or `@pgc.edu.pk`), your tenant's IT administrators have restricted non-admin users from registering or consenting to third-party enterprise apps.
-- **Is this only for me?** No. Any user from that same tenant/organization who tries to log in will see the exact same screen until an IT administrator approves the application.
-- **How to resolve?**
-  1. **Submit justification:** You can fill out the form in the window and click "Request approval". Your university's IT department will receive an email to approve it.
-  2. **Admin Consent:** If you have access to an administrator account, or can ask your IT team, they can log in once and select **"Consent on behalf of your organization"** on the consent screen. Once approved tenant-wide, all other students and staff can log in with zero barriers!
-  3. **Alternative Accounts:** For personal testing, you can change your app registration to support personal accounts or register a free personal Microsoft developer tenant where you have full admin rights.
+*   `npm run build` initiates `vite build` to compile frontend assets into static HTML, CSS, and JS files inside the `dist/` directory.
+*   Simultaneously, `esbuild` bundles the Node.js TypeScript backend server into a single, high-performance, self-contained CommonJS file at `dist/server.cjs`, minimizing server container filesystem I/O and boosting container cold-start speeds.

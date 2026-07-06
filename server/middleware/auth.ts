@@ -1,17 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { query } from '../db.ts';
-
-export interface AuthenticatedRequest extends Request {
-  currentUser?: {
-    id: number;
-    email: string;
-    name: string;
-    role: string;
-    status: 'Active' | 'Inactive';
-    permissions: string[];
-  } | null;
-}
+import { AuthenticatedRequest } from '../shared/types/index.ts';
+export type { AuthenticatedRequest };
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
 
