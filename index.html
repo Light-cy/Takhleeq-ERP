@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      (function() {
+        try {
+          var currentFetch = window.fetch;
+          
+          function defineOn(obj) {
+            try {
+              Object.defineProperty(obj, 'fetch', {
+                get: function() {
+                  return currentFetch;
+                },
+                set: function(val) {
+                  currentFetch = val;
+                },
+                configurable: true,
+                enumerable: true
+              });
+              return true;
+            } catch (err) {
+              return false;
+            }
+          }
+
+          var success = defineOn(window);
+          if (!success) {
+            if (typeof Window !== 'undefined' && Window.prototype) {
+              defineOn(Window.prototype);
+            }
+          }
+          if (typeof globalThis !== 'undefined') {
+            defineOn(globalThis);
+          }
+          if (typeof self !== 'undefined') {
+            defineOn(self);
+          }
+        } catch (e) {
+          console.warn('Could not intercept window.fetch getter/setter:', e);
+        }
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Enterprise ERP System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-gray-50">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
