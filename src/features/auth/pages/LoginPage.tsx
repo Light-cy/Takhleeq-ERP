@@ -143,6 +143,25 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
     }
   };
 
+  const parsedBan = errorMessage && errorMessage.includes('banned') 
+    ? (() => {
+        const msg = errorMessage;
+        const emailMatch = msg.match(/\(([^)]+)\)/);
+        const reasonMatch = msg.match(/Reason:\s*(.*)$/);
+        
+        const email = emailMatch ? emailMatch[1] : '';
+        const reason = reasonMatch ? reasonMatch[1] : 'No reason specified';
+        
+        const bannedIndex = msg.indexOf('has been banned ');
+        const accessingIndex = msg.indexOf(' from accessing');
+        let expiry = 'Permanent';
+        if (bannedIndex !== -1 && accessingIndex !== -1) {
+          expiry = msg.substring(bannedIndex + 'has been banned '.length, accessingIndex).trim();
+        }
+        return { email, reason, expiry };
+      })()
+    : null;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary to-[#5A0F0F] flex flex-col justify-center items-center p-6 relative font-sans" id="microsoft-login-page">
       
@@ -183,7 +202,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
             <p className="text-[11px] text-gray-400">Authenticating securely via Microsoft Azure AD SSO</p>
           </div>
 
-          {errorMessage && (
+          {errorMessage && !parsedBan && (
             <div className="p-3.5 bg-rose-50 border border-rose-100 text-rose-800 text-[11px] rounded-xl text-left leading-relaxed animate-fade-in flex gap-2">
               <Shield className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
               <span>{errorMessage}</span>
@@ -314,6 +333,78 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
                   <Lock className="h-3.5 w-3.5 text-gray-400" />
                   <span>Secure OAuth 2.0 Simulation</span>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* GORGEOUS ANIMATED BAN POPUP MODAL */}
+      <AnimatePresence>
+        {parsedBan && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 z-50"
+            id="ban-popup-modal"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-rose-100 flex flex-col relative"
+            >
+              {/* Top banner */}
+              <div className="bg-gradient-to-r from-rose-800 to-rose-950 px-6 py-8 text-white text-center relative overflow-hidden">
+                <div className="absolute inset-0 bg-radial-gradient from-white/10 to-transparent" />
+                <div className="relative z-10 space-y-3">
+                  <div className="h-14 w-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mx-auto shadow-md">
+                    <Shield className="h-7 w-7 text-rose-300 shrink-0" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black tracking-wider uppercase">Security Access Restricted</h3>
+                    <p className="text-[9px] text-rose-300 font-extrabold uppercase tracking-widest mt-0.5">Protocol BR-09: Suspended Identity</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-5 text-left">
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  The system has intercepted an authorized authentication request but detected an active security restriction associated with this Microsoft identity.
+                </p>
+
+                <div className="p-4 bg-rose-50/60 border border-rose-100 rounded-xl space-y-3 text-xs">
+                  <div className="grid grid-cols-3 gap-2 py-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 font-mono col-span-1">Account</span>
+                    <span className="text-gray-800 font-black font-mono text-xs col-span-2 break-all">{parsedBan.email}</span>
+                  </div>
+                  <div className="h-px bg-rose-100/40" />
+                  <div className="grid grid-cols-3 gap-2 py-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 font-mono col-span-1">Duration</span>
+                    <span className="text-rose-700 font-black uppercase text-[10px] bg-rose-50 px-2 py-0.5 rounded border border-rose-100 inline-block col-span-2 w-max">{parsedBan.expiry}</span>
+                  </div>
+                  <div className="h-px bg-rose-100/40" />
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block font-mono">Official Reason</span>
+                    <p className="text-gray-700 font-bold italic bg-white p-3 rounded-lg border border-gray-150 text-[11px] leading-relaxed">
+                      "{parsedBan.reason}"
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-gray-400 text-center leading-normal">
+                  If you believe this restriction was applied in error, please submit an appeal to the Takhleeq Executive Office or contact your Facility Manager.
+                </div>
+
+                <button
+                  onClick={() => setErrorMessage(null)}
+                  className="w-full bg-rose-700 hover:bg-rose-800 text-white py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Acknowledge & Try Another Account
+                </button>
               </div>
             </motion.div>
           </motion.div>

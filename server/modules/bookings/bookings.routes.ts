@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { query, logAudit, mapBooking } from '../../db.ts';
 import { AuthenticatedRequest, requireAuth, requirePermission } from '../../middleware/auth.ts';
+import { sendBookingStatusEmail } from './email.service.ts';
 
 const router = Router();
 
@@ -221,6 +222,13 @@ router.post('/bookings', async (req, res) => {
       name
     );
 
+    // Immediate confirmation email to requester (per FRD FR-01A-05)
+    try {
+      await sendBookingStatusEmail(savedBooking, 'SUBMITTED');
+    } catch (emailErr) {
+      console.error('[SMTP] Failed to send submission receipt email:', emailErr);
+    }
+
     res.json({
       success: true,
       booking: savedBooking,
@@ -288,6 +296,13 @@ router.post('/bookings/:id/approve', requireAuth, requirePermission('APPROVE_REJ
 
     await logAudit(`Approved Booking: ${bookingId}`, 'booking', bookingId, staff.email, prevBooking, updatedBooking);
 
+    // Trigger confirmation email asynchronously
+    try {
+      await sendBookingStatusEmail(updatedBooking, 'APPROVED');
+    } catch (emailErr) {
+      console.error(`[EMAIL ERROR] Failed to send booking approval email for ${bookingId}:`, emailErr);
+    }
+
     res.json({ success: true, booking: updatedBooking });
   } catch (err) {
     console.error('Failed to approve booking:', err);
@@ -332,6 +347,13 @@ router.post('/bookings/:id/reject', requireAuth, requirePermission('APPROVE_REJE
     const updatedBooking = mapBooking(updatedRes.rows[0]);
 
     await logAudit(`Rejected Booking: ${bookingId}. Reason: ${reason}`, 'booking', bookingId, staff.email, prevBooking, updatedBooking);
+
+    // Trigger rejection email asynchronously
+    try {
+      await sendBookingStatusEmail(updatedBooking, 'REJECTED', { rejectionReason: reason.trim() });
+    } catch (emailErr) {
+      console.error(`[EMAIL ERROR] Failed to send booking rejection email for ${bookingId}:`, emailErr);
+    }
 
     res.json({ success: true, booking: updatedBooking });
   } catch (err) {
@@ -398,6 +420,13 @@ router.post('/bookings/:id/cancel', requireAuth, async (req: AuthenticatedReques
 
     const logMsg = `Cancelled Booking: ${bookingId}. Reason: ${reason}${policyViolation ? ' [POLICY VIOLATION: Less than 1-hour notice]' : ''}`;
     await logAudit(logMsg, 'booking', bookingId, actor.email, prevBooking, updatedBooking);
+
+    // Trigger cancellation email asynchronously
+    try {
+      await sendBookingStatusEmail(updatedBooking, 'CANCELLED', { cancellationReason: reason.trim() });
+    } catch (emailErr) {
+      console.error(`[EMAIL ERROR] Failed to send booking cancellation email for ${bookingId}:`, emailErr);
+    }
 
     res.json({ success: true, booking: updatedBooking, policyViolation });
   } catch (err) {
@@ -488,6 +517,32 @@ router.post('/bookings/:id/override', requireAuth, requirePermission('BOOKING_OV
     const updatedBooking = mapBooking(finalBookingRes.rows[0]);
 
     await logAudit(`Booking Override Applied: ${bookingId}`, 'booking', bookingId, staff.email, prevBooking, updatedBooking);
+
+    // Trigger detailed booking update email asynchronously
+    try {
+      const changeParts: string[] = [];
+      if (prevBooking.room !== updatedBooking.room) {
+        changeParts.push(`Room changed from <strong>${prevBooking.room}</strong> to <strong>${updatedBooking.room}</strong>.`);
+      }
+      if (prevBooking.date !== updatedBooking.date) {
+        changeParts.push(`Date changed from <strong>${prevBooking.date}</strong> to <strong>${updatedBooking.date}</strong>.`);
+      }
+      if (prevBooking.startTime !== updatedBooking.startTime || prevBooking.endTime !== updatedBooking.endTime) {
+        changeParts.push(`Time slot changed from <strong>${prevBooking.startTime} - ${prevBooking.endTime}</strong> to <strong>${updatedBooking.startTime} - ${updatedBooking.endTime}</strong>.`);
+      }
+      if (prevBooking.status !== updatedBooking.status) {
+        changeParts.push(`Booking status updated from <strong>${prevBooking.status}</strong> to <strong>${updatedBooking.status}</strong>.`);
+      }
+
+      const changeNotes = changeParts.length > 0 
+        ? `The following changes were applied by the administration:<br><ul style="margin: 5px 0 0 0; padding-left: 20px;"><li>${changeParts.join('</li><li>')}</li></ul>`
+        : 'An administrator updated your booking record metadata or comments.';
+
+      const emailStatus = (prevBooking.status !== 'APPROVED' && updatedBooking.status === 'APPROVED') ? 'APPROVED' : 'UPDATED';
+      await sendBookingStatusEmail(updatedBooking, emailStatus, { changeNotes });
+    } catch (emailErr) {
+      console.error(`[EMAIL ERROR] Failed to send booking override email for ${bookingId}:`, emailErr);
+    }
 
     res.json({ success: true, booking: updatedBooking });
   } catch (err) {

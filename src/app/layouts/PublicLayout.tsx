@@ -68,7 +68,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
         </div>
       </header>
 
-      <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
+      <main className="flex-1 p-4 md:p-8 w-full overflow-y-auto">
         {children}
       </main>
     </div>

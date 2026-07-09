@@ -248,7 +248,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
         </AnimatePresence>
 
         {/* Main inner workspace container with overflow scroll */}
-        <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full overflow-y-auto overflow-x-hidden">
+        <main className="flex-1 p-4 md:p-8 w-full overflow-y-auto overflow-x-hidden">
           {children}
         </main>
       </div>

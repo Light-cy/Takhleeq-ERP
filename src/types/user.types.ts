@@ -7,6 +7,7 @@ export interface User {
   name: string;
   role: string; // e.g. "UCP Member" | "Administrator" | custom role names
   status: 'Active' | 'Inactive';
+  permissions?: string[];
 }
 
 export interface ERPData {

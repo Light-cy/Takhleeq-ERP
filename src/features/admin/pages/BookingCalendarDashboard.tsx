@@ -18,7 +18,8 @@ import {
   ChevronRight,
   Info,
   ShieldCheck,
-  Building
+  Building,
+  Search
 } from 'lucide-react';
 import { Booking, Room, Ban } from '../../../types';
 
@@ -51,6 +52,18 @@ export function BookingCalendarDashboard({
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
 
+  // Free-text search states
+  const [searchVal, setSearchVal] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Debounce free-text search (250ms)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setSearchTerm(searchVal);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [searchVal]);
+
   // Selected details or edits
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
@@ -69,6 +82,15 @@ export function BookingCalendarDashboard({
     if (filterBookingType && b.bookingType !== filterBookingType) return false;
     if (filterStartDate && b.date < filterStartDate) return false;
     if (filterEndDate && b.date > filterEndDate) return false;
+
+    if (searchTerm) {
+      const lowerSearch = searchTerm.toLowerCase();
+      const matchId = String(b.id || '').toLowerCase().includes(lowerSearch);
+      const matchName = String(b.name || '').toLowerCase().includes(lowerSearch);
+      const matchTitle = String(b.eventTitle || '').toLowerCase().includes(lowerSearch);
+      if (!matchId && !matchName && !matchTitle) return false;
+    }
+
     return true;
   });
 
@@ -170,6 +192,17 @@ export function BookingCalendarDashboard({
     hourlyDistribution[label] = (hourlyDistribution[label] || 0) + 1;
   });
 
+  const hoursOfOperation = [
+    '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'
+  ];
+  Object.keys(hourlyDistribution).forEach(h => {
+    if (!hoursOfOperation.includes(h)) {
+      hoursOfOperation.push(h);
+    }
+  });
+  hoursOfOperation.sort();
+  const maxCount = Math.max(...hoursOfOperation.map(h => hourlyDistribution[h] || 0), 1);
+
   // Status badge styling helper
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -236,8 +269,37 @@ export function BookingCalendarDashboard({
         <>
           {/* SEARCH FILTERS TOOLBAR */}
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-3xs space-y-4">
-            <div className="flex items-center gap-1.5 text-xs font-black text-primary uppercase tracking-wider">
-              <Filter className="h-4 w-4" /> Filter Reservations
+            <div className="flex items-center justify-between gap-1.5">
+              <div className="flex items-center gap-1.5 text-xs font-black text-primary uppercase tracking-wider">
+                <Filter className="h-4 w-4" /> Filter Reservations
+              </div>
+              {searchTerm && (
+                <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">
+                  Filtered by Search
+                </span>
+              )}
+            </div>
+
+            <div className="relative">
+              <input
+                type="text"
+                value={searchVal}
+                onChange={e => setSearchVal(e.target.value)}
+                placeholder="Search by Booking ID, requester name, or event title..."
+                className="w-full pl-10 pr-12 py-2.5 border border-gray-150 rounded-xl text-xs bg-gray-50/50 text-gray-700 font-medium focus:ring-1 focus:ring-primary focus:bg-white focus:outline-none placeholder-gray-400"
+              />
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-gray-400" />
+              </div>
+              {searchVal && (
+                <button
+                  type="button"
+                  onClick={() => setSearchVal('')}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-650 text-xs font-bold cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -489,7 +551,140 @@ export function BookingCalendarDashboard({
               </div>
             </div>
 
+            {/* Peak Usage Hours Chart (FR-01B-10) */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-3xs space-y-5 md:col-span-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4.5 w-4.5 text-primary" />
+                  <h3 className="text-xs font-black uppercase tracking-wider text-gray-900">Peak Usage Hours (Approved Bookings)</h3>
+                </div>
+                <span className="text-[10px] text-gray-400 font-mono">Count by booking start hour</span>
+              </div>
+
+              {hoursOfOperation.length === 0 || Math.max(...hoursOfOperation.map(h => hourlyDistribution[h] || 0)) === 0 ? (
+                <div className="h-48 flex items-center justify-center border border-dashed border-gray-150 rounded-xl bg-gray-50/50">
+                  <p className="text-xs text-gray-400">No approved bookings to map peak usage hours.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Vertical bars container */}
+                  <div className="h-48 flex items-end gap-2 md:gap-4 pt-6 px-2 border-b border-gray-150">
+                    {hoursOfOperation.map(hour => {
+                      const count = hourlyDistribution[hour] || 0;
+                      const pct = Math.round((count / maxCount) * 100);
+                      return (
+                        <div key={hour} className="flex-1 flex flex-col items-center group relative h-full justify-end">
+                          {/* Tooltip */}
+                          <div className="absolute -top-6 bg-gray-900 text-white text-[9px] font-black font-mono px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none shadow-sm">
+                            {count} bookings
+                          </div>
+                          
+                          {/* Bar */}
+                          <div 
+                            className="w-full bg-primary hover:bg-primary/90 rounded-t-md transition-all duration-300 relative cursor-pointer"
+                            style={{ height: `${Math.max(4, pct)}%` }}
+                          >
+                            {count > 0 && (
+                              <span className="absolute -top-4 inset-x-0 text-center text-[10px] font-extrabold text-primary font-mono">
+                                {count}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Labels row */}
+                  <div className="flex justify-between gap-2 md:gap-4 px-2 text-[9px] font-black text-gray-450 font-mono">
+                    {hoursOfOperation.map(hour => (
+                      <span key={hour} className="flex-1 text-center truncate" title={hour}>
+                        {hour}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
           </div>
+
+          {/* Ban History by User Report */}
+          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-3xs space-y-5">
+            <div className="flex items-center justify-between border-b border-gray-50 pb-4">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4.5 w-4.5 text-primary" />
+                <h3 className="text-xs font-black uppercase tracking-wider text-gray-900">Ban History by User Report</h3>
+              </div>
+              <span className="text-[10px] text-gray-400 font-mono">Immutable restrictions register</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-gray-150 text-[10px] font-black text-gray-400 uppercase bg-gray-50/50">
+                    <th className="py-2.5 px-4">User Details</th>
+                    <th className="py-2.5 px-4">Ban Reason</th>
+                    <th className="py-2.5 px-4">Duration</th>
+                    <th className="py-2.5 px-4">Issued By & Date</th>
+                    <th className="py-2.5 px-4">Expiry Date</th>
+                    <th className="py-2.5 px-4">Status</th>
+                    <th className="py-2.5 px-4">Resolution</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {activeBans.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-gray-400 text-xs">
+                        No active or past restriction ban records exist in the system.
+                      </td>
+                    </tr>
+                  ) : (
+                    activeBans.map(ban => {
+                      return (
+                        <tr key={ban.id} className="hover:bg-gray-50/30 transition-colors">
+                          <td className="py-3 px-4">
+                            <p className="font-extrabold text-gray-900">{ban.name || 'Anonymous User'}</p>
+                            <p className="text-[10px] text-gray-400 font-mono">{ban.email}</p>
+                          </td>
+                          <td className="py-3 px-4 text-gray-700 max-w-xs truncate" title={ban.reason}>
+                            {ban.reason}
+                          </td>
+                          <td className="py-3 px-4 font-mono font-bold text-gray-600">
+                            {ban.duration}
+                          </td>
+                          <td className="py-3 px-4">
+                            <p className="font-semibold text-gray-800">{ban.bannedBy}</p>
+                            <p className="text-[10px] text-gray-400 font-mono">{new Date(ban.createdAt).toLocaleDateString()}</p>
+                          </td>
+                          <td className="py-3 px-4 font-mono text-gray-600">
+                            {ban.expiresAt === 'Never' ? 'Permanent' : new Date(ban.expiresAt).toLocaleDateString()}
+                          </td>
+                          <td className="py-3 px-4">
+                            {ban.status === 'Active' ? (
+                              <span className="bg-red-100 text-red-800 border border-red-200 text-[9px] font-bold px-2 py-0.5 rounded uppercase">ACTIVE</span>
+                            ) : ban.status === 'Lifted' ? (
+                              <span className="bg-blue-100 text-blue-800 border border-blue-200 text-[9px] font-bold px-2 py-0.5 rounded uppercase">LIFTED</span>
+                            ) : (
+                              <span className="bg-gray-100 text-gray-800 border border-gray-200 text-[9px] font-bold px-2 py-0.5 rounded uppercase">EXPIRED</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-gray-500 max-w-xs truncate text-[10px]" title={ban.liftedReason}>
+                            {ban.status === 'Lifted' ? (
+                              <>
+                                <p className="font-semibold text-blue-800">Lifted by {ban.liftedBy}</p>
+                                <p className="italic text-gray-450">"{ban.liftedReason}"</p>
+                              </>
+                            ) : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
         </div>
       )}
 

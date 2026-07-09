@@ -41,6 +41,36 @@ export const handleMicrosoftAuth = async (req: AuthenticatedRequest, res: Respon
       });
     }
 
+    // 2.5 Active Ban check
+    if (email.toLowerCase().trim() === 'banned-test@ucp.edu.pk') {
+      const checkBan = await query(
+        `SELECT * FROM ban_records WHERE LOWER(email) = $1 AND is_active = TRUE`,
+        [email.toLowerCase().trim()]
+      );
+      if (checkBan.rows.length === 0) {
+        await query(
+          `INSERT INTO ban_records (email, full_name, reason, duration_type, custom_days, expires_at, is_active, issued_by)
+           VALUES ($1, $2, $3, 'permanent', NULL, NULL, TRUE, 1)`,
+          [email.toLowerCase().trim(), 'Banned Student (Testing)', 'Repeatedly booking rooms without attending and violating facility policies.']
+        );
+      }
+    }
+
+    const activeBanRes = await query(
+      `SELECT * FROM ban_records WHERE LOWER(email) = $1 AND is_active = TRUE`,
+      [email]
+    );
+
+    if (activeBanRes.rows.length > 0) {
+      const activeBan = activeBanRes.rows[0];
+      const expiryText = activeBan.expires_at 
+        ? `until ${new Date(activeBan.expires_at).toLocaleDateString()}` 
+        : 'permanently';
+      return res.status(403).json({ 
+        error: `Access Denied: This account (${email}) has been banned ${expiryText} from accessing Takhleeq ERP. Reason: ${activeBan.reason}` 
+      });
+    }
+
     // 3. get_or_create User in PostgreSQL
     let userRes = await query(`SELECT * FROM users WHERE LOWER(email) = $1`, [email]);
     let userId: number;
@@ -140,6 +170,37 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
 
   try {
     const cleanEmail = email.toLowerCase().trim();
+
+    // Auto-seed test ban record for banned-test@ucp.edu.pk so it is ready to test
+    if (cleanEmail === 'banned-test@ucp.edu.pk') {
+      const checkBan = await query(
+        `SELECT * FROM ban_records WHERE LOWER(email) = $1 AND is_active = TRUE`,
+        [cleanEmail]
+      );
+      if (checkBan.rows.length === 0) {
+        await query(
+          `INSERT INTO ban_records (email, full_name, reason, duration_type, custom_days, expires_at, is_active, issued_by)
+           VALUES ($1, $2, $3, 'permanent', NULL, NULL, TRUE, 1)`,
+          [cleanEmail, 'Banned Student (Testing)', 'Repeatedly booking rooms without attending and violating facility policies.']
+        );
+      }
+    }
+
+    // Check if user is currently banned
+    const activeBanRes = await query(
+      `SELECT * FROM ban_records WHERE LOWER(email) = $1 AND is_active = TRUE`,
+      [cleanEmail]
+    );
+
+    if (activeBanRes.rows.length > 0) {
+      const activeBan = activeBanRes.rows[0];
+      const expiryText = activeBan.expires_at 
+        ? `until ${new Date(activeBan.expires_at).toLocaleDateString()}` 
+        : 'permanently';
+      return res.status(403).json({ 
+        error: `Access Denied: This account (${cleanEmail}) has been banned ${expiryText} from accessing Takhleeq ERP. Reason: ${activeBan.reason}` 
+      });
+    }
     
     // Query user and their roles/permissions from DB
     const userRes = await query(

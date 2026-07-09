@@ -38,12 +38,20 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
       if (row.permissions) {
         perms = Array.isArray(row.permissions) ? row.permissions : JSON.parse(row.permissions);
       }
+
+      // Check for active ban
+      const banCheck = await query(
+        `SELECT 1 FROM ban_records WHERE LOWER(email) = LOWER($1) AND is_active = TRUE`,
+        [decoded.email]
+      );
+      const isBanned = banCheck.rows.length > 0;
+
       req.currentUser = {
         id: row.id,
         email: row.email,
         name: row.full_name,
         role: row.role_name || 'UCP Member',
-        status: row.is_active ? 'Active' : 'Inactive',
+        status: (row.is_active && !isBanned) ? 'Active' : 'Inactive',
         permissions: perms
       };
     } else {

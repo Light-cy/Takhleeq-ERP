@@ -39,11 +39,11 @@ function initializeLocalDB() {
       { user_id: 3, role_id: 3 }
     ],
     rooms: [
-      { id: 1, name: 'Board Room', capacity: 15, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Meeting / formal discussions', policies: 'Standard booking policy. Cancellation notice required. No external food.', is_active: true, created_at: new Date().toISOString() },
-      { id: 2, name: 'Presentation Hall', capacity: 50, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Events, workshops', policies: 'Standard booking policy. Furniture rules apply. Sound system request in advance.', is_active: true, created_at: new Date().toISOString() },
-      { id: 3, name: 'Cube 1', capacity: 6, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 30, max_duration_minutes: 60, purpose: 'Meeting / small discussions', policies: 'Standard booking policy. Leave room clean.', is_active: true, created_at: new Date().toISOString() },
-      { id: 4, name: 'Cube 2', capacity: 6, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 30, max_duration_minutes: 60, purpose: 'Meeting / small discussions', policies: 'Standard booking policy. Leave room clean.', is_active: true, created_at: new Date().toISOString() },
-      { id: 5, name: 'Podcast Room', capacity: 4, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Podcast recording', policies: 'Standard booking policy. Technical staff assistance must be booked separately.', is_active: true, created_at: new Date().toISOString() }
+      { id: 1, name: 'Board Room', capacity: 15, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Formal executive meetings and syndicate sessions', policies: 'Authorized UCP societies and startups only. Strictly no external foods allowed. Leave room clean.', is_active: true, created_at: new Date().toISOString() },
+      { id: 2, name: 'Presentation Hall', capacity: 50, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Large cohort presentations, talks, and community panels', policies: 'Pre-approval from Faculty advisor required. Keep setup reset after use.', is_active: true, created_at: new Date().toISOString() },
+      { id: 3, name: 'Cube 1', capacity: 6, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 30, max_duration_minutes: 60, purpose: 'Small meetings and focused discussions', policies: 'Leave room clean. No loud noise.', is_active: true, created_at: new Date().toISOString() },
+      { id: 4, name: 'Cube 2', capacity: 6, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 30, max_duration_minutes: 60, purpose: 'Small meetings and focused discussions', policies: 'Leave room clean. No loud noise.', is_active: true, created_at: new Date().toISOString() },
+      { id: 5, name: 'Podcast Room', capacity: 4, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Podcast recording and audio sessions', policies: 'Technical staff assistance must be booked separately.', is_active: true, created_at: new Date().toISOString() }
     ],
     bookings: [],
     ban_records: [],
@@ -772,6 +772,42 @@ async function ensureDBReady() {
         console.log("PostgreSQL serial sequences synchronized successfully.");
       } catch (seqErr: any) {
         console.warn("Could not synchronize PostgreSQL serial sequences:", seqErr.message);
+      }
+
+      // Synchronize facility spaces (rooms) to match correct FRD specs exactly
+      try {
+        console.log("Synchronizing facility spaces (rooms) to match correct FRD specs...");
+        await pool.query(`
+          DELETE FROM rooms 
+          WHERE name NOT IN ('Board Room', 'Presentation Hall', 'Cube 1', 'Cube 2', 'Podcast Room');
+        `);
+        
+        await pool.query(`
+          INSERT INTO rooms (id, name, capacity, operating_hours_start, operating_hours_end, min_duration_minutes, max_duration_minutes, purpose, policies, is_active)
+          VALUES
+          (1, 'Board Room', 15, '09:00:00', '17:00:00', 60, 180, 'Formal executive meetings and syndicate sessions', 'Authorized UCP societies and startups only. Strictly no external foods allowed. Leave room clean.', true),
+          (2, 'Presentation Hall', 50, '09:00:00', '17:00:00', 60, 180, 'Large cohort presentations, talks, and community panels', 'Pre-approval from Faculty advisor required. Keep setup reset after use.', true),
+          (3, 'Cube 1', 6, '09:00:00', '17:00:00', 30, 60, 'Small meetings and focused discussions', 'Leave room clean. No loud noise.', true),
+          (4, 'Cube 2', 6, '09:00:00', '17:00:00', 30, 60, 'Small meetings and focused discussions', 'Leave room clean. No loud noise.', true),
+          (5, 'Podcast Room', 4, '09:00:00', '17:00:00', 60, 180, 'Podcast recording and audio sessions', 'Technical staff assistance must be booked separately.', true)
+          ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name,
+            capacity = EXCLUDED.capacity,
+            operating_hours_start = EXCLUDED.operating_hours_start,
+            operating_hours_end = EXCLUDED.operating_hours_end,
+            min_duration_minutes = EXCLUDED.min_duration_minutes,
+            max_duration_minutes = EXCLUDED.max_duration_minutes,
+            purpose = EXCLUDED.purpose,
+            policies = EXCLUDED.policies,
+            is_active = EXCLUDED.is_active;
+        `);
+
+        await pool.query(`
+          SELECT setval(pg_get_serial_sequence('rooms', 'id'), COALESCE(MAX(id), 1)) FROM rooms;
+        `);
+        console.log("Facility spaces successfully synchronized.");
+      } catch (syncRoomsErr: any) {
+        console.warn("Could not synchronize facility spaces in PostgreSQL:", syncRoomsErr.message);
       }
     } catch (err: any) {
       console.warn("PostgreSQL connection or migration failed. Falling back to local in-memory JSON database engine.", err.message);

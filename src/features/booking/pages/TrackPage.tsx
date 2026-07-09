@@ -207,33 +207,8 @@ export function TrackPage({ bookings, currentUserEmail, onRefresh, onNavigate }:
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F5F0]/30 font-sans flex flex-col" id="takhleeq-track-page">
+    <div className="w-full max-w-4xl mx-auto space-y-8" id="takhleeq-track-page">
       
-      {/* Navbar Header */}
-      <header className="bg-white border-b border-gray-100/80 px-6 py-4 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={() => onNavigate('/')}
-            className="p-1.5 hover:bg-gray-100 rounded-lg cursor-pointer text-gray-500 hover:text-gray-900 transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <div>
-            <h1 className="text-base font-extrabold text-primary tracking-tight">Takhleeq Booking Tracker</h1>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Check Workflow & Status Timeline</p>
-          </div>
-        </div>
-        <button
-          onClick={() => onNavigate('/booking')}
-          className="bg-primary/5 hover:bg-primary/10 border border-primary/10 text-primary text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-xl transition-all cursor-pointer"
-        >
-          Book Space
-        </button>
-      </header>
-
-      {/* Main Container */}
-      <main className="flex-1 max-w-4xl mx-auto w-full p-6 md:p-8 space-y-8">
-        
         {/* Tracker Search card */}
         <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100/60 space-y-6" id="search-card">
           <div className="flex items-center justify-between">
@@ -312,8 +287,6 @@ export function TrackPage({ bookings, currentUserEmail, onRefresh, onNavigate }:
             </div>
           )}
         </div>
-
-      </main>
 
       {/* CANCELLATION AUTHORIZATION MODAL */}
       {cancellingBooking && (

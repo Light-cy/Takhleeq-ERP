@@ -10,6 +10,7 @@ import roomRoutes from './modules/rooms/rooms.routes.ts';
 import bookingRoutes from './modules/bookings/bookings.routes.ts';
 import banRoutes from './modules/bans/bans.routes.ts';
 import auditRoutes from './modules/audit/audit.routes.ts';
+import chatbotRoutes from './modules/chatbot/chatbot.routes.ts';
 
 const PORT = 3000;
 
@@ -27,6 +28,7 @@ export async function startServer() {
   app.use('/api', bookingRoutes);
   app.use('/api', banRoutes);
   app.use('/api', auditRoutes);
+  app.use('/api', chatbotRoutes);
 
   // --- INTEGRATION WITH VITE FOR WEB SERVING ---
   if (process.env.NODE_ENV !== 'production') {

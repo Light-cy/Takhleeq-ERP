@@ -153,9 +153,11 @@ VALUES (3, 3)
 ON CONFLICT (user_id, role_id) DO NOTHING;
 
 -- Seed Initial Rooms
-INSERT INTO rooms (name, capacity, operating_hours_start, operating_hours_end, min_duration_minutes, max_duration_minutes, purpose, policies)
+INSERT INTO rooms (id, name, capacity, operating_hours_start, operating_hours_end, min_duration_minutes, max_duration_minutes, purpose, policies)
 VALUES 
-('Board Room', 12, '09:00:00', '17:00:00', 30, 120, 'Formal executive meetings and syndicate sessions.', 'Authorized UCP societies and startups only. Strictly no external foods allowed.'),
-('Seminar Hall', 120, '08:00:00', '18:00:00', 60, 240, 'Large cohort presentations, talks, and community panels.', 'Pre-approval from Faculty advisor required. Keep setup reset after use.'),
-('Co-Working Space', 45, '09:00:00', '21:00:00', 30, 360, 'Open hotdesking and collaborative work zone for incubator startups.', 'Incubated startups get priority reservation on selected tables.')
+(1, 'Board Room', 15, '09:00:00', '17:00:00', 60, 180, 'Formal executive meetings and syndicate sessions', 'Authorized UCP societies and startups only. Strictly no external foods allowed. Leave room clean.'),
+(2, 'Presentation Hall', 50, '09:00:00', '17:00:00', 60, 180, 'Large cohort presentations, talks, and community panels', 'Pre-approval from Faculty advisor required. Keep setup reset after use.'),
+(3, 'Cube 1', 6, '09:00:00', '17:00:00', 30, 60, 'Small meetings and focused discussions', 'Leave room clean. No loud noise.'),
+(4, 'Cube 2', 6, '09:00:00', '17:00:00', 30, 60, 'Small meetings and focused discussions', 'Leave room clean. No loud noise.'),
+(5, 'Podcast Room', 4, '09:00:00', '17:00:00', 60, 180, 'Podcast recording and audio sessions', 'Technical staff assistance must be booked separately.')
 ON CONFLICT (name) DO NOTHING;

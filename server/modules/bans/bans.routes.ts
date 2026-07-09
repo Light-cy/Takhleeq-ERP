@@ -40,14 +40,52 @@ router.post('/bans', requireAuth, (req: AuthenticatedRequest, res: Response, nex
   return res.status(403).json({ error: "Privilege Restriction: Missing permission to issue bans." });
 }, async (req: AuthenticatedRequest, res: Response) => {
   const staff = req.currentUser!;
-  const { email, name, reason, durationType, customDays } = req.body;
+  let { email, name, reason, durationType, customDays, duration } = req.body;
+
+  // Normalize duration to durationType and customDays if durationType is missing
+  if (!durationType && duration) {
+    const dLower = String(duration).toLowerCase().trim();
+    if (dLower === '3 days' || dLower === '3_days') {
+      durationType = '3 days';
+    } else if (dLower === '7 days' || dLower === '7_days') {
+      durationType = '7 days';
+    } else if (dLower === '30 days' || dLower === '30_days') {
+      durationType = '30 days';
+    } else if (dLower === '90 days' || dLower === '90_days') {
+      durationType = '90 days';
+    } else if (dLower === 'permanent') {
+      durationType = 'Permanent';
+    } else if (dLower.startsWith('custom') || dLower.includes('days')) {
+      durationType = 'custom';
+      const match = dLower.match(/\d+/);
+      if (match) {
+        customDays = parseInt(match[0]);
+      }
+    } else {
+      durationType = duration;
+    }
+  }
 
   if (!email || !name || !reason || !durationType) {
-    return res.status(400).json({ error: 'Missing required parameters: email, name, reason, durationType' });
+    return res.status(400).json({ error: 'Missing required parameters: email, name, reason, durationType/duration' });
   }
 
   try {
     const cleanEmail = email.trim().toLowerCase();
+
+    // Validate that the email exists in the system before allowing ban issuance (per FRD)
+    const existenceCheck = await query(
+      `SELECT 1 FROM bookings WHERE LOWER(requester_email) = $1
+       UNION
+       SELECT 1 FROM users WHERE LOWER(email) = $1`,
+      [cleanEmail]
+    );
+
+    if (existenceCheck.rows.length === 0) {
+      return res.status(400).json({ 
+        error: `Validation Error: The email '${cleanEmail}' has no booking history or registered account in the system — cannot issue a ban.` 
+      });
+    }
 
     // 1. Fetch staff role's ban duration ceiling
     const staffCeilingRes = await query(
@@ -70,7 +108,9 @@ router.post('/bans', requireAuth, (req: AuthenticatedRequest, res: Response, nex
 
     // 2. Parse requested days
     let reqDays = 0;
-    if (durationType === '7_days' || durationType === '7 days') {
+    if (durationType === '3_days' || durationType === '3 days') {
+      reqDays = 3;
+    } else if (durationType === '7_days' || durationType === '7 days') {
       reqDays = 7;
     } else if (durationType === '30_days' || durationType === '30 days') {
       reqDays = 30;

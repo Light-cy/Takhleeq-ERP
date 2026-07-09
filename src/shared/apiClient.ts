@@ -22,8 +22,19 @@ export const apiClient = {
     delete headers['Content-Type'];
     const res = await fetch(url, { headers });
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || `HTTP error! status: ${res.status}`);
+      const errText = await res.text().catch(() => '');
+      let errMsg = `HTTP error! status: ${res.status}`;
+      try {
+        const errData = JSON.parse(errText);
+        if (errData && errData.error) {
+          errMsg = errData.error;
+        }
+      } catch (e) {
+        if (errText && errText.length < 300 && !errText.includes('<!DOCTYPE')) {
+          errMsg = errText;
+        }
+      }
+      throw new Error(errMsg);
     }
     return res.json();
   },
@@ -35,8 +46,19 @@ export const apiClient = {
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || `HTTP error! status: ${res.status}`);
+      const errText = await res.text().catch(() => '');
+      let errMsg = `HTTP error! status: ${res.status}`;
+      try {
+        const errData = JSON.parse(errText);
+        if (errData && errData.error) {
+          errMsg = errData.error;
+        }
+      } catch (e) {
+        if (errText && errText.length < 300 && !errText.includes('<!DOCTYPE')) {
+          errMsg = errText;
+        }
+      }
+      throw new Error(errMsg);
     }
     return res.json();
   },
@@ -48,8 +70,19 @@ export const apiClient = {
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || `HTTP error! status: ${res.status}`);
+      const errText = await res.text().catch(() => '');
+      let errMsg = `HTTP error! status: ${res.status}`;
+      try {
+        const errData = JSON.parse(errText);
+        if (errData && errData.error) {
+          errMsg = errData.error;
+        }
+      } catch (e) {
+        if (errText && errText.length < 300 && !errText.includes('<!DOCTYPE')) {
+          errMsg = errText;
+        }
+      }
+      throw new Error(errMsg);
     }
     return res.json();
   },
@@ -61,8 +94,19 @@ export const apiClient = {
       headers,
     });
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || `HTTP error! status: ${res.status}`);
+      const errText = await res.text().catch(() => '');
+      let errMsg = `HTTP error! status: ${res.status}`;
+      try {
+        const errData = JSON.parse(errText);
+        if (errData && errData.error) {
+          errMsg = errData.error;
+        }
+      } catch (e) {
+        if (errText && errText.length < 300 && !errText.includes('<!DOCTYPE')) {
+          errMsg = errText;
+        }
+      }
+      throw new Error(errMsg);
     }
     return res.json();
   },

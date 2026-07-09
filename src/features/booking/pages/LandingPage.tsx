@@ -56,7 +56,7 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
       
       {/* Sticky Header with backdrop-blur */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-100/80 transition-all">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="w-full px-6 md:px-12 py-4 flex items-center justify-between">
           
           {/* Logo */}
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => onNavigate('/')} id="landing-nav-logo">
@@ -84,7 +84,7 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
               className="bg-primary hover:bg-primary/95 text-white text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-sm shadow-primary/10 cursor-pointer"
               id="landing-staff-login-btn"
             >
-              Staff Portal
+              Login
             </button>
           </div>
         </div>
@@ -92,7 +92,7 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden py-20 lg:py-24 bg-gradient-to-b from-gray-50/50 to-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <div className="w-full px-6 md:px-12 lg:px-16 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           
           {/* Left Content */}
           <div className="lg:col-span-7 space-y-6 text-left">
@@ -195,7 +195,7 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
 
       {/* About / Vision Mission Section */}
       <section className="py-20 bg-white" id="about">
-        <div className="max-w-7xl mx-auto px-6 text-center space-y-12">
+        <div className="w-full px-6 md:px-12 lg:px-16 text-center space-y-12">
           
           <div className="max-w-2xl mx-auto space-y-4">
             <h2 className="text-xs font-black uppercase tracking-widest text-primary">About the Institute</h2>
@@ -203,7 +203,7 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
             <div className="h-1.5 w-12 bg-primary mx-auto rounded-full" />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left w-full">
             {/* Vision Card */}
             <div className="p-8 border border-gray-100 rounded-2xl bg-[#F8F5F0]/40 space-y-4 shadow-3xs">
               <h4 className="text-sm font-black text-primary uppercase tracking-wider">Our Vision</h4>
@@ -241,7 +241,7 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
 
       {/* Incubation Curriculum / Component Section */}
       <section className="py-20 bg-gray-50/50 border-y border-gray-100" id="incubation">
-        <div className="max-w-7xl mx-auto px-6 text-center space-y-12">
+        <div className="w-full px-6 md:px-12 lg:px-16 text-center space-y-12">
           
           <div className="max-w-2xl mx-auto space-y-4">
             <h2 className="text-xs font-black uppercase tracking-widest text-primary">6 Months, 2 Cycle Program</h2>
@@ -270,7 +270,7 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
 
       {/* ERP Modules Section */}
       <section className="py-20 bg-white" id="modules">
-        <div className="max-w-7xl mx-auto px-6 text-center space-y-12">
+        <div className="w-full px-6 md:px-12 lg:px-16 text-center space-y-12">
           
           <div className="max-w-2xl mx-auto space-y-4">
             <h2 className="text-xs font-black uppercase tracking-widest text-primary">ERP Core Services</h2>
@@ -278,7 +278,7 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
             <div className="h-1.5 w-12 bg-primary mx-auto rounded-full" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left w-full">
             {/* Active module 1: Room Booking */}
             <div className="border-2 border-primary/25 bg-white p-6 rounded-2xl shadow-md shadow-primary/5 flex flex-col justify-between hover:border-primary/40 transition-all relative">
               <div className="absolute top-4 right-4 bg-primary text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full">
@@ -363,7 +363,7 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
 
       {/* Stats Section */}
       <section className="bg-primary text-white py-14">
-        <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+        <div className="w-full px-6 md:px-12 lg:px-16 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           <div>
             <h4 className="text-3xl sm:text-4xl font-black text-accent">6 Months</h4>
             <p className="text-xs text-white/80 uppercase font-semibold tracking-wider mt-1.5">Program Duration</p>
@@ -385,7 +385,7 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
 
       {/* Contact Section */}
       <section className="py-20 bg-gray-50" id="contact">
-        <div className="max-w-4xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-12" id="landing-contact-panel">
+        <div className="w-full px-6 md:px-12 lg:px-16 grid grid-cols-1 md:grid-cols-2 gap-12" id="landing-contact-panel">
           
           <div className="space-y-6">
             <h2 className="text-xs font-black uppercase tracking-widest text-primary">Get In Touch</h2>
@@ -420,7 +420,7 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
 
       {/* Footer */}
       <footer className="bg-[#121214] text-gray-400 border-t border-gray-800 py-12 px-6 mt-auto">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 pb-8 border-b border-gray-800">
+        <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-8 pb-8 border-b border-gray-800">
           <div className="space-y-4">
             <div className="flex items-center gap-2.5">
               <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
@@ -452,7 +452,7 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto pt-6 flex flex-col sm:flex-row justify-between items-center text-[10px] text-gray-600 gap-4">
+        <div className="w-full pt-6 flex flex-col sm:flex-row justify-between items-center text-[10px] text-gray-600 gap-4">
           <p>© 2025 Takhleeq Problem Solving Institute. All Rights Reserved.</p>
           <p>Managed in partnership with UCP Facility Operations.</p>
         </div>

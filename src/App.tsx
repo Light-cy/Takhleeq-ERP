@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
 // Imported Layouts
 import { PublicLayout } from './app/layouts/PublicLayout';
@@ -15,6 +15,7 @@ import { BookingCalendarDashboard } from './features/admin/pages/BookingCalendar
 import { GovernanceCenterPage } from './features/admin/pages/GovernanceCenterPage';
 import { RoomManagementPage } from './features/admin/pages/RoomManagementPage';
 import { AuditLogsPage } from './features/admin/pages/AuditLogsPage';
+import { Chatbot } from './components/Chatbot';
 
 // Services
 import { bookingsApi } from './features/booking/services/bookings.api';
@@ -43,10 +44,12 @@ export default function App() {
     { email: 'usman@society.pk', name: 'Usman Ghani (Society Rep)', role: 'UCP Member', status: 'Active' },
     { email: 'faisal@ucp.edu.pk', name: 'Faisal Mehmood (Coordinator)', role: 'Facility Coordinator', status: 'Active' },
     { email: 'maheen@ucp.edu.pk', name: 'Maheen Malik (Manager)', role: 'Booking Manager', status: 'Active' },
-    { email: 'director@takhleeq.pk', name: 'Dr. Qaseeb (Director)', role: 'Administrator', status: 'Active' }
+    { email: 'director@takhleeq.pk', name: 'Dr. Qaseeb (Director)', role: 'Administrator', status: 'Active' },
+    { email: 'banned-test@ucp.edu.pk', name: 'Banned Student (Testing)', role: 'UCP Member', status: 'Inactive' }
   ];
 
   const [activeUser, setActiveUser] = useState<ERPUser>(simulatedIdentities[3]); // Default to Administrator for easy testing
+  const [globalBannedError, setGlobalBannedError] = useState<string | null>(null);
 
   // Core synchronized database states
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -129,6 +132,7 @@ export default function App() {
     const found = simulatedIdentities.find(i => i.email === email);
     if (found) {
       setLoading(true);
+      setGlobalBannedError(null);
       try {
         const data = await authApi.loginSimulated(found.email);
         setJwtToken(data.token);
@@ -141,8 +145,13 @@ export default function App() {
         } else {
           navigate('/staff/dashboard');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error switching identities via SSO:', err);
+        if (err.message && err.message.includes('banned')) {
+          setGlobalBannedError(err.message);
+        } else {
+          alert(err.message || 'Identity authentication failed.');
+        }
       } finally {
         setLoading(false);
       }
@@ -152,6 +161,7 @@ export default function App() {
   // Logout routine
   const handleLogout = () => {
     setJwtToken(null);
+    setGlobalBannedError(null);
     setActiveUser(simulatedIdentities[0]); // Reset to student society profile
     navigate('/');
   };
@@ -236,6 +246,7 @@ export default function App() {
   // Helper check for active permission node
   const hasPermission = (permissionNode: string): boolean => {
     if (activeUser.role === 'Administrator') return true;
+    if (activeUser.permissions && activeUser.permissions.includes(permissionNode)) return true;
     const roleRecord = roles.find(r => r.name === activeUser.role);
     if (!roleRecord) return false;
     return roleRecord.permissions.includes(permissionNode);
@@ -463,6 +474,87 @@ export default function App() {
 
       {/* RENDER CURRENT PAGE */}
       {renderRouteContent()}
+
+      {/* DETECTED BAN MODAL */}
+      {globalBannedError && (() => {
+        const msg = globalBannedError;
+        const emailMatch = msg.match(/\(([^)]+)\)/);
+        const reasonMatch = msg.match(/Reason:\s*(.*)$/);
+        
+        const email = emailMatch ? emailMatch[1] : '';
+        const reason = reasonMatch ? reasonMatch[1] : 'No reason specified';
+        
+        const bannedIndex = msg.indexOf('has been banned ');
+        const accessingIndex = msg.indexOf(' from accessing');
+        let expiry = 'Permanent';
+        if (bannedIndex !== -1 && accessingIndex !== -1) {
+          expiry = msg.substring(bannedIndex + 'has been banned '.length, accessingIndex).trim();
+        }
+        
+        return (
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in" id="banned-overlay">
+            <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-red-100 flex flex-col">
+              <div className="bg-primary px-6 py-8 text-white text-center relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-transparent" />
+                <div className="relative z-10 space-y-3">
+                  <div className="h-14 w-14 rounded-full bg-white/15 border border-white/25 flex items-center justify-center mx-auto shadow-md text-white animate-pulse">
+                    <ShieldAlert className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-black tracking-wider uppercase">Access Restricted</h2>
+                    <p className="text-[9px] text-white/80 font-mono uppercase tracking-widest mt-1">Security Protocol BR-09 Activated</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="p-4 bg-rose-50/50 border border-rose-100/60 rounded-2xl space-y-3.5 text-xs text-left">
+                  <p className="text-[11px] text-rose-900 leading-relaxed font-semibold">
+                    This account has been suspended from accessing Takhleeq ERP services.
+                  </p>
+                  
+                  <div className="h-px bg-rose-100/50" />
+
+                  <div className="space-y-2.5">
+                    <div>
+                      <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block font-mono">Banned Account</span>
+                      <span className="text-gray-800 font-extrabold font-mono text-[11px] break-all">{email}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block font-mono">Restriction Period</span>
+                      <span className="text-rose-700 font-black uppercase text-[10px] bg-rose-50 px-2.5 py-0.5 rounded-md border border-rose-100 inline-block mt-0.5">{expiry}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block font-mono">Official Reason</span>
+                      <p className="text-gray-700 font-bold italic bg-white p-3 rounded-xl border border-gray-150 text-[11px] leading-relaxed mt-1">
+                        "{reason}"
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-gray-400 text-center leading-normal">
+                  If you believe this is an error, please file a written appeal with the Executive Director or contact the administrator.
+                </div>
+
+                <button
+                  onClick={() => {
+                    setGlobalBannedError(null);
+                    handleLogout();
+                  }}
+                  className="w-full bg-primary hover:bg-[#5A0F0F] text-white py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Sign Out & Reset Profile
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* FLOATING GEMINI CHATBOT ASSISTANT */}
+      <Chatbot activeUser={activeUser} jwtToken={jwtToken} />
 
     </div>
   );

@@ -12,7 +12,7 @@ import {
 const router = Router();
 
 // Microsoft SSO Authentication Endpoint
-router.post('/auth/microsoft', handleMicrosoftAuth);
+router.post('/auth/azure-sso', handleMicrosoftAuth);
 
 // Simulated Identity Authentication Endpoint (Dev/Test Bypass)
 router.post('/auth/simulated', handleSimulatedAuth);
