@@ -28,10 +28,11 @@ function initializeLocalDB() {
       { id: 3, microsoft_id: null, email: 'coordinator@takhleeq.pk', full_name: 'Sara Khan (Coordinator)', is_active: true, last_login: new Date().toISOString(), created_at: new Date().toISOString() }
     ],
     roles: [
-      { id: 1, name: 'Administrator', description: 'Full access and policy management capabilities', permissions: ["VIEW_PENDING_QUEUE", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "MANAGE_BANS"], ban_duration_ceiling: 'permanent', created_by: null, created_at: new Date().toISOString() },
+      { id: 1, name: 'Administrator', description: 'Full access and policy management capabilities', permissions: ["SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_BOOKING", "REJECT_BOOKING", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "ISSUE_BAN", "MANAGE_ROOMS", "CONFIGURE_ROOMS", "CONFIGURE_POLICIES", "VIEW_ANALYTICS_DASHBOARD", "EXPORT_AUDIT_LOGS", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "LIFT_BAN", "MANAGE_BANS"], ban_duration_ceiling: 'permanent', created_by: null, created_at: new Date().toISOString() },
       { id: 2, name: 'Booking Manager', description: 'Approve, reject bookings, and issue bans up to 90 days', permissions: ["VIEW_PENDING_QUEUE", "APPROVE_REJECT_BOOKINGS", "MANAGE_BANS"], ban_duration_ceiling: '90', created_by: null, created_at: new Date().toISOString() },
       { id: 3, name: 'Facility Coordinator', description: 'View queue, apply manual time/room overrides, issue bans up to 7 days', permissions: ["VIEW_PENDING_QUEUE", "BOOKING_OVERRIDE", "MANAGE_BANS"], ban_duration_ceiling: '7', created_by: null, created_at: new Date().toISOString() },
-      { id: 4, name: 'UCP Member', description: 'Regular student or staff member with standard public booking access', permissions: [], ban_duration_ceiling: null, created_by: null, created_at: new Date().toISOString() }
+      { id: 4, name: 'UCP Member', description: 'Regular student or staff member with standard public booking access', permissions: [], ban_duration_ceiling: null, created_by: null, created_at: new Date().toISOString() },
+      { id: 5, name: 'Room Management', description: 'Manage incubator spaces, view and update space operating attributes, and delete spaces', permissions: ["MANAGE_ROOMS"], ban_duration_ceiling: '0', created_by: null, created_at: new Date().toISOString() }
     ],
     user_roles: [
       { user_id: 1, role_id: 1 },
@@ -497,6 +498,20 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: room ? [room] : [] };
   }
 
+  // DELETE FROM rooms WHERE id = $1
+  if (q.includes('delete from rooms where id = $1')) {
+    const id = parseInt(params[0]);
+    const idx = db.rooms.findIndex((r: any) => r.id === id);
+    let deleted = null;
+    if (idx !== -1) {
+      deleted = db.rooms.splice(idx, 1)[0];
+      // Cascade delete bookings of this room
+      db.bookings = db.bookings.filter((b: any) => b.room_id !== id);
+      saveLocalDB(db);
+    }
+    return { rows: deleted ? [deleted] : [] };
+  }
+
   // 38. INSERT INTO bookings ...
   if (q.includes('insert into bookings')) {
     const id = Math.max(...db.bookings.map((b: any) => b.id), 0) + 1;
@@ -553,6 +568,7 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       status = params[13];
       conflict_status = params[14];
       conflicting_booking_id = params[15] ? parseInt(params[15]) : null;
+      rejection_reason = params[16] || null;
     }
 
     const newBooking = {
@@ -593,6 +609,7 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     const booking = db.bookings.find((b: any) => b.id === id);
     if (booking) {
       booking.status = 'APPROVED';
+      booking.rejection_reason = null; // Clear rejection reason
       booking.approved_by = approved_by;
       booking.approved_at = new Date().toISOString();
       booking.updated_at = new Date().toISOString();
@@ -809,6 +826,30 @@ async function ensureDBReady() {
       } catch (syncRoomsErr: any) {
         console.warn("Could not synchronize facility spaces in PostgreSQL:", syncRoomsErr.message);
       }
+
+      // Synchronize Room Management role
+      try {
+        console.log("Synchronizing default roles (Room Management)...");
+        await pool.query(`
+          INSERT INTO roles (name, description, permissions, ban_duration_ceiling)
+          VALUES ('Room Management', 'Manage incubator spaces, view and update space operating attributes, and delete spaces', '["MANAGE_ROOMS"]'::jsonb, '0')
+          ON CONFLICT (name) DO NOTHING;
+        `);
+      } catch (syncRoleErr: any) {
+        console.warn("Could not synchronize Room Management role in PostgreSQL:", syncRoleErr.message);
+      }
+
+      // Synchronize default Administrator role with new permission nodes
+      try {
+        console.log("Synchronizing default Administrator role with new permission nodes...");
+        await pool.query(`
+          UPDATE roles 
+          SET permissions = '["SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_BOOKING", "REJECT_BOOKING", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "ISSUE_BAN", "MANAGE_ROOMS", "CONFIGURE_ROOMS", "CONFIGURE_POLICIES", "VIEW_ANALYTICS_DASHBOARD", "EXPORT_AUDIT_LOGS", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "LIFT_BAN", "MANAGE_BANS"]'::jsonb
+          WHERE name = 'Administrator';
+        `);
+      } catch (syncAdminErr: any) {
+        console.warn("Could not synchronize Administrator role in PostgreSQL:", syncAdminErr.message);
+      }
     } catch (err: any) {
       console.warn("PostgreSQL connection or migration failed. Falling back to local in-memory JSON database engine.", err.message);
       useLocalDB = true;
@@ -929,6 +970,31 @@ export function mapRoom(row: any): Room {
   };
 }
 
+function safeFormatDate(d: any): string {
+  if (!d) return '';
+  if (d instanceof Date) {
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  const str = String(d).trim();
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return `${match[1]}-${match[2]}-${match[3]}`;
+  }
+  try {
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      const year = parsed.getUTCFullYear();
+      const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(parsed.getUTCDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  } catch (e) {}
+  return str;
+}
+
 export function mapBooking(row: any): Booking {
   const startTime = row.start_time ? row.start_time.slice(0, 5) : "00:00";
   const endTime = row.end_time ? row.end_time.slice(0, 5) : "00:00";
@@ -944,7 +1010,7 @@ export function mapBooking(row: any): Booking {
     phone: row.requester_phone,
     organization: row.organization_name || '',
     room: row.room_name || '',
-    date: row.date ? new Date(row.date).toISOString().split('T')[0] : '',
+    date: row.date ? safeFormatDate(row.date) : '',
     startTime,
     endTime,
     duration,

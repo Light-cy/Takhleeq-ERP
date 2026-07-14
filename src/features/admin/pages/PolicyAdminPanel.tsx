@@ -70,7 +70,9 @@ export function PolicyAdminPanel({
     'MANAGE_BANS',
     'MANAGE_ROOMS',
     'MANAGE_ROLES',
-    'VIEW_AUDIT_LOGS'
+    'VIEW_AUDIT_LOGS',
+    'VIEW_ANALYTICS_DASHBOARD',
+    'EXPORT_AUDIT_LOGS'
   ];
 
   // --- Users Form States ---

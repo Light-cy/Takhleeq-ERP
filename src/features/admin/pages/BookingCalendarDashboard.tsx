@@ -45,6 +45,38 @@ export function BookingCalendarDashboard({
   // Views: Register list vs. Analytics reports
   const [viewMode, setViewViewMode] = useState<'register' | 'reports'>('register');
 
+  // Get today's local date string "YYYY-MM-DD"
+  const getLocalDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const todayStr = getLocalDateString();
+
+  const isDateInPast = (bookingDateStr: string, currentTodayStr: string) => {
+    if (!bookingDateStr) return false;
+    
+    const parseToMidnight = (dateStr: string) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return new Date(`${dateStr}T00:00:00`);
+      }
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const month = parseInt(parts[0], 10) - 1;
+        const day = parseInt(parts[1], 10);
+        const year = parseInt(parts[2], 10);
+        return new Date(year, month, day);
+      }
+      return new Date(dateStr);
+    };
+
+    const bDate = parseToMidnight(bookingDateStr);
+    const tDate = parseToMidnight(currentTodayStr);
+    return bDate < tDate;
+  };
+
   // Filtering states
   const [filterRoom, setFilterRoom] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -452,7 +484,12 @@ export function BookingCalendarDashboard({
                           <td className="py-4 px-6 text-right">
                             <button
                               onClick={() => startEditing(b)}
-                              className="text-primary hover:text-white hover:bg-primary border border-primary/20 hover:border-primary px-3 py-1.5 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
+                              disabled={b.status.includes('REJECTED') || b.status === 'CANCELLED' || isDateInPast(b.date, todayStr)}
+                              className={`border px-3 py-1.5 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all duration-200 ${
+                                b.status.includes('REJECTED') || b.status === 'CANCELLED' || isDateInPast(b.date, todayStr)
+                                  ? 'border-gray-150 text-gray-300 bg-gray-50/50 cursor-not-allowed'
+                                  : 'text-primary hover:text-white hover:bg-primary border-primary/20 hover:border-primary cursor-pointer'
+                              }`}
                             >
                               Override
                             </button>

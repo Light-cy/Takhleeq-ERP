@@ -14,6 +14,7 @@ import {
   Calendar,
   Lock,
   Trash2,
+  Edit3,
   Mail
 } from 'lucide-react';
 import { CustomRole, User, Ban } from '../../../types';
@@ -23,8 +24,10 @@ interface GovernanceCenterPageProps {
   users: User[];
   activeBans: Ban[];
   currentUser: User;
+  hasPermission: (permission: string) => boolean;
   onRefresh: () => void;
   onCreateRole: (roleData: any) => Promise<void>;
+  onUpdateRole: (roleName: string, roleData: any) => Promise<void>;
   onDeleteRole: (roleName: string) => Promise<void>;
   onAssignRole: (email: string, role: string) => Promise<void>;
   onCreateUser: (userData: any) => Promise<void>;
@@ -37,8 +40,10 @@ export function GovernanceCenterPage({
   users,
   activeBans,
   currentUser,
+  hasPermission,
   onRefresh,
   onCreateRole,
+  onUpdateRole,
   onDeleteRole,
   onAssignRole,
   onCreateUser,
@@ -56,7 +61,23 @@ export function GovernanceCenterPage({
   }
 
   // Inner Subtabs: 'bans' | 'roles' | 'users'
-  const [govTab, setGovTab] = useState<'bans' | 'roles' | 'users'>('bans');
+  const [govTab, setGovTab] = useState<'bans' | 'roles' | 'users'>(() => {
+    if (hasPermission('ISSUE_BAN')) return 'bans';
+    if (hasPermission('MANAGE_ROLES')) return 'roles';
+    if (hasPermission('MANAGE_USERS')) return 'users';
+    return 'bans';
+  });
+
+  // Sync subtab to user's permissions on mount/update
+  useEffect(() => {
+    if (hasPermission('ISSUE_BAN')) {
+      setGovTab('bans');
+    } else if (hasPermission('MANAGE_ROLES')) {
+      setGovTab('roles');
+    } else if (hasPermission('MANAGE_USERS')) {
+      setGovTab('users');
+    }
+  }, [currentUser]);
 
   // Messaging / Processing state
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -64,6 +85,8 @@ export function GovernanceCenterPage({
   const [processing, setProcessing] = useState(false);
 
   // --- Roles Form States ---
+  const [editingRole, setEditingRole] = useState<CustomRole | null>(null);
+  const [deletingRole, setDeletingRole] = useState<string | null>(null);
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleDesc, setNewRoleDesc] = useState('');
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
@@ -76,7 +99,12 @@ export function GovernanceCenterPage({
     'APPROVE_BOOKING',
     'REJECT_BOOKING',
     'BOOKING_OVERRIDE',
-    'ISSUE_BAN'
+    'ISSUE_BAN',
+    'MANAGE_ROOMS',
+    'VIEW_ANALYTICS_DASHBOARD',
+    'EXPORT_AUDIT_LOGS',
+    'MANAGE_ROLES',
+    'MANAGE_USERS'
   ];
 
   // --- Users Form States ---
@@ -184,6 +212,24 @@ export function GovernanceCenterPage({
     );
   };
 
+  const startEditingRole = (role: CustomRole) => {
+    setEditingRole(role);
+    setNewRoleName(role.name);
+    setNewRoleDesc(role.description);
+    setSelectedPermissions(role.permissions);
+    setBanCeiling(role.banDurationCeiling !== undefined && role.banDurationCeiling !== null ? String(role.banDurationCeiling) : '7');
+    clearMessages();
+  };
+
+  const cancelEditingRole = () => {
+    setEditingRole(null);
+    setNewRoleName('');
+    setNewRoleDesc('');
+    setSelectedPermissions([]);
+    setBanCeiling('7');
+    clearMessages();
+  };
+
   const handleCreateRoleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessages();
@@ -196,19 +242,30 @@ export function GovernanceCenterPage({
     setProcessing(true);
 
     try {
-      await onCreateRole({
-        name: newRoleName,
-        description: newRoleDesc,
-        permissions: selectedPermissions,
-        banDurationCeiling: banCeiling
-      });
-      setSuccessMsg(`Custom role '${newRoleName}' successfully compiled into policy tree.`);
-      setNewRoleName('');
-      setNewRoleDesc('');
-      setSelectedPermissions([]);
+      if (editingRole) {
+        await onUpdateRole(editingRole.name, {
+          description: newRoleDesc,
+          permissions: selectedPermissions,
+          banDurationCeiling: banCeiling
+        });
+        setSuccessMsg(`Custom role '${editingRole.name}' successfully updated in policy tree.`);
+        cancelEditingRole();
+      } else {
+        await onCreateRole({
+          name: newRoleName,
+          description: newRoleDesc,
+          permissions: selectedPermissions,
+          banDurationCeiling: banCeiling
+        });
+        setSuccessMsg(`Custom role '${newRoleName}' successfully compiled into policy tree.`);
+        setNewRoleName('');
+        setNewRoleDesc('');
+        setSelectedPermissions([]);
+        setBanCeiling('7');
+      }
       onRefresh();
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to compile role.');
+      setErrorMsg(err.message || 'Failed to save role.');
     } finally {
       setProcessing(false);
     }
@@ -216,17 +273,16 @@ export function GovernanceCenterPage({
 
   const handleDeleteRoleSubmit = async (roleName: string) => {
     if (roleName === 'Administrator' || roleName === 'UCP Member') {
-      alert('System Block: Seed-level system roles cannot be purged.');
+      setErrorMsg('System Block: Seed-level system roles cannot be purged.');
       return;
     }
-
-    if (!confirm(`Are you sure you want to delete the role "${roleName}"? This is irreversible.`)) return;
 
     clearMessages();
     setProcessing(true);
     try {
       await onDeleteRole(roleName);
       setSuccessMsg(`Role '${roleName}' purged from policy tree.`);
+      setDeletingRole(null);
       onRefresh();
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to delete role.');
@@ -298,27 +354,42 @@ export function GovernanceCenterPage({
       <div className="flex border-b border-gray-100 bg-white p-2 rounded-2xl border flex-wrap gap-1 shadow-3xs">
         <button
           onClick={() => { setGovTab('bans'); clearMessages(); }}
+          disabled={!hasPermission('ISSUE_BAN')}
           className={`flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            govTab === 'bans' ? 'bg-primary text-white shadow-sm' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-          }`}
+            govTab === 'bans' 
+              ? 'bg-primary text-white shadow-sm' 
+              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+          } disabled:opacity-40 disabled:cursor-not-allowed`}
         >
-          <UserX className="h-4 w-4" /> Blacklist & Bans
+          <UserX className="h-4 w-4" /> 
+          <span>Blacklist & Bans</span>
+          {!hasPermission('ISSUE_BAN') && <Lock className="h-3 w-3 text-gray-400" />}
         </button>
         <button
           onClick={() => { setGovTab('roles'); clearMessages(); }}
+          disabled={!hasPermission('MANAGE_ROLES')}
           className={`flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            govTab === 'roles' ? 'bg-primary text-white shadow-sm' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-          }`}
+            govTab === 'roles' 
+              ? 'bg-primary text-white shadow-sm' 
+              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+          } disabled:opacity-40 disabled:cursor-not-allowed`}
         >
-          <Key className="h-4 w-4" /> Policy Role Compiler
+          <Key className="h-4 w-4" /> 
+          <span>Policy Role Compiler</span>
+          {!hasPermission('MANAGE_ROLES') && <Lock className="h-3 w-3 text-gray-400" />}
         </button>
         <button
           onClick={() => { setGovTab('users'); clearMessages(); }}
+          disabled={!hasPermission('MANAGE_USERS')}
           className={`flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            govTab === 'users' ? 'bg-primary text-white shadow-sm' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-          }`}
+            govTab === 'users' 
+              ? 'bg-primary text-white shadow-sm' 
+              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+          } disabled:opacity-40 disabled:cursor-not-allowed`}
         >
-          <Users className="h-4 w-4" /> Simulated Users
+          <Users className="h-4 w-4" /> 
+          <span>Simulated Users</span>
+          {!hasPermission('MANAGE_USERS') && <Lock className="h-3 w-3 text-gray-400" />}
         </button>
       </div>
 
@@ -460,12 +531,18 @@ export function GovernanceCenterPage({
                         </td>
                         <td className="py-3 px-3 text-right">
                           {ban.status === 'Active' ? (
-                            <button
-                              onClick={() => { setLiftingBan(ban); clearMessages(); }}
-                              className="text-emerald-700 hover:text-white hover:bg-emerald-700 border border-emerald-200 hover:border-emerald-700 px-2.5 py-1 rounded-lg font-bold text-[10px] uppercase transition-all cursor-pointer"
-                            >
-                              Lift suspension
-                            </button>
+                            currentUser.role === 'Administrator' ? (
+                              <button
+                                onClick={() => { setLiftingBan(ban); clearMessages(); }}
+                                className="text-emerald-700 hover:text-white hover:bg-emerald-700 border border-emerald-200 hover:border-emerald-700 px-2.5 py-1 rounded-lg font-bold text-[10px] uppercase transition-all cursor-pointer"
+                              >
+                                Lift suspension
+                              </button>
+                            ) : (
+                              <span className="text-gray-400 text-[10px] inline-flex items-center gap-1 font-semibold uppercase tracking-wider">
+                                <Lock className="h-3 w-3 text-gray-400" /> Admin Only
+                              </span>
+                            )
                           ) : (
                             <span className="text-gray-400 text-[10px]">Settled</span>
                           )}
@@ -486,8 +563,14 @@ export function GovernanceCenterPage({
           {/* Custom Role Compiler Form */}
           <div className="lg:col-span-5 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5 h-fit">
             <div className="space-y-1">
-              <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Compile Policy Role</h3>
-              <p className="text-[11px] text-gray-500">Design a custom security role and compile its active permission nodes.</p>
+              <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">
+                {editingRole ? 'Configure Policy Role' : 'Compile Policy Role'}
+              </h3>
+              <p className="text-[11px] text-gray-500">
+                {editingRole 
+                  ? `Configure active properties and permissions for '${editingRole.name}'.` 
+                  : 'Design a custom security role and compile its active permission nodes.'}
+              </p>
             </div>
 
             <form onSubmit={handleCreateRoleSubmit} className="space-y-4">
@@ -496,10 +579,13 @@ export function GovernanceCenterPage({
                 <input
                   type="text"
                   required
+                  disabled={!!editingRole}
                   value={newRoleName}
                   onChange={e => setNewRoleName(e.target.value)}
                   placeholder="e.g. Society Advisor"
-                  className="w-full p-2.5 border border-gray-150 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:bg-white bg-gray-50/50"
+                  className={`w-full p-2.5 border rounded-xl text-xs focus:ring-1 focus:ring-primary focus:bg-white ${
+                    editingRole ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'border-gray-150 bg-gray-50/50'
+                  }`}
                 />
               </div>
 
@@ -539,13 +625,24 @@ export function GovernanceCenterPage({
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={processing}
-                className="w-full bg-primary hover:bg-primary/95 text-white font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
-              >
-                {processing ? 'Compiling role...' : 'Compile Role & Save'}
-              </button>
+              <div className="flex flex-col gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={processing}
+                  className="w-full bg-primary hover:bg-primary/95 text-white font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {processing ? 'Saving role...' : (editingRole ? 'Update Role & Save' : 'Compile Role & Save')}
+                </button>
+                {editingRole && (
+                  <button
+                    type="button"
+                    onClick={cancelEditingRole}
+                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+              </div>
             </form>
           </div>
 
@@ -568,13 +665,22 @@ export function GovernanceCenterPage({
                       <p className="text-[11px] text-gray-400 mt-0.5">{role.description}</p>
                     </div>
                     {role.name !== 'Administrator' && role.name !== 'UCP Member' && (
-                      <button
-                        onClick={() => handleDeleteRoleSubmit(role.name)}
-                        className="text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg border border-transparent hover:border-rose-100 transition-colors cursor-pointer"
-                        title="Purge role"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => startEditingRole(role)}
+                          className="text-primary hover:bg-primary/5 p-1.5 rounded-lg border border-transparent hover:border-primary/10 transition-colors cursor-pointer"
+                          title="Configure role"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => setDeletingRole(role.name)}
+                          className="text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg border border-transparent hover:border-rose-100 transition-colors cursor-pointer"
+                          title="Purge role"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -731,6 +837,53 @@ export function GovernanceCenterPage({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE ROLE CONFIRMATION MODAL */}
+      {deletingRole && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="delete-role-modal">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-gray-155 overflow-hidden flex flex-col">
+            <div className="bg-rose-600 text-white p-4 font-black text-xs flex items-center justify-between">
+              <span className="uppercase tracking-wider flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4" />
+                Purge Policy Role
+              </span>
+              <button onClick={() => setDeletingRole(null)} className="text-white hover:text-rose-200 font-bold cursor-pointer text-xs">✕</button>
+            </div>
+
+            <div className="p-6 space-y-4 text-left">
+              <p className="text-xs text-gray-700 leading-relaxed">
+                Are you sure you want to completely delete the custom role <strong className="text-rose-700 font-black">"{deletingRole}"</strong>? This will permanently decompile its active permission nodes and is completely irreversible.
+              </p>
+
+              <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-[11px] text-amber-800 leading-normal flex gap-2">
+                <Info className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+                <span>
+                  <strong>System Notice:</strong> Deletion will only succeed if no active users are assigned to this role. Please ensure all members are reassigned before proceeding.
+                </span>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-gray-50 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setDeletingRole(null)}
+                  className="px-3.5 py-2 border border-gray-150 text-gray-600 hover:bg-gray-50 rounded-lg text-[10px] font-bold cursor-pointer uppercase tracking-wider"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={processing}
+                  onClick={() => handleDeleteRoleSubmit(deletingRole)}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-lg text-[10px] cursor-pointer disabled:opacity-50 uppercase tracking-wider flex items-center gap-1.5"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  {processing ? 'Purging...' : 'Purge Role'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

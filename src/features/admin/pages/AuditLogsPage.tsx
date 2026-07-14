@@ -9,7 +9,12 @@ import {
   Download,
   FileSpreadsheet,
   Eye,
-  X
+  X,
+  Lock,
+  BarChart2,
+  PieChart,
+  ShieldAlert,
+  AlertTriangle
 } from 'lucide-react';
 import { AuditRecord } from '../../../types';
 import jsPDF from 'jspdf';
@@ -17,12 +22,20 @@ import autoTable from 'jspdf-autotable';
 
 interface AuditLogsPageProps {
   auditLogs: AuditRecord[];
+  reportsData: any;
   onRefresh: () => void;
+  hasPermission: (permission: string) => boolean;
 }
 
-export function AuditLogsPage({ auditLogs, onRefresh }: AuditLogsPageProps) {
+export function AuditLogsPage({ auditLogs, reportsData, onRefresh, hasPermission }: AuditLogsPageProps) {
+  const hasAuditView = hasPermission('VIEW_AUDIT_LOGS');
+  const hasDashboardView = hasPermission('VIEW_ANALYTICS_DASHBOARD');
+  const hasExportView = hasPermission('EXPORT_AUDIT_LOGS');
+
+  const [activeView, setActiveView] = useState<'ledger' | 'analytics'>(
+    hasAuditView ? 'ledger' : 'analytics'
+  );
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterAction, setFilterAction] = useState('');
   const [selectedLog, setSelectedLog] = useState<AuditRecord | null>(null);
 
   // Render JSON values beautifully inline without word-break wrapping issues
@@ -83,14 +96,8 @@ export function AuditLogsPage({ auditLogs, onRefresh }: AuditLogsPageProps) {
     return <span className="text-gray-700 font-medium break-words">{valueStr}</span>;
   };
 
-  // Extract unique action types for filter
-  const actionTypes = Array.from(new Set(auditLogs.map(log => log.action)));
-
   // Filter logs list
   const filteredLogs = auditLogs.filter(log => {
-    // Action filter
-    if (filterAction && log.action !== filterAction) return false;
-
     // Text search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
@@ -222,7 +229,7 @@ export function AuditLogsPage({ auditLogs, onRefresh }: AuditLogsPageProps) {
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(75, 85, 99);
       doc.text(`Total Query Matches: ${filteredLogs.length} entries`, 10, 54);
-      doc.text(`Action Filter Applied: ${filterAction || 'All Event Types'}`, 10, 59);
+      doc.text('Action Filter Applied: All Event Types', 10, 59);
       doc.text(`Search Keyword filter: ${searchQuery ? `"${searchQuery}"` : 'None'}`, 10, 64);
       
       // AutoTable setup
@@ -282,157 +289,368 @@ export function AuditLogsPage({ auditLogs, onRefresh }: AuditLogsPageProps) {
   return (
     <div className="space-y-6 text-left animate-fade-in" id="audit-logs-view">
       
-      {/* Search and Filters panel */}
-      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-3xs space-y-4">
-        
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          <div className="space-y-1">
-            <h3 className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-2">
-              <Database className="h-4.5 w-4.5" /> Immutable Audit Ledger
-            </h3>
-            <p className="text-[11px] text-gray-500">
-              System actions, schedule overrides, policy compiles, and bans are signed and recorded on an immutable ledger.
-            </p>
-          </div>
+      {/* Sub-navigation Tab Switcher */}
+      <div className="flex border-b border-gray-150 gap-6 pb-px">
+        <button
+          onClick={() => {
+            setActiveView('ledger');
+            setSelectedLog(null);
+          }}
+          className={`pb-3 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer ${
+            activeView === 'ledger'
+              ? 'border-primary text-primary font-extrabold'
+              : 'border-transparent text-gray-400 hover:text-gray-600'
+          }`}
+        >
+          <Database className="h-4 w-4" /> 
+          Immutable Audit Ledger
+          {!hasAuditView && <Lock className="h-3 w-3 text-gray-400" />}
+        </button>
 
-          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-            <button
-              onClick={onRefresh}
-              className="p-2.5 text-gray-400 hover:text-primary hover:bg-gray-50 border border-gray-100 rounded-xl cursor-pointer flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
-            >
-              <RefreshCw className="h-4 w-4" /> Refresh Ledger
-            </button>
-
-            {/* CSV Export Trigger */}
-            <button
-              onClick={handleExportCSV}
-              disabled={filteredLogs.length === 0}
-              className="p-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border border-emerald-100 disabled:opacity-50 disabled:pointer-events-none rounded-xl cursor-pointer flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
-              title="Download results as a spreadsheet CSV file"
-            >
-              <FileSpreadsheet className="h-4 w-4" /> Export CSV
-            </button>
-
-            {/* PDF Export Trigger */}
-            <button
-              onClick={handleExportPDF}
-              disabled={filteredLogs.length === 0}
-              className="p-2.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border border-indigo-100 disabled:opacity-50 disabled:pointer-events-none rounded-xl cursor-pointer flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
-              title="Download results as a compliance-ready PDF report"
-            >
-              <FileText className="h-4 w-4" /> Export PDF
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-          
-          <div className="relative sm:col-span-2">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
-              <Search className="h-4 w-4" />
-            </span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search ledger by Authorizer, values, actions..."
-              className="w-full pl-9 pr-3.5 py-2.5 border border-gray-150 rounded-xl text-xs bg-gray-50/40 focus:bg-white focus:ring-1 focus:ring-primary font-medium"
-            />
-          </div>
-
-          <div>
-            <select
-              value={filterAction}
-              onChange={e => setFilterAction(e.target.value)}
-              className="w-full p-2.5 border border-gray-150 rounded-xl text-xs bg-gray-50/40 focus:bg-white focus:ring-1 focus:ring-primary font-bold cursor-pointer uppercase tracking-wider"
-            >
-              <option value="">All Action Types</option>
-              {actionTypes.map(type => (
-                <option key={type} value={type}>{type.replace(/_/g, ' ')}</option>
-              ))}
-            </select>
-          </div>
-
-        </div>
-
-        <div className="text-[10px] text-gray-400 font-bold border-t border-gray-50 pt-3 flex items-center justify-between">
-          <span>Active Query Matches: <strong>{filteredLogs.length}</strong> system operations records</span>
-          <span className="font-mono text-[9px] text-emerald-600 uppercase">SHA-256 System Ledgers Block Secured</span>
-        </div>
+        <button
+          onClick={() => {
+            setActiveView('analytics');
+            setSelectedLog(null);
+          }}
+          className={`pb-3 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer ${
+            activeView === 'analytics'
+              ? 'border-primary text-primary font-extrabold'
+              : 'border-transparent text-gray-400 hover:text-gray-600'
+          }`}
+        >
+          <BarChart2 className="h-4 w-4" /> 
+          Operational Analytics Dashboard
+          {!hasDashboardView && <Lock className="h-3 w-3 text-gray-400" />}
+        </button>
       </div>
 
-      {/* Audit ledger list table */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-3xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-gray-150 text-[10px] font-black text-gray-400 uppercase bg-gray-50/50">
-                <th className="py-3 px-6">Timestamp (UTC)</th>
-                <th className="py-3 px-6">System Event Action</th>
-                <th className="py-3 px-6">Authorizer User</th>
-                <th className="py-3 px-6">Previous Values</th>
-                <th className="py-3 px-6">New Values / Actions</th>
-                <th className="py-3 px-6 text-right">Details</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredLogs.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-xs text-gray-400">
-                    No matching audit records reside on this block filter.
-                  </td>
-                </tr>
-              ) : (
-                filteredLogs.map(log => (
-                  <tr 
-                    key={log.id} 
-                    onClick={() => setSelectedLog(log)}
-                    className="hover:bg-gray-50/50 text-gray-700 transition-colors cursor-pointer group"
-                  >
-                    <td className="py-4.5 px-6 font-mono text-[10px] text-gray-500 whitespace-nowrap">
-                      {new Date(log.timestamp).toLocaleString()}
-                    </td>
-                    <td className="py-4.5 px-6">
-                      <span className={`px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase border tracking-wider ${
-                        log.action.includes('REJECT') || log.action.includes('BAN') 
-                          ? 'bg-rose-50 text-rose-800 border-rose-100' 
-                          : log.action.includes('APPROVE') || log.action.includes('LIFT')
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
-                          : log.action.includes('OVERRIDE')
-                          ? 'bg-amber-50 text-amber-800 border-amber-100 animate-pulse'
-                          : 'bg-blue-50 text-blue-800 border-blue-100'
-                      }`}>
-                        {log.action}
-                      </span>
-                    </td>
-                    <td className="py-4.5 px-6 font-bold text-gray-900 font-mono text-[10.5px]">
-                      {log.user}
-                    </td>
-                    <td className="py-4.5 px-6 font-mono text-[10.5px] text-gray-500 whitespace-normal max-w-xs break-words">
-                      {renderAuditValue(log.previousValue)}
-                    </td>
-                    <td className="py-4.5 px-6 font-mono text-[10.5px] text-gray-800 whitespace-normal max-w-xs break-words">
-                      {renderAuditValue(log.newValue)}
-                    </td>
-                    <td className="py-4.5 px-6 text-right">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedLog(log);
-                        }}
-                        className="p-1.5 text-gray-400 group-hover:text-primary hover:bg-gray-100 rounded-lg cursor-pointer transition-colors inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        <span className="sr-only sm:not-sr-only">Inspect</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* VIEW 1: IMMUTABLE AUDIT LEDGER */}
+      {activeView === 'ledger' && (
+        <>
+          {!hasAuditView ? (
+            <div className="border border-dashed py-16 text-center text-xs text-rose-700 bg-rose-50/50 border-rose-100 rounded-3xl p-6 space-y-2">
+              <ShieldAlert className="h-10 w-10 text-rose-600 mx-auto" />
+              <p className="font-extrabold uppercase tracking-wide">Privilege Blocked: Access Denied</p>
+              <p className="text-gray-500 max-w-md mx-auto">
+                Only user accounts holding the <code className="bg-rose-100 text-rose-800 px-1 py-0.5 rounded font-mono font-bold">VIEW_AUDIT_LOGS</code> permission node possess visual clearance to inspect the raw compliance ledger database.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Search and Filters panel */}
+              <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-3xs space-y-4">
+                
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-2">
+                      <Database className="h-4.5 w-4.5" /> Immutable Audit Ledger
+                    </h3>
+                    <p className="text-[11px] text-gray-500">
+                      System actions, schedule overrides, policy compiles, and bans are signed and recorded on an immutable ledger.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                    <button
+                      onClick={onRefresh}
+                      className="p-2.5 text-gray-400 hover:text-primary hover:bg-gray-50 border border-gray-100 rounded-xl cursor-pointer flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
+                    >
+                      <RefreshCw className="h-4 w-4" /> Refresh Ledger
+                    </button>
+
+                    {/* CSV Export Trigger */}
+                    <button
+                      onClick={handleExportCSV}
+                      disabled={filteredLogs.length === 0 || !hasExportView}
+                      className="p-2.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border border-emerald-100 disabled:opacity-50 disabled:pointer-events-none rounded-xl cursor-pointer flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
+                      title={hasExportView ? "Download results as a spreadsheet CSV file" : "Security Lock: EXPORT_AUDIT_LOGS permission required"}
+                    >
+                      <FileSpreadsheet className="h-4 w-4" /> 
+                      Export CSV {!hasExportView && <Lock className="h-3 w-3 inline-block" />}
+                    </button>
+
+                    {/* PDF Export Trigger */}
+                    <button
+                      onClick={handleExportPDF}
+                      disabled={filteredLogs.length === 0 || !hasExportView}
+                      className="p-2.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border border-indigo-100 disabled:opacity-50 disabled:pointer-events-none rounded-xl cursor-pointer flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
+                      title={hasExportView ? "Download results as a compliance-ready PDF report" : "Security Lock: EXPORT_AUDIT_LOGS permission required"}
+                    >
+                      <FileText className="h-4 w-4" /> 
+                      Export PDF {!hasExportView && <Lock className="h-3 w-3 inline-block" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  
+                  <div className="relative w-full">
+                    <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                      <Search className="h-4 w-4" />
+                    </span>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Search ledger by Authorizer, values, actions..."
+                      className="w-full pl-9 pr-3.5 py-2.5 border border-gray-150 rounded-xl text-xs bg-gray-50/40 focus:bg-white focus:ring-1 focus:ring-primary font-medium"
+                    />
+                  </div>
+
+                </div>
+
+                <div className="text-[10px] text-gray-400 font-bold border-t border-gray-50 pt-3 flex items-center justify-between">
+                  <span>Active Query Matches: <strong>{filteredLogs.length}</strong> system operations records</span>
+                  <span className="font-mono text-[9px] text-emerald-600 uppercase">SHA-256 System Ledgers Block Secured</span>
+                </div>
+              </div>
+
+              {/* Audit ledger list table */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-3xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-150 text-[10px] font-black text-gray-400 uppercase bg-gray-50/50">
+                        <th className="py-3 px-6">Timestamp (UTC)</th>
+                        <th className="py-3 px-6">System Event Action</th>
+                        <th className="py-3 px-6">Authorizer User</th>
+                        <th className="py-3 px-6">Previous Values</th>
+                        <th className="py-3 px-6">New Values / Actions</th>
+                        <th className="py-3 px-6 text-right">Details</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-xs text-gray-400">
+                            No matching audit records reside on this block filter.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredLogs.map(log => (
+                          <tr 
+                            key={log.id} 
+                            onClick={() => setSelectedLog(log)}
+                            className="hover:bg-gray-50/50 text-gray-700 transition-colors cursor-pointer group"
+                          >
+                            <td className="py-4.5 px-6 font-mono text-[10px] text-gray-500 whitespace-nowrap">
+                              {new Date(log.timestamp).toLocaleString()}
+                            </td>
+                            <td className="py-4.5 px-6">
+                              <span className={`px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase border tracking-wider ${
+                                log.action.includes('REJECT') || log.action.includes('BAN') 
+                                  ? 'bg-rose-50 text-rose-800 border-rose-100' 
+                                  : log.action.includes('APPROVE') || log.action.includes('LIFT')
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-100'
+                                  : log.action.includes('OVERRIDE')
+                                  ? 'bg-amber-50 text-amber-800 border-amber-100 animate-pulse'
+                                  : 'bg-blue-50 text-blue-800 border-blue-100'
+                              }`}>
+                                {log.action}
+                              </span>
+                            </td>
+                            <td className="py-4.5 px-6 font-bold text-gray-900 font-mono text-[10.5px]">
+                              {log.user}
+                            </td>
+                            <td className="py-4.5 px-6 font-mono text-[10.5px] text-gray-500 whitespace-normal max-w-xs break-words">
+                              {renderAuditValue(log.previousValue)}
+                            </td>
+                            <td className="py-4.5 px-6 font-mono text-[10.5px] text-gray-800 whitespace-normal max-w-xs break-words">
+                              {renderAuditValue(log.newValue)}
+                            </td>
+                            <td className="py-4.5 px-6 text-right">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedLog(log);
+                                }}
+                                className="p-1.5 text-gray-400 group-hover:text-primary hover:bg-gray-100 rounded-lg cursor-pointer transition-colors inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                <span className="sr-only sm:not-sr-only">Inspect</span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {/* VIEW 2: OPERATIONAL ANALYTICS DASHBOARD */}
+      {activeView === 'analytics' && (
+        <>
+          {!hasDashboardView ? (
+            <div className="border border-dashed py-16 text-center text-xs text-rose-700 bg-rose-50/50 border-rose-100 rounded-3xl p-6 space-y-2">
+              <ShieldAlert className="h-10 w-10 text-rose-600 mx-auto" />
+              <p className="font-extrabold uppercase tracking-wide">Privilege Blocked: Access Denied</p>
+              <p className="text-gray-500 max-w-md mx-auto">
+                Only user accounts holding the <code className="bg-rose-100 text-rose-800 px-1 py-0.5 rounded font-mono font-bold">VIEW_ANALYTICS_DASHBOARD</code> permission node possess clearance to access the aggregated statistics panels.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6 animate-fade-in">
+              {/* Top Row Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                
+                {/* Card 1: Total Bookings */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-3xs flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total ERP Bookings</p>
+                    <p className="text-3xl font-black text-gray-900 font-mono">
+                      {reportsData?.totalSubmittedBookings ?? 0}
+                    </p>
+                    <p className="text-[10.5px] text-gray-500">Aggregated across all spaces</p>
+                  </div>
+                  <div className="h-11 w-11 bg-primary/5 rounded-xl flex items-center justify-center">
+                    <Database className="h-5 w-5 text-primary" />
+                  </div>
+                </div>
+
+                {/* Card 2: Active Security Bans */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-3xs flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Active Member Bans</p>
+                    <p className="text-3xl font-black text-rose-700 font-mono">
+                      {reportsData?.activeBansCount ?? 0}
+                    </p>
+                    <p className="text-[10.5px] text-gray-500">Restricted accounts with active blocks</p>
+                  </div>
+                  <div className="h-11 w-11 bg-rose-50 rounded-xl flex items-center justify-center">
+                    <ShieldAlert className="h-5 w-5 text-rose-600" />
+                  </div>
+                </div>
+
+                {/* Card 3: Conflicts Detected */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-3xs flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Schedule Conflict Alerts</p>
+                    <p className={`text-3xl font-black font-mono ${reportsData?.conflictCount > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
+                      {reportsData?.conflictCount ?? 0}
+                    </p>
+                    <p className="text-[10.5px] text-gray-500">Overlaps intercepted by scheduler</p>
+                  </div>
+                  <div className="h-11 w-11 bg-amber-50 rounded-xl flex items-center justify-center">
+                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Data visualizations and breakdowns */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Left Visual: Room Utilization */}
+                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-3xs space-y-4">
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-gray-900 flex items-center gap-1.5">
+                      <BarChart2 className="h-4 w-4 text-primary" /> Space Popularity Utilization
+                    </h4>
+                    <p className="text-[11px] text-gray-500">Aggregated count of approved bookings per physical room</p>
+                  </div>
+                  
+                  <div className="space-y-3.5 pt-2">
+                    {!reportsData?.popularRooms || reportsData.popularRooms.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic text-center py-8">No utilization logs found.</p>
+                    ) : (
+                      reportsData.popularRooms.map((item: any, idx: number) => {
+                        const maxCount = Math.max(...reportsData.popularRooms.map((r: any) => r.count), 1);
+                        const pct = Math.round((item.count / maxCount) * 100);
+                        return (
+                          <div key={idx} className="space-y-1">
+                            <div className="flex justify-between text-xs font-bold text-gray-700">
+                              <span>{item.room}</span>
+                              <span className="font-mono text-gray-500">{item.count} Approved</span>
+                            </div>
+                            <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-primary rounded-full transition-all duration-500" 
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Visuals Container */}
+                <div className="space-y-6">
+                  
+                  {/* Status split */}
+                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-3xs space-y-4">
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-gray-900 flex items-center gap-1.5">
+                        <PieChart className="h-4 w-4 text-primary" /> Bookings Status Breakdown
+                      </h4>
+                      <p className="text-[11px] text-gray-500">Review outcomes of all submitted reservation requests</p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3 text-center pt-2">
+                      <div className="bg-emerald-50/50 border border-emerald-100/50 p-3 rounded-2xl">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-700 block">Approved</span>
+                        <span className="text-xl font-mono font-black text-emerald-800 mt-1 block">
+                          {reportsData?.statusBreakdown?.APPROVED ?? 0}
+                        </span>
+                      </div>
+                      <div className="bg-amber-50/50 border border-amber-100/50 p-3 rounded-2xl">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-amber-700 block">Pending</span>
+                        <span className="text-xl font-mono font-black text-amber-800 mt-1 block">
+                          {reportsData?.statusBreakdown?.PENDING ?? 0}
+                        </span>
+                      </div>
+                      <div className="bg-rose-50/50 border border-rose-100/50 p-3 rounded-2xl">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-rose-700 block">Rejected</span>
+                        <span className="text-xl font-mono font-black text-rose-800 mt-1 block">
+                          {reportsData?.statusBreakdown?.REJECTED ?? 0}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Incubator Bookings Split */}
+                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-3xs space-y-4">
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-gray-900">
+                        Incubator Reservation Types
+                      </h4>
+                      <p className="text-[11px] text-gray-500">Approved time distribution by booking purpose tag</p>
+                    </div>
+
+                    <div className="space-y-2.5 pt-1">
+                      {!reportsData?.bookingTypeStats || reportsData.bookingTypeStats.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic text-center py-4">No purpose distribution logs available.</p>
+                      ) : (
+                        reportsData.bookingTypeStats.map((item: any, idx: number) => {
+                          const total = reportsData.bookingTypeStats.reduce((sum: number, r: any) => sum + r.count, 0);
+                          const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
+                          return (
+                            <div key={idx} className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600 font-medium capitalize">{item.type.toLowerCase().replace(/_/g, ' ')}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-gray-500">{item.count} bookings</span>
+                                <span className="font-bold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[10px] font-mono w-10 text-right">{pct}%</span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Beautiful Inspection Modal */}
       {selectedLog && (

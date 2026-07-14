@@ -8,12 +8,26 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-pro
 
 export async function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader) {
     req.currentUser = null;
     return next();
   }
 
-  const token = authHeader.split('Bearer ')[1];
+  let token = '';
+  if (authHeader.toLowerCase().startsWith('bearer ')) {
+    token = authHeader.substring(7).trim();
+  } else {
+    token = authHeader.trim();
+  }
+
+  // Strip possible surrounding quotes
+  if (token.startsWith('"') && token.endsWith('"')) {
+    token = token.slice(1, -1);
+  }
+  if (token.startsWith("'") && token.endsWith("'")) {
+    token = token.slice(1, -1);
+  }
+
   if (!token || token === 'undefined' || token === 'null') {
     req.currentUser = null;
     return next();
@@ -41,10 +55,21 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
 
       // Check for active ban
       const banCheck = await query(
-        `SELECT 1 FROM ban_records WHERE LOWER(email) = LOWER($1) AND is_active = TRUE`,
+        `SELECT * FROM ban_records WHERE LOWER(email) = LOWER($1) AND is_active = TRUE`,
         [decoded.email]
       );
-      const isBanned = banCheck.rows.length > 0;
+      let isBanned = false;
+      if (banCheck.rows.length > 0) {
+        const activeBan = banCheck.rows[0];
+        if (activeBan.expires_at && new Date(activeBan.expires_at) <= new Date()) {
+          await query(
+            `UPDATE ban_records SET is_active = FALSE, lifted_at = CURRENT_TIMESTAMP, lifting_reason = 'Ban automatically expired' WHERE id = $1`,
+            [activeBan.id]
+          );
+        } else {
+          isBanned = true;
+        }
+      }
 
       req.currentUser = {
         id: row.id,
@@ -70,7 +95,7 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
     return res.status(401).json({ error: 'Session expired or unauthorized. Please sign in with Microsoft SSO.' });
   }
   if (req.currentUser.status === 'Inactive') {
-    return res.status(403).json({ error: 'Access Denied: Your account has been set to Inactive.' });
+    return res.status(401).json({ error: 'Access Denied: Your account has been set to Inactive.' });
   }
   next();
 }
@@ -82,7 +107,7 @@ export function requirePermission(permission: string) {
       return res.status(401).json({ error: 'Session expired or unauthorized.' });
     }
     if (req.currentUser.status === 'Inactive') {
-      return res.status(403).json({ error: 'Access Denied: Your account is inactive.' });
+      return res.status(401).json({ error: 'Access Denied: Your account is inactive.' });
     }
     
     // Administrators bypass all individual permission restrictions
@@ -91,7 +116,30 @@ export function requirePermission(permission: string) {
     }
 
     if (!req.currentUser.permissions.includes(permission)) {
-      return res.status(403).json({ error: `Privilege Restriction: Missing permission '${permission}' required for this action.` });
+      return res.status(401).json({ error: `Privilege Restriction: Missing permission '${permission}' required for this action.` });
+    }
+    next();
+  };
+}
+
+// Check if current user holds any of the allowed permissions list
+export function requireAnyPermission(permissions: string[]) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.currentUser) {
+      return res.status(401).json({ error: 'Session expired or unauthorized.' });
+    }
+    if (req.currentUser.status === 'Inactive') {
+      return res.status(401).json({ error: 'Access Denied: Your account is inactive.' });
+    }
+    
+    // Administrators bypass all individual permission restrictions
+    if (req.currentUser.role === 'Administrator') {
+      return next();
+    }
+
+    const hasAny = permissions.some(p => req.currentUser!.permissions.includes(p));
+    if (!hasAny) {
+      return res.status(401).json({ error: `Privilege Restriction: Missing one of the required permissions: ${permissions.join(', ')}` });
     }
     next();
   };

@@ -19,11 +19,12 @@ import { bookingsApi } from '../services/bookings.api';
 interface TrackPageProps {
   bookings: Booking[];
   currentUserEmail: string;
+  jwtToken: string | null;
   onRefresh: () => void;
   onNavigate: (path: string) => void;
 }
 
-export function TrackPage({ bookings, currentUserEmail, onRefresh, onNavigate }: TrackPageProps) {
+export function TrackPage({ bookings, currentUserEmail, jwtToken, onRefresh, onNavigate }: TrackPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState<Booking[] | null>(null);
   
@@ -76,7 +77,7 @@ export function TrackPage({ bookings, currentUserEmail, onRefresh, onNavigate }:
     setCancelError(null);
 
     try {
-      const result = await bookingsApi.cancel(cancellingBooking.id, cancelReason);
+      const result = await bookingsApi.cancel(cancellingBooking.id, cancelReason, jwtToken);
 
       if (result.policyViolation) {
         alert('Warning: Your cancellation was processed, but was flagged as a POLICY VIOLATION because it was submitted with less than 1 hour advance notice.');
@@ -114,7 +115,7 @@ export function TrackPage({ bookings, currentUserEmail, onRefresh, onNavigate }:
     } else if (status === 'APPROVED') {
       activeStep = 2;
       isApproved = true;
-    } else if (status === 'REJECTED BY STAFF' || status === 'REJECTED (BAN)') {
+    } else if (status === 'REJECTED BY STAFF' || status === 'REJECTED (BAN)' || status === 'REJECTED (VALIDATION)' || status.includes('REJECTED')) {
       activeStep = 2;
       isRejected = true;
     } else if (status === 'CANCELLED') {
@@ -197,6 +198,8 @@ export function TrackPage({ bookings, currentUserEmail, onRefresh, onNavigate }:
         return <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">PENDING VALIDATION</span>;
       case 'REJECTED BY STAFF':
         return <span className="bg-rose-100 text-rose-800 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">REJECTED BY STAFF</span>;
+      case 'REJECTED (VALIDATION)':
+        return <span className="bg-rose-100 text-rose-800 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">REJECTED (VALIDATION)</span>;
       case 'CANCELLED':
         return <span className="bg-gray-100 text-gray-800 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">CANCELLED</span>;
       case 'REJECTED (BAN)':
@@ -361,7 +364,39 @@ interface BookingCardProps {
 }
 
 function BookingCard({ booking, onCancelClick, getStatusBadge, renderStatusTimeline }: BookingCardProps) {
-  const isCancellable = booking.status === 'APPROVED' || booking.status === 'PENDING REVIEW';
+  const getLocalDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const todayStr = getLocalDateString();
+
+  const isDateInPast = (bookingDateStr: string, currentTodayStr: string) => {
+    if (!bookingDateStr) return false;
+    
+    const parseToMidnight = (dateStr: string) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return new Date(`${dateStr}T00:00:00`);
+      }
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const month = parseInt(parts[0], 10) - 1;
+        const day = parseInt(parts[1], 10);
+        const year = parseInt(parts[2], 10);
+        return new Date(year, month, day);
+      }
+      return new Date(dateStr);
+    };
+
+    const bDate = parseToMidnight(bookingDateStr);
+    const tDate = parseToMidnight(currentTodayStr);
+    return bDate < tDate;
+  };
+
+  const isPast = isDateInPast(booking.date, todayStr);
+  const isCancellable = (booking.status === 'APPROVED' || booking.status === 'PENDING REVIEW') && !isPast;
 
   return (
     <div className="border border-gray-150 rounded-2xl overflow-hidden bg-white shadow-3xs flex flex-col text-left">

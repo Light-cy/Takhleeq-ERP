@@ -13,7 +13,8 @@ import {
   FileText,
   ToggleLeft,
   ToggleRight,
-  ShieldAlert
+  ShieldAlert,
+  Trash2
 } from 'lucide-react';
 import { Room } from '../../../types';
 
@@ -22,11 +23,13 @@ interface RoomManagementPageProps {
   onRefresh: () => void;
   onAddRoom: (roomData: any) => Promise<void>;
   onUpdateRoom: (roomId: string, updateData: any) => Promise<void>;
+  onDeleteRoom: (roomId: string) => Promise<void>;
 }
 
-export function RoomManagementPage({ rooms, onRefresh, onAddRoom, onUpdateRoom }: RoomManagementPageProps) {
+export function RoomManagementPage({ rooms, onRefresh, onAddRoom, onUpdateRoom, onDeleteRoom }: RoomManagementPageProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [deletingRoom, setDeletingRoom] = useState<Room | null>(null);
 
   // Form states
   const [roomName, setRoomName] = useState('');
@@ -40,6 +43,27 @@ export function RoomManagementPage({ rooms, onRefresh, onAddRoom, onUpdateRoom }
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [togglingRoomIds, setTogglingRoomIds] = useState<Record<string, boolean>>({});
+
+  // Auto-dismiss success notifications
+  React.useEffect(() => {
+    if (successMsg) {
+      const timer = setTimeout(() => {
+        setSuccessMsg(null);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [successMsg]);
+
+  // Auto-dismiss error notifications
+  React.useEffect(() => {
+    if (errorMsg) {
+      const timer = setTimeout(() => {
+        setErrorMsg(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorMsg]);
 
   const clearMessages = () => {
     setErrorMsg(null);
@@ -47,16 +71,21 @@ export function RoomManagementPage({ rooms, onRefresh, onAddRoom, onUpdateRoom }
   };
 
   const handleToggleRoomStatus = async (room: Room) => {
-    clearMessages();
-    setProcessing(true);
+    if (togglingRoomIds[room.id]) return;
+    
+    const nextState = !room.isActive;
+    
+    // Immediate optimistic state update and instant notification feedback to eliminate network lag feel
+    setTogglingRoomIds(prev => ({ ...prev, [room.id]: true }));
+    setSuccessMsg(`Space '${room.name}' availability status toggled to ${nextState ? 'ONLINE' : 'OFFLINE'}.`);
+    
     try {
-      await onUpdateRoom(room.id, { isActive: !room.isActive });
-      setSuccessMsg(`Space availability status toggled for '${room.name}'.`);
-      onRefresh();
+      await onUpdateRoom(room.id, { isActive: nextState });
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to update space status.');
+      setSuccessMsg(null); // Clear optimistic success message on error
     } finally {
-      setProcessing(false);
+      setTogglingRoomIds(prev => ({ ...prev, [room.id]: false }));
     }
   };
 
@@ -125,6 +154,21 @@ export function RoomManagementPage({ rooms, onRefresh, onAddRoom, onUpdateRoom }
     clearMessages();
   };
 
+  const handleDeleteConfirm = async (roomId: string) => {
+    clearMessages();
+    setProcessing(true);
+    try {
+      await onDeleteRoom(roomId);
+      setSuccessMsg(`Space room successfully deleted.`);
+      setDeletingRoom(null);
+      onRefresh();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to delete room.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const startAdding = () => {
     setRoomName('');
     setRoomCapacity('30');
@@ -139,23 +183,37 @@ export function RoomManagementPage({ rooms, onRefresh, onAddRoom, onUpdateRoom }
   return (
     <div className="space-y-6 text-left animate-fade-in" id="room-management-view">
       
-      {/* Alert banners */}
-      {(errorMsg || successMsg) && (
-        <div className="space-y-2">
-          {errorMsg && (
-            <div className="p-4 bg-rose-50 border border-rose-100 text-rose-800 text-xs rounded-xl flex gap-2">
-              <ShieldAlert className="h-4.5 w-4.5 text-rose-600 shrink-0 mt-0.5" />
+      {/* Floating Notifications Toast Container (Fixed position prevents any layout-shift or page jitter) */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+        {errorMsg && (
+          <div className="p-4 bg-white border border-rose-100 text-rose-950 text-xs rounded-xl flex gap-3 shadow-xl animate-fade-in pointer-events-auto">
+            <div className="h-8 w-8 rounded-full bg-rose-50 flex items-center justify-center shrink-0">
+              <ShieldAlert className="h-4.5 w-4.5 text-rose-600" />
+            </div>
+            <div className="flex-1 pr-1 py-0.5 font-medium leading-relaxed">
+              <p className="font-extrabold text-rose-800 uppercase tracking-wider text-[9px] mb-0.5">Operation Failed</p>
               <span>{errorMsg}</span>
             </div>
-          )}
-          {successMsg && (
-            <div className="p-4 bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs rounded-xl flex gap-2">
-              <Check className="h-4.5 w-4.5 text-emerald-600 shrink-0 mt-0.5" />
+            <button onClick={() => setErrorMsg(null)} className="text-gray-400 hover:text-gray-600 self-start cursor-pointer transition-colors">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+        {successMsg && (
+          <div className="p-4 bg-white border border-emerald-100 text-emerald-950 text-xs rounded-xl flex gap-3 shadow-xl animate-fade-in pointer-events-auto">
+            <div className="h-8 w-8 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
+              <Check className="h-4.5 w-4.5 text-emerald-600" />
+            </div>
+            <div className="flex-1 pr-1 py-0.5 font-medium leading-relaxed">
+              <p className="font-extrabold text-emerald-800 uppercase tracking-wider text-[9px] mb-0.5">Success</p>
               <span>{successMsg}</span>
             </div>
-          )}
-        </div>
-      )}
+            <button onClick={() => setSuccessMsg(null)} className="text-gray-400 hover:text-gray-600 self-start cursor-pointer transition-colors">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Grid header action bar */}
       <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-3xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -176,20 +234,20 @@ export function RoomManagementPage({ rooms, onRefresh, onAddRoom, onUpdateRoom }
         {rooms.map(room => (
           <div 
             key={room.id} 
-            className={`border rounded-2xl overflow-hidden bg-white shadow-3xs flex flex-col justify-between transition-all ${
-              room.isActive ? 'border-gray-150' : 'border-dashed border-gray-200 opacity-65'
+            className={`border rounded-2xl overflow-hidden bg-white shadow-3xs flex flex-col justify-between transition-all duration-300 ease-in-out ${
+              room.isActive ? 'border-gray-150 opacity-100 scale-100 shadow-3xs' : 'border-gray-150 opacity-70 scale-[0.99] bg-gray-50/40'
             }`}
           >
             {/* Header top status block */}
-            <div className={`p-4 border-b flex justify-between items-center ${
-              room.isActive ? 'bg-emerald-50/20 border-gray-100' : 'bg-gray-50 border-gray-100'
+            <div className={`p-4 border-b flex justify-between items-center transition-colors duration-300 ${
+              room.isActive ? 'bg-emerald-50/20 border-gray-100' : 'bg-gray-100/60 border-gray-100'
             }`}>
               <div className="flex items-center gap-2">
                 <MapPin className="h-4.5 w-4.5 text-primary" />
                 <span className="font-extrabold text-gray-900 text-xs uppercase tracking-wide">{room.name}</span>
               </div>
-              <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
-                room.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-150 text-gray-500'
+              <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full transition-colors duration-300 ${
+                room.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-500'
               }`}>
                 {room.isActive ? 'Active' : 'Disabled'}
               </span>
@@ -239,8 +297,10 @@ export function RoomManagementPage({ rooms, onRefresh, onAddRoom, onUpdateRoom }
               {/* Toggle toggle button */}
               <button
                 onClick={() => handleToggleRoomStatus(room)}
-                disabled={processing}
-                className="flex items-center gap-1.5 cursor-pointer text-gray-500 hover:text-gray-800 transition-colors"
+                disabled={togglingRoomIds[room.id]}
+                className={`flex items-center gap-1.5 cursor-pointer text-gray-500 hover:text-gray-800 transition-all duration-250 ${
+                  togglingRoomIds[room.id] ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
                 title="Toggle reservation availability status"
               >
                 {room.isActive ? (
@@ -256,12 +316,21 @@ export function RoomManagementPage({ rooms, onRefresh, onAddRoom, onUpdateRoom }
                 )}
               </button>
 
-              <button
-                onClick={() => startEditing(room)}
-                className="text-primary hover:text-white hover:bg-primary border border-primary/20 hover:border-primary font-bold px-3 py-1.5 rounded-xl text-[10px] uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1"
-              >
-                <Edit3 className="h-3.5 w-3.5" /> Configure
-              </button>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => startEditing(room)}
+                  className="text-primary hover:text-white hover:bg-primary border border-primary/20 hover:border-primary font-bold px-3 py-1.5 rounded-xl text-[10px] uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <Edit3 className="h-3.5 w-3.5" /> Configure
+                </button>
+                <button
+                  onClick={() => setDeletingRoom(room)}
+                  className="text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 font-bold px-3 py-1.5 rounded-xl text-[10px] uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1"
+                  title="Delete this space room permanently"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -461,6 +530,53 @@ export function RoomManagementPage({ rooms, onRefresh, onAddRoom, onUpdateRoom }
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE ROOM CONFIRMATION MODAL */}
+      {deletingRoom && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="delete-room-modal">
+          <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+            <div className="bg-rose-600 text-white p-5 font-black text-sm flex items-center justify-between shrink-0">
+              <span className="uppercase tracking-wider">Delete Space Room</span>
+              <button onClick={() => setDeletingRoom(null)} className="text-white hover:text-rose-200 font-bold cursor-pointer text-sm">✕</button>
+            </div>
+
+            <div className="p-6 space-y-4 text-left">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-rose-50 text-rose-600 rounded-full shrink-0">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-gray-900 text-sm">Confirm Deletion of '{deletingRoom.name}'</h4>
+                  <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                    Are you sure you want to permanently delete this space from the register? This action is <strong className="text-rose-700">irreversible</strong>.
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                    Any existing active, pending, or historical bookings for <strong className="text-gray-800">{deletingRoom.name}</strong> will be <strong className="text-rose-700">automatically cascaded and deleted</strong>.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2.5 border-t border-gray-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setDeletingRoom(null)}
+                  className="px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteConfirm(deletingRoom.id)}
+                  disabled={processing}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 uppercase tracking-wider"
+                >
+                  {processing ? 'Deleting...' : 'Delete Permanently'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

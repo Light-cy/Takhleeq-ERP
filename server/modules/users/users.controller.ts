@@ -36,7 +36,7 @@ export const handleMicrosoftAuth = async (req: AuthenticatedRequest, res: Respon
     const emailDomain = email.split('@')[1]?.toLowerCase();
 
     if (!allowedDomains.includes(emailDomain)) {
-      return res.status(403).json({ 
+      return res.status(401).json({ 
         error: `Domain Verification Failure: The domain '${emailDomain}' is not authorized to register or access Takhleeq ERP.` 
       });
     }
@@ -63,12 +63,25 @@ export const handleMicrosoftAuth = async (req: AuthenticatedRequest, res: Respon
 
     if (activeBanRes.rows.length > 0) {
       const activeBan = activeBanRes.rows[0];
-      const expiryText = activeBan.expires_at 
-        ? `until ${new Date(activeBan.expires_at).toLocaleDateString()}` 
-        : 'permanently';
-      return res.status(403).json({ 
-        error: `Access Denied: This account (${email}) has been banned ${expiryText} from accessing Takhleeq ERP. Reason: ${activeBan.reason}` 
-      });
+      if (activeBan.expires_at && new Date(activeBan.expires_at) <= new Date()) {
+        await query(
+          `UPDATE ban_records SET is_active = FALSE, lifted_at = CURRENT_TIMESTAMP, lifting_reason = 'Ban automatically expired' WHERE id = $1`,
+          [activeBan.id]
+        );
+        await logAudit(
+          `Ban automatically expired and lifted for ${email}`,
+          'ban',
+          String(activeBan.id),
+          'System'
+        );
+      } else {
+        const expiryText = activeBan.expires_at 
+          ? `until ${new Date(activeBan.expires_at).toLocaleDateString()}` 
+          : 'permanently';
+        return res.status(401).json({ 
+          error: `Access Denied: This account (${email}) has been banned ${expiryText} from accessing Takhleeq ERP. Reason: ${activeBan.reason}` 
+        });
+      }
     }
 
     // 3. get_or_create User in PostgreSQL
@@ -194,12 +207,25 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
 
     if (activeBanRes.rows.length > 0) {
       const activeBan = activeBanRes.rows[0];
-      const expiryText = activeBan.expires_at 
-        ? `until ${new Date(activeBan.expires_at).toLocaleDateString()}` 
-        : 'permanently';
-      return res.status(403).json({ 
-        error: `Access Denied: This account (${cleanEmail}) has been banned ${expiryText} from accessing Takhleeq ERP. Reason: ${activeBan.reason}` 
-      });
+      if (activeBan.expires_at && new Date(activeBan.expires_at) <= new Date()) {
+        await query(
+          `UPDATE ban_records SET is_active = FALSE, lifted_at = CURRENT_TIMESTAMP, lifting_reason = 'Ban automatically expired' WHERE id = $1`,
+          [activeBan.id]
+        );
+        await logAudit(
+          `Ban automatically expired and lifted for ${cleanEmail}`,
+          'ban',
+          String(activeBan.id),
+          'System'
+        );
+      } else {
+        const expiryText = activeBan.expires_at 
+          ? `until ${new Date(activeBan.expires_at).toLocaleDateString()}` 
+          : 'permanently';
+        return res.status(401).json({ 
+          error: `Access Denied: This account (${cleanEmail}) has been banned ${expiryText} from accessing Takhleeq ERP. Reason: ${activeBan.reason}` 
+        });
+      }
     }
     
     // Query user and their roles/permissions from DB

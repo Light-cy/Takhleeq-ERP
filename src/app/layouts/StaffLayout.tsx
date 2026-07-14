@@ -101,7 +101,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
 
           <button
             onClick={() => setActiveTab('governance')}
-            disabled={activeUser.role !== 'Administrator'}
+            disabled={!hasPermission('ISSUE_BAN') && !hasPermission('MANAGE_ROLES') && !hasPermission('MANAGE_USERS')}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'governance' 
                 ? 'bg-primary text-white shadow-3xs' 
@@ -112,7 +112,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
               <Settings className="h-4 w-4" />
               Governance Center
             </span>
-            {activeUser.role !== 'Administrator' && <Lock className="h-3 w-3 text-gray-400" />}
+            {!hasPermission('ISSUE_BAN') && !hasPermission('MANAGE_ROLES') && !hasPermission('MANAGE_USERS') && <Lock className="h-3 w-3 text-gray-400" />}
           </button>
 
           <button
@@ -133,7 +133,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
 
           <button
             onClick={() => setActiveTab('audits')}
-            disabled={activeUser.role !== 'Administrator'}
+            disabled={!hasPermission('VIEW_AUDIT_LOGS') && !hasPermission('EXPORT_AUDIT_LOGS') && !hasPermission('VIEW_ANALYTICS_DASHBOARD')}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'audits' 
                 ? 'bg-primary text-white shadow-3xs' 
@@ -142,9 +142,9 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
           >
             <span className="flex items-center gap-3">
               <Database className="h-4 w-4" />
-              Audit Logs
+              Audit Logs & Analytics
             </span>
-            {activeUser.role !== 'Administrator' && <Lock className="h-3 w-3 text-gray-400" />}
+            {!hasPermission('VIEW_AUDIT_LOGS') && !hasPermission('EXPORT_AUDIT_LOGS') && !hasPermission('VIEW_ANALYTICS_DASHBOARD') && <Lock className="h-3 w-3 text-gray-400" />}
           </button>
         </nav>
 
@@ -223,7 +223,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                 </button>
                 <button 
                   onClick={() => { setActiveTab('governance'); setMobileMenuOpen(false); }}
-                  disabled={activeUser.role !== 'Administrator'}
+                  disabled={!hasPermission('ISSUE_BAN') && !hasPermission('MANAGE_ROLES') && !hasPermission('MANAGE_USERS')}
                   className={`w-full text-left font-black text-xs p-3.5 rounded-xl uppercase tracking-wider ${activeTab === 'governance' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
                 >
                   Governance Center
@@ -237,10 +237,10 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                 </button>
                 <button 
                   onClick={() => { setActiveTab('audits'); setMobileMenuOpen(false); }}
-                  disabled={activeUser.role !== 'Administrator'}
+                  disabled={!hasPermission('VIEW_AUDIT_LOGS') && !hasPermission('EXPORT_AUDIT_LOGS') && !hasPermission('VIEW_ANALYTICS_DASHBOARD')}
                   className={`w-full text-left font-black text-xs p-3.5 rounded-xl uppercase tracking-wider ${activeTab === 'audits' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
                 >
-                  Audit Logs
+                  Audit Logs & Analytics
                 </button>
               </div>
             </motion.div>

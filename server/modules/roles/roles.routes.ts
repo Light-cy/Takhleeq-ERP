@@ -47,17 +47,16 @@ router.post('/roles', requireAuth, requirePermission('MANAGE_ROLES'), async (req
 
     // 1.5 BR-11: Custom roles may not be assigned Administrator-reserved permissions
     const prohibitedForCustom = [
-      'MANAGE_ROLES',
       'VIEW_AUDIT_LOGS',
-      'MANAGE_USERS',
       'CONFIGURE_ROOMS',
       'CONFIGURE_POLICIES',
-      'LIFT_BAN'
+      'LIFT_BAN',
+      'MANAGE_BANS'
     ];
     const containsProhibited = permissions.some((p: string) => prohibitedForCustom.includes(p));
     if (containsProhibited) {
-      return res.status(403).json({
-        error: 'Privilege Restriction: Custom roles cannot be assigned Administrator-reserved permissions (MANAGE_ROLES, VIEW_AUDIT_LOGS, MANAGE_USERS, CONFIGURE_ROOMS, CONFIGURE_POLICIES, LIFT_BAN).'
+      return res.status(401).json({
+        error: 'Privilege Restriction: Custom roles cannot be assigned Administrator-reserved permissions (VIEW_AUDIT_LOGS, CONFIGURE_ROOMS, CONFIGURE_POLICIES, LIFT_BAN, MANAGE_BANS).'
       });
     }
 
@@ -86,13 +85,13 @@ router.post('/roles', requireAuth, requirePermission('MANAGE_ROLES'), async (req
     }
 
     if (creator.role !== 'Administrator' && (banDurationCeiling === 'Permanent' || banDurationCeiling === 'permanent' || !banDurationCeiling)) {
-      return res.status(403).json({
+      return res.status(401).json({
         error: "Privilege Restriction: Only Administrator can authorize Permanent/unlimited ban ceilings."
       });
     }
 
     if (requestedCeilingDays > creatorCeilingDays) {
-      return res.status(403).json({
+      return res.status(401).json({
         error: `Privilege Restriction: Requested ban ceiling (${banDurationCeiling} days) exceeds your authority limit (${creatorCeilingDays === 999999 ? 'Permanent' : creatorCeilingDays} days).`
       });
     }
@@ -120,6 +119,121 @@ router.post('/roles', requireAuth, requirePermission('MANAGE_ROLES'), async (req
   } catch (err) {
     console.error('Failed to create role:', err);
     res.status(500).json({ error: 'Failed to create role due to database error.' });
+  }
+});
+
+// Update an existing custom role (Admin / Privilege Escalation Prevention checks)
+router.put('/roles/:name', requireAuth, requirePermission('MANAGE_ROLES'), async (req: AuthenticatedRequest, res: Response) => {
+  const creator = req.currentUser!;
+  const roleName = req.params.name;
+  const { description, permissions, banDurationCeiling } = req.body;
+
+  if (roleName === 'Administrator' || roleName === 'UCP Member') {
+    return res.status(400).json({ error: 'System safety rule: Standard system roles (Administrator, UCP Member) cannot be edited.' });
+  }
+
+  if (!description || !permissions) {
+    return res.status(400).json({ error: 'Missing required fields: description, permissions' });
+  }
+
+  try {
+    // 1. Role builder security check (Privilege escalation prevention):
+    // "A role creator cannot grant permissions they do not themselves hold"
+    const adminRoleRes = await query(`SELECT permissions FROM roles WHERE name = 'Administrator'`);
+    if (adminRoleRes.rows.length === 0) {
+      return res.status(500).json({ error: 'Internal Error: Base Administrator role permissions not found.' });
+    }
+    
+    // Admin permissions check
+    const adminPermissions = Array.isArray(adminRoleRes.rows[0].permissions) 
+      ? adminRoleRes.rows[0].permissions 
+      : JSON.parse(adminRoleRes.rows[0].permissions || '[]');
+
+    const invalidPermissions = permissions.filter((p: string) => !adminPermissions.includes(p));
+    if (invalidPermissions.length > 0) {
+      return res.status(400).json({ 
+        error: `Privilege Escalation Blocked: You cannot grant permissions you do not hold: ${invalidPermissions.join(', ')}` 
+      });
+    }
+
+    // 1.5 BR-11: Custom roles may not be assigned Administrator-reserved permissions
+    const prohibitedForCustom = [
+      'VIEW_AUDIT_LOGS',
+      'CONFIGURE_ROOMS',
+      'CONFIGURE_POLICIES',
+      'LIFT_BAN',
+      'MANAGE_BANS'
+    ];
+    const containsProhibited = permissions.some((p: string) => prohibitedForCustom.includes(p));
+    if (containsProhibited) {
+      return res.status(401).json({
+        error: 'Privilege Restriction: Custom roles cannot be assigned Administrator-reserved permissions (VIEW_AUDIT_LOGS, CONFIGURE_ROOMS, CONFIGURE_POLICIES, LIFT_BAN, MANAGE_BANS).'
+      });
+    }
+
+    // 1.6 BR-12/11: Validate banDurationCeiling
+    const creatorCeilingRes = await query(
+      `SELECT r.ban_duration_ceiling 
+       FROM roles r
+       JOIN user_roles ur ON r.id = ur.role_id
+       WHERE ur.user_id = $1`,
+      [creator.id]
+    );
+    const creatorCeilingRaw = creatorCeilingRes.rows[0]?.ban_duration_ceiling;
+    
+    let creatorCeilingDays = 0;
+    if (creator.role === 'Administrator' || creatorCeilingRaw === 'permanent' || !creatorCeilingRaw) {
+      creatorCeilingDays = 999999;
+    } else {
+      creatorCeilingDays = parseInt(creatorCeilingRaw);
+    }
+
+    let requestedCeilingDays = 0;
+    if (banDurationCeiling === 'Permanent' || banDurationCeiling === 'permanent' || !banDurationCeiling) {
+      requestedCeilingDays = 999999;
+    } else {
+      requestedCeilingDays = parseInt(banDurationCeiling);
+    }
+
+    if (creator.role !== 'Administrator' && (banDurationCeiling === 'Permanent' || banDurationCeiling === 'permanent' || !banDurationCeiling)) {
+      return res.status(401).json({
+        error: "Privilege Restriction: Only Administrator can authorize Permanent/unlimited ban ceilings."
+      });
+    }
+
+    if (requestedCeilingDays > creatorCeilingDays) {
+      return res.status(401).json({
+        error: `Privilege Restriction: Requested ban ceiling (${banDurationCeiling} days) exceeds your authority limit (${creatorCeilingDays === 999999 ? 'Permanent' : creatorCeilingDays} days).`
+      });
+    }
+
+    // 2. Check if role exists
+    const existing = await query(`SELECT * FROM roles WHERE LOWER(name) = LOWER($1)`, [roleName]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: `Role '${roleName}' not found.` });
+    }
+
+    const oldRole = mapRole(existing.rows[0]);
+
+    // 3. Update existing custom role
+    const ceilingStr = banDurationCeiling ? String(banDurationCeiling) : null;
+    const updateRes = await query(
+      `UPDATE roles SET description = $1, permissions = $2, ban_duration_ceiling = $3 WHERE name = $4 RETURNING *`,
+      [description, JSON.stringify(permissions), ceilingStr, oldRole.name]
+    );
+
+    if (updateRes.rows.length === 0) {
+      return res.status(500).json({ error: 'Failed to update role.' });
+    }
+
+    const updatedRole = mapRole(updateRes.rows[0]);
+
+    await logAudit(`Updated Custom Role: ${oldRole.name}`, 'role', String(existing.rows[0].id), creator.email, oldRole, updatedRole);
+
+    res.json({ success: true, role: updatedRole });
+  } catch (err) {
+    console.error('Failed to update role:', err);
+    res.status(500).json({ error: 'Failed to update role due to database error.' });
   }
 });
 

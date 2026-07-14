@@ -49,8 +49,28 @@ router.post('/bookings', async (req, res) => {
       [cleanEmail]
     );
 
+    let isRequesterBanned = false;
+    let activeBan = null;
+
     if (activeBanRes.rows.length > 0) {
-      const activeBan = activeBanRes.rows[0];
+      activeBan = activeBanRes.rows[0];
+      if (activeBan.expires_at && new Date(activeBan.expires_at) <= new Date()) {
+        await query(
+          `UPDATE ban_records SET is_active = FALSE, lifted_at = CURRENT_TIMESTAMP, lifting_reason = 'Ban automatically expired' WHERE id = $1`,
+          [activeBan.id]
+        );
+        await logAudit(
+          `Ban automatically expired and lifted for ${cleanEmail}`,
+          'ban',
+          String(activeBan.id),
+          'System'
+        );
+      } else {
+        isRequesterBanned = true;
+      }
+    }
+
+    if (isRequesterBanned && activeBan) {
 
       // Insert rejected booking into database with status REJECTED_BAN
       await query(
@@ -90,13 +110,35 @@ router.post('/bookings', async (req, res) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const isValidEmail = emailRegex.test(cleanEmail);
 
+    const phoneRegex = /^[0-9]{11}$/;
+    const isValidPhone = phoneRegex.test(phone);
+
+    const attendanceNum = parseInt(expectedAttendance);
+    const isNegativeAttendance = isNaN(attendanceNum) || attendanceNum < 0;
+
     let isPastDate = false;
+    let isPastTimeForToday = false;
     if (date) {
       const reqDate = new Date(`${date}T00:00:00`);
       const today = new Date();
       today.setHours(0,0,0,0);
       if (reqDate < today) {
         isPastDate = true;
+      } else {
+        // If it's today's date, verify the start time is not in the past
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const serverTodayStr = `${year}-${month}-${day}`;
+        if (date === serverTodayStr) {
+          const currentHours = String(now.getHours()).padStart(2, '0');
+          const currentMins = String(now.getMinutes()).padStart(2, '0');
+          const nowTimeStr = `${currentHours}:${currentMins}`;
+          if (startTime < nowTimeStr) {
+            isPastTimeForToday = true;
+          }
+        }
       }
     }
 
@@ -117,10 +159,18 @@ router.post('/bookings', async (req, res) => {
       validationErrorMsg = 'Validation Error: All mandatory fields must be completed.';
     } else if (!isValidEmail) {
       validationErrorMsg = 'Validation Error: Invalid email address format.';
+    } else if (!isValidPhone) {
+      validationErrorMsg = 'Validation Error: Phone number must contain only digits and be exactly 11 digits long (e.g., 03001234567).';
+    } else if (isNegativeAttendance) {
+      validationErrorMsg = 'Validation Error: Expected Attendance cannot be negative.';
     } else if (isPastDate) {
       validationErrorMsg = 'Validation Error: Past dates cannot be booked.';
+    } else if (isPastTimeForToday) {
+      validationErrorMsg = 'Validation Error: Past times on today\'s date cannot be booked.';
     } else if (!roomRecord) {
       validationErrorMsg = 'Validation Error: The requested room does not exist.';
+    } else if (roomRecord && attendanceNum > roomRecord.capacity) {
+      validationErrorMsg = `Validation Error: Expected Attendance (${attendanceNum}) exceeds the selected room's capacity (${roomRecord.capacity}).`;
     } else if (!roomRecord.is_active) {
       validationErrorMsg = 'Validation Error: New bookings are not allowed for this room (Deactivated).';
     } else {
@@ -187,19 +237,27 @@ router.post('/bookings', async (req, res) => {
     }
 
     // -------------------------------------------------------------
-    // STAGE 4: SAVE AS PENDING_REVIEW
+    // STAGE 4: SAVE AS PENDING_REVIEW (OR INSTANT REJECT)
     // -------------------------------------------------------------
+    let finalStatus = 'PENDING_REVIEW';
+    let finalRejectionReason = null;
+
+    if (conflictStatus === 'CONFLICT_DETECTED') {
+      finalStatus = 'REJECTED_BY_STAFF';
+      finalRejectionReason = 'Instant rejected by system: Schedule overlap detected with another active booking.';
+    }
+
     const insBooking = await query(
       `INSERT INTO bookings (
         booking_id, requester_name, requester_email, requester_phone, organization_name,
         room_id, booking_type, event_title, event_description, date, start_time, end_time,
-        expected_attendance, status, conflict_status, conflicting_booking_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        expected_attendance, status, conflict_status, conflicting_booking_id, rejection_reason
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING *`,
       [
         nextRefId, name, cleanEmail, phone, organization || '',
         roomRecord.id, bookingType, eventTitle, eventDescription, date, startTime, endTime,
-        parseInt(expectedAttendance), 'PENDING_REVIEW', conflictStatus, conflictingBookingId
+        parseInt(expectedAttendance), finalStatus, conflictStatus, conflictingBookingId, finalRejectionReason
       ]
     );
 
@@ -215,16 +273,29 @@ router.post('/bookings', async (req, res) => {
 
     const savedBooking = mapBooking(finalBookingRes.rows[0]);
 
-    await logAudit(
-      `Submitted Booking Request: ${nextRefId}. Status: PENDING_REVIEW. Conflict Status: ${conflictStatus}`,
-      'booking',
-      nextRefId,
-      name
-    );
+    if (finalStatus === 'REJECTED_BY_STAFF') {
+      await logAudit(
+        `Instant Rejected Booking Request due to Schedule Overlap: ${nextRefId}. Status: REJECTED_BY_STAFF. Conflict Status: CONFLICT_DETECTED`,
+        'booking',
+        nextRefId,
+        'System (Validator)'
+      );
+    } else {
+      await logAudit(
+        `Submitted Booking Request: ${nextRefId}. Status: PENDING_REVIEW. Conflict Status: ${conflictStatus}`,
+        'booking',
+        nextRefId,
+        name
+      );
+    }
 
-    // Immediate confirmation email to requester (per FRD FR-01A-05)
+    // Immediate confirmation/rejection email to requester (per FRD FR-01A-05)
     try {
-      await sendBookingStatusEmail(savedBooking, 'SUBMITTED');
+      if (finalStatus === 'REJECTED_BY_STAFF') {
+        await sendBookingStatusEmail(savedBooking, 'REJECTED', { rejectionReason: finalRejectionReason });
+      } else {
+        await sendBookingStatusEmail(savedBooking, 'SUBMITTED');
+      }
     } catch (emailErr) {
       console.error('[SMTP] Failed to send submission receipt email:', emailErr);
     }
@@ -232,8 +303,8 @@ router.post('/bookings', async (req, res) => {
     res.json({
       success: true,
       booking: savedBooking,
-      message: conflictStatus === 'CONFLICT_DETECTED'
-        ? 'Your booking has been submitted but a schedule overlap was detected. Staff will review the conflict.'
+      message: finalStatus === 'REJECTED_BY_STAFF'
+        ? 'Your booking request has been instant rejected by the system due to a schedule conflict (overlap detected).'
         : 'Your booking request has been submitted successfully and is awaiting staff approval.'
     });
 
@@ -262,10 +333,10 @@ router.post('/bookings/:id/approve', requireAuth, requirePermission('APPROVE_REJ
 
     const prevBooking = mapBooking(booking);
 
-    // Update Status to APPROVED
+    // Update Status to APPROVED and clear rejection reason
     await query(
       `UPDATE bookings 
-       SET status = 'APPROVED', approved_by = $1, approved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       SET status = 'APPROVED', approved_by = $1, approved_at = CURRENT_TIMESTAMP, rejection_reason = NULL, updated_at = CURRENT_TIMESTAMP
        WHERE id = $2`,
       [staff.id, booking.id]
     );
@@ -384,7 +455,7 @@ router.post('/bookings/:id/cancel', requireAuth, async (req: AuthenticatedReques
     const isOwner = actor.email.toLowerCase() === booking.requester_email.toLowerCase();
 
     if (!isStaff && !isOwner) {
-      return res.status(403).json({ error: 'Access Denied: You do not have permissions to cancel this booking.' });
+      return res.status(401).json({ error: 'Access Denied: You do not have permissions to cancel this booking.' });
     }
 
     const prevBooking = mapBooking(booking);
@@ -488,18 +559,20 @@ router.post('/bookings/:id/override', requireAuth, requirePermission('BOOKING_OV
     const statusVal = forceApprove ? 'APPROVED' : booking.status;
     const approvedByVal = forceApprove ? staff.id : booking.approved_by;
     const approvedAtVal = forceApprove ? new Date() : booking.approved_at;
+    const rejectionReasonVal = statusVal === 'APPROVED' ? null : booking.rejection_reason;
 
     await query(
       `UPDATE bookings 
        SET room_id = $1, date = $2, start_time = $3, end_time = $4, 
            status = $5, approved_by = $6, approved_at = $7,
            conflict_status = $8, conflicting_booking_id = $9, 
+           rejection_reason = $10,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $10`,
+       WHERE id = $11`,
       [
         targetRoomId, cleanDate, cleanStart, cleanEnd, 
         statusVal, approvedByVal, approvedAtVal,
-        conflictStatus, conflictingBookingId, booking.id
+        conflictStatus, conflictingBookingId, rejectionReasonVal, booking.id
       ]
     );
 

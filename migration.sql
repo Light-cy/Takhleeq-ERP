@@ -117,7 +117,7 @@ VALUES (
     1, 
     'Administrator', 
     'Full access and policy management capabilities', 
-    '["VIEW_PENDING_QUEUE", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "MANAGE_BANS"]'::jsonb, 
+    '["SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_BOOKING", "REJECT_BOOKING", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "ISSUE_BAN", "MANAGE_ROOMS", "CONFIGURE_ROOMS", "CONFIGURE_POLICIES", "VIEW_ANALYTICS_DASHBOARD", "EXPORT_AUDIT_LOGS", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "LIFT_BAN", "MANAGE_BANS"]'::jsonb, 
     'permanent'
 ) ON CONFLICT (name) DO NOTHING;
 
@@ -137,6 +137,15 @@ VALUES (
     'View queue, apply manual time/room overrides, issue bans up to 7 days', 
     '["VIEW_PENDING_QUEUE", "BOOKING_OVERRIDE", "MANAGE_BANS"]'::jsonb, 
     '7'
+) ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO roles (id, name, description, permissions, ban_duration_ceiling)
+VALUES (
+    5, 
+    'Room Management', 
+    'Manage incubator spaces, view and update space operating attributes, and delete spaces', 
+    '["MANAGE_ROOMS"]'::jsonb, 
+    '0'
 ) ON CONFLICT (name) DO NOTHING;
 
 -- Assign Initial Roles

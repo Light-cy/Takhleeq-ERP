@@ -15,7 +15,7 @@ import { BookingCalendarDashboard } from './features/admin/pages/BookingCalendar
 import { GovernanceCenterPage } from './features/admin/pages/GovernanceCenterPage';
 import { RoomManagementPage } from './features/admin/pages/RoomManagementPage';
 import { AuditLogsPage } from './features/admin/pages/AuditLogsPage';
-import { Chatbot } from './components/Chatbot';
+
 
 // Services
 import { bookingsApi } from './features/booking/services/bookings.api';
@@ -58,6 +58,7 @@ export default function App() {
   const [roles, setRoles] = useState<CustomRole[]>([]);
   const [users, setUsers] = useState<ERPUser[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditRecord[]>([]);
+  const [reportsData, setReportsData] = useState<any>(null);
 
   const [jwtToken, setJwtToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,8 +79,8 @@ export default function App() {
   }, []);
 
   // Fetch all state tables from Express server
-  const fetchStateData = async (token = jwtToken) => {
-    const currentToken = token || jwtToken;
+  const fetchStateData = async (token?: any) => {
+    const currentToken = (typeof token === 'string' && token) ? token : jwtToken;
     if (!currentToken) return;
 
     try {
@@ -97,10 +98,27 @@ export default function App() {
       setRoles(Array.isArray(rolesData) ? rolesData : []);
       setUsers(Array.isArray(usersData) ? usersData : []);
 
-      // Admin role can fetch raw ledger logs
-      if (activeUser?.role === 'Administrator') {
-        const auditData = await auditApi.getLogs(currentToken).catch(() => []);
+      // Admin or users with specific permission nodes can fetch logs & report data
+      const userHasAuditView = activeUser?.role === 'Administrator' || 
+        (activeUser?.permissions && (
+          activeUser.permissions.includes('VIEW_AUDIT_LOGS') || 
+          activeUser.permissions.includes('EXPORT_AUDIT_LOGS') || 
+          activeUser.permissions.includes('VIEW_ANALYTICS_DASHBOARD')
+        )) || 
+        (Array.isArray(rolesData) && rolesData.find(r => r.name === activeUser?.role)?.permissions.some(p => 
+          ['VIEW_AUDIT_LOGS', 'EXPORT_AUDIT_LOGS', 'VIEW_ANALYTICS_DASHBOARD'].includes(p)
+        )) || 
+        (Array.isArray(roles) && roles.find(r => r.name === activeUser?.role)?.permissions.some(p => 
+          ['VIEW_AUDIT_LOGS', 'EXPORT_AUDIT_LOGS', 'VIEW_ANALYTICS_DASHBOARD'].includes(p)
+        ));
+
+      if (userHasAuditView) {
+        const [auditData, repData] = await Promise.all([
+          auditApi.getLogs(currentToken).catch(() => []),
+          auditApi.getReports(currentToken).catch(() => null)
+        ]);
         setAuditLogs(Array.isArray(auditData) ? auditData : []);
+        setReportsData(repData);
       }
 
       setLoading(false);
@@ -127,6 +145,18 @@ export default function App() {
     initAuth();
   }, []);
 
+  // Auto-refresh the back-office queue or calendar when on the staff dashboard
+  useEffect(() => {
+    if (currentPath !== '/staff/dashboard' || !jwtToken) return;
+
+    // Fetch fresh database tables every 1.5 seconds to keep the review queue auto-updated instantly
+    const interval = setInterval(() => {
+      fetchStateData();
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [currentPath, jwtToken]);
+
   // Sync profile impersonation selection
   const handleActiveIdentityChange = async (email: string) => {
     const found = simulatedIdentities.find(i => i.email === email);
@@ -146,7 +176,7 @@ export default function App() {
           navigate('/staff/dashboard');
         }
       } catch (err: any) {
-        console.error('Error switching identities via SSO:', err);
+        console.warn('Error switching identities via SSO:', err.message || err);
         if (err.message && err.message.includes('banned')) {
           setGlobalBannedError(err.message);
         } else {
@@ -181,22 +211,45 @@ export default function App() {
   // --- CONTROLLER HANDLERS ---
 
   const handleApproveBooking = async (bookingId: string) => {
-    await bookingsApi.approve(bookingId, jwtToken);
+    // Optimistic UI Update: immediately mark as approved locally
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'APPROVED' } : b));
+    try {
+      await bookingsApi.approve(bookingId, jwtToken);
+    } catch (err) {
+      console.error('Approval failed:', err);
+    }
     await fetchStateData();
   };
 
   const handleRejectBooking = async (bookingId: string, reason: string) => {
-    await bookingsApi.reject(bookingId, reason, jwtToken);
+    // Optimistic UI Update: immediately mark as rejected locally
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: 'REJECTED BY STAFF' } : b));
+    try {
+      await bookingsApi.reject(bookingId, reason, jwtToken);
+    } catch (err) {
+      console.error('Rejection failed:', err);
+    }
     await fetchStateData();
   };
 
   const handleOverrideBooking = async (bookingId: string, updateData: any) => {
-    await bookingsApi.override(bookingId, updateData, jwtToken);
+    // Optimistic UI Update: apply updates locally immediately
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...updateData } : b));
+    try {
+      await bookingsApi.override(bookingId, updateData, jwtToken);
+    } catch (err) {
+      console.error('Override failed:', err);
+    }
     await fetchStateData();
   };
 
   const handleCreateRole = async (roleData: any) => {
     await rolesApi.create(roleData, jwtToken);
+    await fetchStateData();
+  };
+
+  const handleUpdateRole = async (roleName: string, roleData: any) => {
+    await rolesApi.update(roleName, roleData, jwtToken);
     await fetchStateData();
   };
 
@@ -221,7 +274,26 @@ export default function App() {
   };
 
   const handleUpdateRoom = async (roomId: string, updateData: any) => {
-    await roomsApi.update(roomId, updateData, jwtToken);
+    // Optimistic UI Update: apply updates locally immediately to prevent lag/jitter
+    setRooms(prev => prev.map(r => r.id === roomId ? { ...r, ...updateData } : r));
+    try {
+      await roomsApi.update(roomId, updateData, jwtToken);
+    } catch (err) {
+      console.error('Update room failed:', err);
+      // Revert if failed
+      await fetchStateData();
+      throw err;
+    }
+    await fetchStateData();
+  };
+
+  const handleDeleteRoom = async (roomId: string) => {
+    try {
+      await roomsApi.delete(roomId, jwtToken);
+    } catch (err) {
+      console.error('Delete room failed:', err);
+      throw err;
+    }
     await fetchStateData();
   };
 
@@ -315,6 +387,7 @@ export default function App() {
             <TrackPage 
               bookings={bookings}
               currentUserEmail={activeUser.email}
+              jwtToken={jwtToken}
               onRefresh={fetchStateData}
               onNavigate={navigate}
             />
@@ -360,8 +433,10 @@ export default function App() {
                 users={users}
                 activeBans={bans}
                 currentUser={activeUser}
+                hasPermission={hasPermission}
                 onRefresh={fetchStateData}
                 onCreateRole={handleCreateRole}
+                onUpdateRole={handleUpdateRole}
                 onDeleteRole={handleDeleteRole}
                 onAssignRole={handleAssignUserRole}
                 onCreateUser={handleCreateUser}
@@ -376,13 +451,16 @@ export default function App() {
                 onRefresh={fetchStateData}
                 onAddRoom={handleAddRoom}
                 onUpdateRoom={handleUpdateRoom}
+                onDeleteRoom={handleDeleteRoom}
               />
             )}
 
             {activeTab === 'audits' && (
               <AuditLogsPage 
                 auditLogs={auditLogs}
+                reportsData={reportsData}
                 onRefresh={fetchStateData}
+                hasPermission={hasPermission}
               />
             )}
           </StaffLayout>
@@ -553,8 +631,7 @@ export default function App() {
         );
       })()}
 
-      {/* FLOATING GEMINI CHATBOT ASSISTANT */}
-      <Chatbot activeUser={activeUser} jwtToken={jwtToken} />
+
 
     </div>
   );

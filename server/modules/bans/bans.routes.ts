@@ -12,7 +12,7 @@ router.get('/bans', requireAuth, (req: AuthenticatedRequest, res: Response, next
       req.currentUser?.permissions.includes('MANAGE_BANS')) {
     return next();
   }
-  return res.status(403).json({ error: "Privilege Restriction: Missing permission to view bans." });
+  return res.status(401).json({ error: "Privilege Restriction: Missing permission to view bans." });
 }, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const bansRes = await query(
@@ -33,11 +33,10 @@ router.get('/bans', requireAuth, (req: AuthenticatedRequest, res: Response, next
 // Issue a new Ban (with Privilege/Ceiling verification)
 router.post('/bans', requireAuth, (req: AuthenticatedRequest, res: Response, next) => {
   if (req.currentUser?.role === 'Administrator' || 
-      req.currentUser?.permissions.includes('ISSUE_BAN') || 
-      req.currentUser?.permissions.includes('MANAGE_BANS')) {
+      req.currentUser?.permissions.includes('ISSUE_BAN')) {
     return next();
   }
-  return res.status(403).json({ error: "Privilege Restriction: Missing permission to issue bans." });
+  return res.status(401).json({ error: "Privilege Restriction: Missing permission to issue bans." });
 }, async (req: AuthenticatedRequest, res: Response) => {
   const staff = req.currentUser!;
   let { email, name, reason, durationType, customDays, duration } = req.body;
@@ -126,7 +125,7 @@ router.post('/bans', requireAuth, (req: AuthenticatedRequest, res: Response, nex
 
     // 3. Check ceiling limit
     if (reqDays > staffCeilingDays) {
-      return res.status(403).json({ 
+      return res.status(401).json({ 
         error: `Privilege Restriction: Your role's ban ceiling is ${staffCeilingDays === 999999 ? 'Permanent' : staffCeilingDays + ' days'}. You cannot issue a ban of ${reqDays === 999999 ? 'Permanent' : reqDays + ' days'}.` 
       });
     }
@@ -179,12 +178,10 @@ router.post('/bans', requireAuth, (req: AuthenticatedRequest, res: Response, nex
 
 // Lift an active Ban
 router.post('/bans/:id/lift', requireAuth, (req: AuthenticatedRequest, res: Response, next) => {
-  if (req.currentUser?.role === 'Administrator' || 
-      req.currentUser?.permissions.includes('LIFT_BAN') ||
-      req.currentUser?.permissions.includes('MANAGE_BANS')) {
+  if (req.currentUser?.role === 'Administrator') {
     return next();
   }
-  return res.status(403).json({ error: "Privilege Restriction: Only Administrators can lift active bans." });
+  return res.status(401).json({ error: "Privilege Restriction: Only Administrators can lift active bans." });
 }, async (req: AuthenticatedRequest, res: Response) => {
   const staff = req.currentUser!;
   const banId = req.params.id;

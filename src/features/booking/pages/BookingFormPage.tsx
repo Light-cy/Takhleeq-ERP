@@ -55,10 +55,162 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
   // Find room parameters
   const selectedRoomObj = rooms.find(r => r.name === room);
 
+  // Real-time Validations
+  const getNameValidationError = (val: string) => {
+    if (/\d/.test(val)) {
+      return "Name must not contain numbers/digits.";
+    }
+    if (val.trim() !== '' && !/^[a-zA-Z\s.'-]*$/.test(val)) {
+      return "Name can only contain alphabetic characters, spaces, and standard punctuation (., \', -).";
+    }
+    return null;
+  };
+
+  const nameError = getNameValidationError(name);
+
+  const getOrganizationValidationError = (val: string) => {
+    if (/\d/.test(val)) {
+      return "Organization name must not contain numbers/digits.";
+    }
+    if (val.trim() !== '' && !/^[a-zA-Z\s.'-]*$/.test(val)) {
+      return "Organization name can only contain alphabetic characters, spaces, and standard punctuation (., \', -).";
+    }
+    return null;
+  };
+
+  const organizationError = getOrganizationValidationError(organization);
+
+  const getPhoneValidationError = (val: string) => {
+    if (val.trim() === '') return null;
+    if (/[^\d]/.test(val)) {
+      return "Phone number must contain only digits (no characters or symbols allowed).";
+    }
+    if (val.length !== 11) {
+      return `Phone number must be exactly 11 digits long (currently ${val.length} digits).`;
+    }
+    return null;
+  };
+
+  const phoneError = getPhoneValidationError(phone);
+
+  const attendanceNum = parseInt(expectedAttendance, 10);
+  const isAttendanceOverCapacity = selectedRoomObj && !isNaN(attendanceNum) && attendanceNum > selectedRoomObj.capacity;
+  const attendanceError = isAttendanceOverCapacity 
+    ? `Expected attendance exceeds the selected space's maximum capacity (${selectedRoomObj.capacity} persons).` 
+    : (attendanceNum < 0 ? "Expected attendance cannot be negative." : null);
+
+  const getOperatingHoursError = () => {
+    if (!selectedRoomObj) return null;
+    if (!startTime || !endTime) return null;
+    
+    // Parse operatingHours, e.g., "09:00 - 17:00"
+    const parts = selectedRoomObj.operatingHours.split('-');
+    if (parts.length !== 2) return null;
+    
+    const opStart = parts[0].trim();
+    const opEnd = parts[1].trim();
+    
+    if (startTime < opStart) {
+      return `Selected start time (${startTime}) is before the room's opening hours (${opStart}).`;
+    }
+    if (endTime > opEnd) {
+      return `Selected end time (${endTime}) is after the room's closing hours (${opEnd}).`;
+    }
+    if (startTime >= endTime) {
+      return "Start time must be strictly before end time.";
+    }
+    
+    const [sH, sM] = startTime.split(':').map(Number);
+    const [eH, eM] = endTime.split(':').map(Number);
+    const durationMins = (eH * 60 + eM) - (sH * 60 + sM);
+    
+    if (durationMins < selectedRoomObj.minBookingDuration) {
+      return `Booking duration (${durationMins} mins) is below the room's minimum threshold (${selectedRoomObj.minBookingDuration} mins).`;
+    }
+    if (durationMins > selectedRoomObj.maxBookingDuration) {
+      return `Booking duration (${durationMins} mins) exceeds the room's maximum threshold (${selectedRoomObj.maxBookingDuration} mins).`;
+    }
+    
+    return null;
+  };
+
+  const getLocalDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getPastDateTimeError = () => {
+    if (!date || !startTime) return null;
+    const todayStr = getLocalDateString();
+    
+    if (date < todayStr) {
+      return "Booking date cannot be in the past.";
+    }
+    
+    if (date === todayStr) {
+      const d = new Date();
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const nowTimeStr = `${hours}:${minutes}`;
+      if (startTime < nowTimeStr) {
+        return `Start time (${startTime}) cannot be in the past. It is currently ${nowTimeStr}.`;
+      }
+    }
+    return null;
+  };
+
+  const operatingHoursError = getOperatingHoursError();
+  const pastDateTimeError = getPastDateTimeError();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessData(null);
+
+    // Client-side Validations
+    if (nameError) {
+      setErrorMsg(`Validation Error: ${nameError}`);
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErrorMsg("Validation Error: Invalid email address format.");
+      return;
+    }
+
+    if (phoneError) {
+      setErrorMsg(`Validation Error: ${phoneError}`);
+      return;
+    }
+
+    if (organizationError) {
+      setErrorMsg(`Validation Error: ${organizationError}`);
+      return;
+    }
+
+    if (isNaN(attendanceNum) || attendanceNum < 0) {
+      setErrorMsg("Validation Error: Expected Attendance cannot be negative.");
+      return;
+    }
+
+    if (attendanceError) {
+      setErrorMsg(`Validation Error: ${attendanceError}`);
+      return;
+    }
+
+    if (pastDateTimeError) {
+      setErrorMsg(`Validation Error: ${pastDateTimeError}`);
+      return;
+    }
+
+    if (operatingHoursError) {
+      setErrorMsg(`Validation Error: ${operatingHoursError}`);
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -200,8 +352,8 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
                     <div>
                       <label className="block text-xs font-bold text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
                       <div className="relative">
-                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-gray-400">
-                          <User className="h-4 w-4" />
+                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center">
+                          <User className={`h-4 w-4 ${nameError ? 'text-rose-500' : 'text-gray-400'}`} />
                         </span>
                         <input
                           type="text"
@@ -209,9 +361,19 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
                           value={name}
                           onChange={e => setName(e.target.value)}
                           placeholder="e.g. Usman Ghani"
-                          className="w-full pl-9.5 pr-3 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium"
+                          className={`w-full pl-9.5 pr-3 py-2.5 border rounded-xl text-xs font-medium transition-colors ${
+                            nameError 
+                              ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:ring-1 focus:ring-rose-500 focus:border-rose-500' 
+                              : 'border-gray-200 focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800'
+                          }`}
                         />
                       </div>
+                      {nameError && (
+                        <p className="text-[10px] text-rose-600 font-bold mt-1.5 animate-fade-in flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0 text-rose-500" />
+                          <span>{nameError}</span>
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -235,34 +397,56 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
                     <div>
                       <label className="block text-xs font-bold text-gray-700 mb-1">Phone Number <span className="text-red-500">*</span></label>
                       <div className="relative">
-                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-gray-400">
-                          <Phone className="h-4 w-4" />
+                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center">
+                          <Phone className={`h-4 w-4 ${phoneError ? 'text-rose-500' : 'text-gray-400'}`} />
                         </span>
                         <input
                           type="tel"
                           required
                           value={phone}
                           onChange={e => setPhone(e.target.value)}
-                          placeholder="e.g. +923001234567"
-                          className="w-full pl-9.5 pr-3 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium"
+                          placeholder="e.g. 03001234567"
+                          className={`w-full pl-9.5 pr-3 py-2.5 border rounded-xl text-xs font-medium transition-colors ${
+                            phoneError 
+                              ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:ring-1 focus:ring-rose-500 focus:border-rose-500' 
+                              : 'border-gray-200 focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800'
+                          }`}
                         />
                       </div>
+                      {phoneError ? (
+                        <p className="text-[10px] text-rose-600 font-bold mt-1.5 animate-fade-in flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0 text-rose-500" />
+                          <span>{phoneError}</span>
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-gray-400 mt-1">Must be exactly 11 digits (numbers only).</p>
+                      )}
                     </div>
 
                     <div>
                       <label className="block text-xs font-bold text-gray-700 mb-1">Organization Name <span className="text-gray-400">(Optional)</span></label>
                       <div className="relative">
-                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-gray-400">
-                          <Building className="h-4 w-4" />
+                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center">
+                          <Building className={`h-4 w-4 ${organizationError ? 'text-rose-500' : 'text-gray-400'}`} />
                         </span>
                         <input
                           type="text"
                           value={organization}
                           onChange={e => setOrganization(e.target.value)}
                           placeholder="e.g. ACM Society / PixelCraft Startup"
-                          className="w-full pl-9.5 pr-3 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium"
+                          className={`w-full pl-9.5 pr-3 py-2.5 border rounded-xl text-xs font-medium transition-colors ${
+                            organizationError 
+                              ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:ring-1 focus:ring-rose-500 focus:border-rose-500' 
+                              : 'border-gray-200 focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800'
+                          }`}
                         />
                       </div>
+                      {organizationError && (
+                        <p className="text-[10px] text-rose-600 font-bold mt-1.5 animate-fade-in flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0 text-rose-500" />
+                          <span>{organizationError}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -307,18 +491,33 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
                     <div>
                       <label className="block text-xs font-bold text-gray-700 mb-1">Expected Attendance <span className="text-red-500">*</span></label>
                       <div className="relative">
-                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-gray-400">
-                          <Users className="h-4 w-4" />
+                        <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center">
+                          <Users className={`h-4 w-4 ${attendanceError ? 'text-rose-500' : 'text-gray-400'}`} />
                         </span>
                         <input
                           type="number"
                           required
+                          min="0"
                           value={expectedAttendance}
                           onChange={e => setExpectedAttendance(e.target.value)}
                           placeholder="e.g. 15"
-                          className="w-full pl-9.5 pr-3 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium"
+                          className={`w-full pl-9.5 pr-3 py-2.5 border rounded-xl text-xs font-medium transition-colors ${
+                            attendanceError 
+                              ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:ring-1 focus:ring-rose-500 focus:border-rose-500' 
+                              : 'border-gray-200 focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800'
+                          }`}
                         />
                       </div>
+                      {attendanceError ? (
+                        <p className="text-[10px] text-rose-600 font-bold mt-1.5 animate-fade-in flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0 text-rose-500" />
+                          <span>{attendanceError}</span>
+                        </p>
+                      ) : selectedRoomObj ? (
+                        <p className="text-[10px] text-gray-400 mt-1">Maximum allowed for {selectedRoomObj.name} is {selectedRoomObj.capacity} persons.</p>
+                      ) : (
+                        <p className="text-[10px] text-gray-400 mt-1">Please select a room to check maximum allowed capacity.</p>
+                      )}
                     </div>
                   </div>
 
@@ -353,9 +552,14 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
                       <input
                         type="date"
                         required
+                        min={getLocalDateString()}
                         value={date}
                         onChange={e => setDate(e.target.value)}
-                        className="w-full p-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium cursor-pointer"
+                        className={`w-full p-2.5 border rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium cursor-pointer ${
+                          pastDateTimeError 
+                            ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:ring-rose-500 focus:border-rose-500' 
+                            : 'border-gray-200'
+                        }`}
                       />
                     </div>
 
@@ -366,7 +570,11 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
                         required
                         value={startTime}
                         onChange={e => setStartTime(e.target.value)}
-                        className="w-full p-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium cursor-pointer"
+                        className={`w-full p-2.5 border rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                          operatingHoursError || (pastDateTimeError && date === getLocalDateString())
+                            ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:ring-1 focus:ring-rose-500 focus:border-rose-500' 
+                            : 'border-gray-200 focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800'
+                        }`}
                       />
                     </div>
 
@@ -377,10 +585,26 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
                         required
                         value={endTime}
                         onChange={e => setEndTime(e.target.value)}
-                        className="w-full p-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium cursor-pointer"
+                        className={`w-full p-2.5 border rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                          operatingHoursError 
+                            ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:ring-1 focus:ring-rose-500 focus:border-rose-500' 
+                            : 'border-gray-200 focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800'
+                        }`}
                       />
                     </div>
                   </div>
+                  {pastDateTimeError && (
+                    <p className="text-[10px] text-rose-600 font-bold mt-1.5 animate-fade-in flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3 shrink-0 text-rose-500" />
+                      <span>{pastDateTimeError}</span>
+                    </p>
+                  )}
+                  {operatingHoursError && (
+                    <p className="text-[10px] text-rose-600 font-bold mt-1.5 animate-fade-in flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3 shrink-0 text-rose-500" />
+                      <span>{operatingHoursError}</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* SECTION 4 */}

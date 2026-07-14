@@ -132,3 +132,25 @@ export const updateRoom = async (req: AuthenticatedRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to update room due to database error.' });
   }
 };
+
+export const deleteRoom = async (req: AuthenticatedRequest, res: Response) => {
+  const admin = req.currentUser!;
+  const roomId = req.params.id;
+
+  try {
+    const roomRes = await query(`SELECT * FROM rooms WHERE id = $1`, [parseInt(roomId)]);
+    if (roomRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+    const oldRoom = mapRoom(roomRes.rows[0]);
+
+    await query(`DELETE FROM rooms WHERE id = $1`, [parseInt(roomId)]);
+
+    await logAudit(`Deleted Room: ${oldRoom.name}`, 'room', roomId, admin.email, oldRoom, null);
+
+    res.json({ success: true, message: `Space '${oldRoom.name}' successfully deleted.` });
+  } catch (err) {
+    console.error('Failed to delete room:', err);
+    res.status(500).json({ error: 'Failed to delete room due to database error.' });
+  }
+};
