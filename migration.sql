@@ -77,12 +77,12 @@ CREATE TABLE IF NOT EXISTS ban_records (
     reason TEXT NOT NULL,
     duration_type VARCHAR(100) NOT NULL, -- 7_days, 30_days, 90_days, custom, permanent
     custom_days INTEGER,
-    expires_at TIMESTAMP,
+    expires_at TIMESTAMPTZ,
     is_active BOOLEAN DEFAULT TRUE,
     issued_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    issued_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     lifted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    lifted_at TIMESTAMP,
+    lifted_at TIMESTAMPTZ,
     lifting_reason TEXT
 );
 
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     actor_email VARCHAR(255) NOT NULL,
     previous_value JSONB,
     new_value JSONB,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Seed Initial System Data if empty
@@ -111,13 +111,29 @@ INSERT INTO users (id, email, full_name, is_active, last_login)
 VALUES (3, 'coordinator@takhleeq.pk', 'Sara Khan (Coordinator)', TRUE, CURRENT_TIMESTAMP)
 ON CONFLICT (email) DO NOTHING;
 
+INSERT INTO users (id, email, full_name, is_active, last_login)
+VALUES (4, 'usman@society.pk', 'Usman Ghani (Society Rep)', TRUE, CURRENT_TIMESTAMP)
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO users (id, email, full_name, is_active, last_login)
+VALUES (5, 'faisal@ucp.edu.pk', 'Faisal Mehmood (Coordinator)', TRUE, CURRENT_TIMESTAMP)
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO users (id, email, full_name, is_active, last_login)
+VALUES (6, 'maheen@ucp.edu.pk', 'Maheen Malik (Manager)', TRUE, CURRENT_TIMESTAMP)
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO users (id, email, full_name, is_active, last_login)
+VALUES (7, 'banned-test@ucp.edu.pk', 'Banned Student (Testing)', FALSE, CURRENT_TIMESTAMP)
+ON CONFLICT (email) DO NOTHING;
+
 -- Seed system roles
 INSERT INTO roles (id, name, description, permissions, ban_duration_ceiling)
 VALUES (
     1, 
     'Administrator', 
     'Full access and policy management capabilities', 
-    '["SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_BOOKING", "REJECT_BOOKING", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "ISSUE_BAN", "MANAGE_ROOMS", "CONFIGURE_ROOMS", "CONFIGURE_POLICIES", "VIEW_ANALYTICS_DASHBOARD", "EXPORT_AUDIT_LOGS", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "LIFT_BAN", "MANAGE_BANS"]'::jsonb, 
+    '["SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_BOOKING", "REJECT_BOOKING", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "ISSUE_BAN", "MANAGE_ROOMS", "CONFIGURE_ROOMS", "CONFIGURE_POLICIES", "VIEW_ANALYTICS_DASHBOARD", "EXPORT_AUDIT_LOGS", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "LIFT_BAN", "MANAGE_BANS", "MANAGE_BOOKING_TYPES"]'::jsonb, 
     'permanent'
 ) ON CONFLICT (name) DO NOTHING;
 
@@ -126,7 +142,7 @@ VALUES (
     2, 
     'Booking Manager', 
     'Approve, reject bookings, and issue bans up to 90 days', 
-    '["VIEW_PENDING_QUEUE", "APPROVE_REJECT_BOOKINGS", "MANAGE_BANS"]'::jsonb, 
+    '["VIEW_PENDING_QUEUE", "APPROVE_REJECT_BOOKINGS", "ISSUE_BAN"]'::jsonb, 
     '90'
 ) ON CONFLICT (name) DO NOTHING;
 
@@ -135,8 +151,17 @@ VALUES (
     3, 
     'Facility Coordinator', 
     'View queue, apply manual time/room overrides, issue bans up to 7 days', 
-    '["VIEW_PENDING_QUEUE", "BOOKING_OVERRIDE", "MANAGE_BANS"]'::jsonb, 
+    '["VIEW_PENDING_QUEUE", "BOOKING_OVERRIDE", "ISSUE_BAN"]'::jsonb, 
     '7'
+) ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO roles (id, name, description, permissions, ban_duration_ceiling)
+VALUES (
+    4, 
+    'UCP Member', 
+    'Regular student or staff member with standard public booking access', 
+    '[]'::jsonb, 
+    NULL
 ) ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO roles (id, name, description, permissions, ban_duration_ceiling)
@@ -161,6 +186,22 @@ INSERT INTO user_roles (user_id, role_id)
 VALUES (3, 3)
 ON CONFLICT (user_id, role_id) DO NOTHING;
 
+INSERT INTO user_roles (user_id, role_id)
+VALUES (4, 4)
+ON CONFLICT (user_id, role_id) DO NOTHING;
+
+INSERT INTO user_roles (user_id, role_id)
+VALUES (5, 3)
+ON CONFLICT (user_id, role_id) DO NOTHING;
+
+INSERT INTO user_roles (user_id, role_id)
+VALUES (6, 2)
+ON CONFLICT (user_id, role_id) DO NOTHING;
+
+INSERT INTO user_roles (user_id, role_id)
+VALUES (7, 4)
+ON CONFLICT (user_id, role_id) DO NOTHING;
+
 -- Seed Initial Rooms
 INSERT INTO rooms (id, name, capacity, operating_hours_start, operating_hours_end, min_duration_minutes, max_duration_minutes, purpose, policies)
 VALUES 
@@ -170,3 +211,28 @@ VALUES
 (4, 'Cube 2', 6, '09:00:00', '17:00:00', 30, 60, 'Small meetings and focused discussions', 'Leave room clean. No loud noise.'),
 (5, 'Podcast Room', 4, '09:00:00', '17:00:00', 60, 180, 'Podcast recording and audio sessions', 'Technical staff assistance must be booked separately.')
 ON CONFLICT (name) DO NOTHING;
+
+-- Create Booking Types table if not exists
+CREATE TABLE IF NOT EXISTS booking_types (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) UNIQUE NOT NULL,
+    description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Seed Initial Booking Types
+INSERT INTO booking_types (id, name, description, is_active)
+VALUES 
+(1, 'Student societies', 'Registered student clubs and societies', true),
+(2, 'Startup teams', 'Incubated or acceleration stage startup ventures', true),
+(3, 'Faculty members', 'Academic and research faculty staff', true),
+(4, 'Department representatives', 'Official university department booking delegates', true),
+(5, 'Cohort members', 'Incubation program cohort participants', true),
+(6, 'Entrepreneurs in residence', 'In-house startup mentors and entrepreneurs', true),
+(7, 'Professionals in residence', 'Industry professionals and technical consultants', true),
+(8, 'Meeting / Event', 'General meetings, gatherings or community events', true),
+(9, 'Cohort Startup', 'Incubated startup members', true),
+(10, 'Department', 'Department sessions and operations', true)
+ON CONFLICT (name) DO NOTHING;
+

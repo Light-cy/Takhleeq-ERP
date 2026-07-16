@@ -117,7 +117,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
 
           <button
             onClick={() => setActiveTab('rooms')}
-            disabled={activeUser.role !== 'Administrator'}
+            disabled={!hasPermission('MANAGE_ROOMS')}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'rooms' 
                 ? 'bg-primary text-white shadow-3xs' 
@@ -128,7 +128,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
               <Building className="h-4 w-4" />
               Room Management
             </span>
-            {activeUser.role !== 'Administrator' && <Lock className="h-3 w-3 text-gray-400" />}
+            {!hasPermission('MANAGE_ROOMS') && <Lock className="h-3 w-3 text-gray-400" />}
           </button>
 
           <button
@@ -230,7 +230,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                 </button>
                 <button 
                   onClick={() => { setActiveTab('rooms'); setMobileMenuOpen(false); }}
-                  disabled={activeUser.role !== 'Administrator'}
+                  disabled={!hasPermission('MANAGE_ROOMS')}
                   className={`w-full text-left font-black text-xs p-3.5 rounded-xl uppercase tracking-wider ${activeTab === 'rooms' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
                 >
                   Room Management

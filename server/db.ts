@@ -12,12 +12,101 @@ let useLocalDB = false;
 const localDbPath = path.join(process.cwd(), 'server', 'local_db.json');
 
 function initializeLocalDB() {
+  let db: any = null;
   if (fs.existsSync(localDbPath)) {
     try {
-      return JSON.parse(fs.readFileSync(localDbPath, 'utf8'));
+      db = JSON.parse(fs.readFileSync(localDbPath, 'utf8'));
     } catch (e) {
       console.error("Failed to parse local_db.json, recreating...", e);
     }
+  }
+
+  const allAdminPermissions = [
+    "SUBMIT_BOOKING",
+    "CANCEL_OWN_BOOKING",
+    "VIEW_PENDING_QUEUE",
+    "APPROVE_BOOKING",
+    "REJECT_BOOKING",
+    "APPROVE_REJECT_BOOKINGS",
+    "BOOKING_OVERRIDE",
+    "ISSUE_BAN",
+    "MANAGE_ROOMS",
+    "CONFIGURE_ROOMS",
+    "CONFIGURE_POLICIES",
+    "VIEW_ANALYTICS_DASHBOARD",
+    "EXPORT_AUDIT_LOGS",
+    "MANAGE_ROLES",
+    "MANAGE_USERS",
+    "VIEW_AUDIT_LOGS",
+    "LIFT_BAN",
+    "MANAGE_BANS",
+    "MANAGE_BOOKING_TYPES"
+  ];
+
+  if (db) {
+    let updated = false;
+    if (db.roles && Array.isArray(db.roles)) {
+      // 1. Upgrade Administrator role
+      const adminRole = db.roles.find((r: any) => r.name === 'Administrator');
+      if (adminRole) {
+        if (!adminRole.permissions) {
+          adminRole.permissions = [...allAdminPermissions];
+          updated = true;
+        } else {
+          for (const perm of allAdminPermissions) {
+            if (!adminRole.permissions.includes(perm)) {
+              adminRole.permissions.push(perm);
+              updated = true;
+            }
+          }
+        }
+      }
+
+      // 2. Remove MANAGE_BANS / LIFT_BAN from custom roles and replace with ISSUE_BAN
+      db.roles.forEach((r: any) => {
+        if (r.name !== 'Administrator' && r.permissions && Array.isArray(r.permissions)) {
+          const originalLength = r.permissions.length;
+          // Filter out prohibited permissions
+          r.permissions = r.permissions.filter((p: string) => p !== 'MANAGE_BANS' && p !== 'LIFT_BAN');
+          
+          // If they are allowed to issue bans (were originally a manager or coordinator), add ISSUE_BAN
+          if (['Booking Manager', 'Facility Coordinator'].includes(r.name)) {
+            if (!r.permissions.includes('ISSUE_BAN')) {
+              r.permissions.push('ISSUE_BAN');
+            }
+          }
+          if (r.permissions.length !== originalLength || (['Booking Manager', 'Facility Coordinator'].includes(r.name) && !r.permissions.includes('ISSUE_BAN'))) {
+            updated = true;
+          }
+        }
+      });
+    }
+
+    if (!db.booking_types || !Array.isArray(db.booking_types)) {
+      db.booking_types = [
+        { id: 1, name: 'Student societies', description: 'Registered student clubs and societies', is_active: true },
+        { id: 2, name: 'Startup teams', description: 'Incubated or acceleration stage startup ventures', is_active: true },
+        { id: 3, name: 'Faculty members', description: 'Academic and research faculty staff', is_active: true },
+        { id: 4, name: 'Department representatives', description: 'Official university department booking delegates', is_active: true },
+        { id: 5, name: 'Cohort members', description: 'Incubation program cohort participants', is_active: true },
+        { id: 6, name: 'Entrepreneurs in residence', description: 'In-house startup mentors and entrepreneurs', is_active: true },
+        { id: 7, name: 'Professionals in residence', description: 'Industry professionals and technical consultants', is_active: true },
+        { id: 8, name: 'Meeting / Event', description: 'General meetings, gatherings or community events', is_active: true },
+        { id: 9, name: 'Cohort Startup', description: 'Incubated startup members', is_active: true },
+        { id: 10, name: 'Department', description: 'Department sessions and operations', is_active: true }
+      ];
+      updated = true;
+    }
+
+    if (updated) {
+      console.log("Migrated local_db.json roles, permissions, and booking types automatically.");
+      try {
+        fs.writeFileSync(localDbPath, JSON.stringify(db, null, 2), 'utf8');
+      } catch (saveErr) {
+        console.error("Failed to save migrated local_db.json:", saveErr);
+      }
+    }
+    return db;
   }
 
   // Seed data from migration.sql
@@ -25,19 +114,27 @@ function initializeLocalDB() {
     users: [
       { id: 1, microsoft_id: null, email: 'director@takhleeq.pk', full_name: 'Dr. Qaseeb (Director)', is_active: true, last_login: new Date().toISOString(), created_at: new Date().toISOString() },
       { id: 2, microsoft_id: null, email: 'manager@takhleeq.pk', full_name: 'Syed Usman (Booking Manager)', is_active: true, last_login: new Date().toISOString(), created_at: new Date().toISOString() },
-      { id: 3, microsoft_id: null, email: 'coordinator@takhleeq.pk', full_name: 'Sara Khan (Coordinator)', is_active: true, last_login: new Date().toISOString(), created_at: new Date().toISOString() }
+      { id: 3, microsoft_id: null, email: 'coordinator@takhleeq.pk', full_name: 'Sara Khan (Coordinator)', is_active: true, last_login: new Date().toISOString(), created_at: new Date().toISOString() },
+      { id: 4, microsoft_id: null, email: 'usman@society.pk', full_name: 'Usman Ghani (Society Rep)', is_active: true, last_login: new Date().toISOString(), created_at: new Date().toISOString() },
+      { id: 5, microsoft_id: null, email: 'faisal@ucp.edu.pk', full_name: 'Faisal Mehmood (Coordinator)', is_active: true, last_login: new Date().toISOString(), created_at: new Date().toISOString() },
+      { id: 6, microsoft_id: null, email: 'maheen@ucp.edu.pk', full_name: 'Maheen Malik (Manager)', is_active: true, last_login: new Date().toISOString(), created_at: new Date().toISOString() },
+      { id: 7, microsoft_id: null, email: 'banned-test@ucp.edu.pk', full_name: 'Banned Student (Testing)', is_active: false, last_login: new Date().toISOString(), created_at: new Date().toISOString() }
     ],
     roles: [
-      { id: 1, name: 'Administrator', description: 'Full access and policy management capabilities', permissions: ["SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_BOOKING", "REJECT_BOOKING", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "ISSUE_BAN", "MANAGE_ROOMS", "CONFIGURE_ROOMS", "CONFIGURE_POLICIES", "VIEW_ANALYTICS_DASHBOARD", "EXPORT_AUDIT_LOGS", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "LIFT_BAN", "MANAGE_BANS"], ban_duration_ceiling: 'permanent', created_by: null, created_at: new Date().toISOString() },
-      { id: 2, name: 'Booking Manager', description: 'Approve, reject bookings, and issue bans up to 90 days', permissions: ["VIEW_PENDING_QUEUE", "APPROVE_REJECT_BOOKINGS", "MANAGE_BANS"], ban_duration_ceiling: '90', created_by: null, created_at: new Date().toISOString() },
-      { id: 3, name: 'Facility Coordinator', description: 'View queue, apply manual time/room overrides, issue bans up to 7 days', permissions: ["VIEW_PENDING_QUEUE", "BOOKING_OVERRIDE", "MANAGE_BANS"], ban_duration_ceiling: '7', created_by: null, created_at: new Date().toISOString() },
+      { id: 1, name: 'Administrator', description: 'Full access and policy management capabilities', permissions: ["SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_BOOKING", "REJECT_BOOKING", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "ISSUE_BAN", "MANAGE_ROOMS", "CONFIGURE_ROOMS", "CONFIGURE_POLICIES", "VIEW_ANALYTICS_DASHBOARD", "EXPORT_AUDIT_LOGS", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "LIFT_BAN", "MANAGE_BANS", "MANAGE_BOOKING_TYPES"], ban_duration_ceiling: 'permanent', created_by: null, created_at: new Date().toISOString() },
+      { id: 2, name: 'Booking Manager', description: 'Approve, reject bookings, and issue bans up to 90 days', permissions: ["VIEW_PENDING_QUEUE", "APPROVE_REJECT_BOOKINGS", "ISSUE_BAN"], ban_duration_ceiling: '90', created_by: null, created_at: new Date().toISOString() },
+      { id: 3, name: 'Facility Coordinator', description: 'View queue, apply manual time/room overrides, issue bans up to 7 days', permissions: ["VIEW_PENDING_QUEUE", "BOOKING_OVERRIDE", "ISSUE_BAN"], ban_duration_ceiling: '7', created_by: null, created_at: new Date().toISOString() },
       { id: 4, name: 'UCP Member', description: 'Regular student or staff member with standard public booking access', permissions: [], ban_duration_ceiling: null, created_by: null, created_at: new Date().toISOString() },
       { id: 5, name: 'Room Management', description: 'Manage incubator spaces, view and update space operating attributes, and delete spaces', permissions: ["MANAGE_ROOMS"], ban_duration_ceiling: '0', created_by: null, created_at: new Date().toISOString() }
     ],
     user_roles: [
       { user_id: 1, role_id: 1 },
       { user_id: 2, role_id: 2 },
-      { user_id: 3, role_id: 3 }
+      { user_id: 3, role_id: 3 },
+      { user_id: 4, role_id: 4 },
+      { user_id: 5, role_id: 3 },
+      { user_id: 6, role_id: 2 },
+      { user_id: 7, role_id: 4 }
     ],
     rooms: [
       { id: 1, name: 'Board Room', capacity: 15, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Formal executive meetings and syndicate sessions', policies: 'Authorized UCP societies and startups only. Strictly no external foods allowed. Leave room clean.', is_active: true, created_at: new Date().toISOString() },
@@ -45,6 +142,18 @@ function initializeLocalDB() {
       { id: 3, name: 'Cube 1', capacity: 6, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 30, max_duration_minutes: 60, purpose: 'Small meetings and focused discussions', policies: 'Leave room clean. No loud noise.', is_active: true, created_at: new Date().toISOString() },
       { id: 4, name: 'Cube 2', capacity: 6, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 30, max_duration_minutes: 60, purpose: 'Small meetings and focused discussions', policies: 'Leave room clean. No loud noise.', is_active: true, created_at: new Date().toISOString() },
       { id: 5, name: 'Podcast Room', capacity: 4, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Podcast recording and audio sessions', policies: 'Technical staff assistance must be booked separately.', is_active: true, created_at: new Date().toISOString() }
+    ],
+    booking_types: [
+      { id: 1, name: 'Student societies', description: 'Registered student clubs and societies', is_active: true },
+      { id: 2, name: 'Startup teams', description: 'Incubated or acceleration stage startup ventures', is_active: true },
+      { id: 3, name: 'Faculty members', description: 'Academic and research faculty staff', is_active: true },
+      { id: 4, name: 'Department representatives', description: 'Official university department booking delegates', is_active: true },
+      { id: 5, name: 'Cohort members', description: 'Incubation program cohort participants', is_active: true },
+      { id: 6, name: 'Entrepreneurs in residence', description: 'In-house startup mentors and entrepreneurs', is_active: true },
+      { id: 7, name: 'Professionals in residence', description: 'Industry professionals and technical consultants', is_active: true },
+      { id: 8, name: 'Meeting / Event', description: 'General meetings, gatherings or community events', is_active: true },
+      { id: 9, name: 'Cohort Startup', description: 'Incubated startup members', is_active: true },
+      { id: 10, name: 'Department', description: 'Department sessions and operations', is_active: true }
     ],
     bookings: [],
     ban_records: [],
@@ -87,6 +196,55 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   // 1. SELECT * FROM rooms ORDER BY id ASC
   if (q.includes('select * from rooms') && q.includes('order by id asc')) {
     return { rows: db.rooms };
+  }
+
+  // Booking Types local queries
+  if (q.includes('select * from booking_types') || q.includes('select * from booking_types order by id asc')) {
+    const list = db.booking_types || [];
+    return { rows: list };
+  }
+
+  if (q.includes('insert into booking_types')) {
+    const name = params[0];
+    const description = params[1] || '';
+    const is_active = params[2] !== undefined ? params[2] : true;
+    const list = db.booking_types || [];
+    const id = Math.max(...list.map((bt: any) => bt.id), 0) + 1;
+    const newBT = { id, name, description, is_active };
+    list.push(newBT);
+    db.booking_types = list;
+    saveLocalDB(db);
+    return { rows: [newBT] };
+  }
+
+  if (q.includes('update booking_types')) {
+    const name = params[0];
+    const description = params[1];
+    const is_active = params[2];
+    const id = parseInt(params[3]);
+    const list = db.booking_types || [];
+    const item = list.find((bt: any) => bt.id === id);
+    if (item) {
+      item.name = name;
+      item.description = description;
+      item.is_active = is_active;
+      db.booking_types = list;
+      saveLocalDB(db);
+    }
+    return { rows: item ? [item] : [] };
+  }
+
+  if (q.includes('delete from booking_types')) {
+    const id = parseInt(params[0]);
+    const list = db.booking_types || [];
+    const index = list.findIndex((bt: any) => bt.id === id);
+    let deleted = null;
+    if (index !== -1) {
+      deleted = list.splice(index, 1)[0];
+      db.booking_types = list;
+      saveLocalDB(db);
+    }
+    return { rows: deleted ? [deleted] : [] };
   }
 
   // 2. SELECT id FROM rooms WHERE LOWER(name) = LOWER($1)
@@ -844,13 +1002,133 @@ async function ensureDBReady() {
         console.log("Synchronizing default Administrator role with new permission nodes...");
         await pool.query(`
           UPDATE roles 
-          SET permissions = '["SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_BOOKING", "REJECT_BOOKING", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "ISSUE_BAN", "MANAGE_ROOMS", "CONFIGURE_ROOMS", "CONFIGURE_POLICIES", "VIEW_ANALYTICS_DASHBOARD", "EXPORT_AUDIT_LOGS", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "LIFT_BAN", "MANAGE_BANS"]'::jsonb
+          SET permissions = '["SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_BOOKING", "REJECT_BOOKING", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "ISSUE_BAN", "MANAGE_ROOMS", "CONFIGURE_ROOMS", "CONFIGURE_POLICIES", "VIEW_ANALYTICS_DASHBOARD", "EXPORT_AUDIT_LOGS", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "LIFT_BAN", "MANAGE_BANS", "MANAGE_BOOKING_TYPES"]'::jsonb
           WHERE name = 'Administrator';
         `);
       } catch (syncAdminErr: any) {
         console.warn("Could not synchronize Administrator role in PostgreSQL:", syncAdminErr.message);
       }
+
+      // We do not unconditionally update or reset custom permissions/ceilings of default roles (Booking Manager and Facility Coordinator) on startup anymore.
+      // This allows modifications made via the Admin UI/Governance Center to persist permanently across server restarts and redeployments.
+
+      // Synchronize all simulated users and roles in PostgreSQL
+      try {
+        console.log("Synchronizing standard user profiles and roles in PostgreSQL...");
+        // 1. Ensure UCP Member role exists
+        await pool.query(`
+          INSERT INTO roles (id, name, description, permissions, ban_duration_ceiling)
+          VALUES (4, 'UCP Member', 'Regular student or staff member with standard public booking access', '[]'::jsonb, NULL)
+          ON CONFLICT (name) DO NOTHING;
+        `);
+
+        // 2. Insert all simulated users
+        await pool.query(`
+          INSERT INTO users (id, email, full_name, is_active, last_login)
+          VALUES 
+          (1, 'director@takhleeq.pk', 'Dr. Qaseeb (Director)', TRUE, CURRENT_TIMESTAMP),
+          (2, 'manager@takhleeq.pk', 'Syed Usman (Booking Manager)', TRUE, CURRENT_TIMESTAMP),
+          (3, 'coordinator@takhleeq.pk', 'Sara Khan (Coordinator)', TRUE, CURRENT_TIMESTAMP),
+          (4, 'usman@society.pk', 'Usman Ghani (Society Rep)', TRUE, CURRENT_TIMESTAMP),
+          (5, 'faisal@ucp.edu.pk', 'Faisal Mehmood (Coordinator)', TRUE, CURRENT_TIMESTAMP),
+          (6, 'maheen@ucp.edu.pk', 'Maheen Malik (Manager)', TRUE, CURRENT_TIMESTAMP),
+          (7, 'banned-test@ucp.edu.pk', 'Banned Student (Testing)', FALSE, CURRENT_TIMESTAMP)
+          ON CONFLICT (email) DO UPDATE SET
+            full_name = EXCLUDED.full_name,
+            is_active = EXCLUDED.is_active;
+        `);
+
+        // Get actual role IDs to make sure we map user_roles correctly
+        const rolesRes = await pool.query(`SELECT id, name FROM roles`);
+        const roleMap: Record<string, number> = {};
+        rolesRes.rows.forEach(r => {
+          roleMap[r.name] = r.id;
+        });
+
+        // Get actual user IDs to match email
+        const usersRes = await pool.query(`SELECT id, email FROM users`);
+        const userMap: Record<string, number> = {};
+        usersRes.rows.forEach(u => {
+          userMap[u.email.toLowerCase()] = u.id;
+        });
+
+        // 3. Set standard user roles
+        const assignments = [
+          { email: 'director@takhleeq.pk', role: 'Administrator' },
+          { email: 'manager@takhleeq.pk', role: 'Booking Manager' },
+          { email: 'coordinator@takhleeq.pk', role: 'Facility Coordinator' },
+          { email: 'usman@society.pk', role: 'UCP Member' },
+          { email: 'faisal@ucp.edu.pk', role: 'Facility Coordinator' },
+          { email: 'maheen@ucp.edu.pk', role: 'Booking Manager' },
+          { email: 'banned-test@ucp.edu.pk', role: 'UCP Member' }
+        ];
+
+        for (const assign of assignments) {
+          const userId = userMap[assign.email.toLowerCase()];
+          const roleId = roleMap[assign.role];
+          if (userId && roleId) {
+            await pool.query(`
+              INSERT INTO user_roles (user_id, role_id)
+              VALUES ($1, $2)
+              ON CONFLICT (user_id, role_id) DO NOTHING;
+            `, [userId, roleId]);
+          }
+        }
+        
+        await pool.query(`
+          SELECT setval(pg_get_serial_sequence('users', 'id'), COALESCE(MAX(id), 1)) FROM users;
+          SELECT setval(pg_get_serial_sequence('roles', 'id'), COALESCE(MAX(id), 1)) FROM roles;
+        `);
+        console.log("Simulated users and roles synchronized successfully.");
+      } catch (syncUsersErr: any) {
+        console.warn("Could not synchronize standard user profiles and roles in PostgreSQL:", syncUsersErr.message);
+      }
+
+      // Synchronize booking types table and initial seed data in PostgreSQL
+      try {
+        console.log("Synchronizing booking types in PostgreSQL...");
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS booking_types (
+              id SERIAL PRIMARY KEY,
+              name VARCHAR(255) UNIQUE NOT NULL,
+              description TEXT,
+              is_active BOOLEAN DEFAULT TRUE,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        await pool.query(`
+          INSERT INTO booking_types (id, name, description, is_active)
+          VALUES 
+          (1, 'Student societies', 'Registered student clubs and societies', true),
+          (2, 'Startup teams', 'Incubated or acceleration stage startup ventures', true),
+          (3, 'Faculty members', 'Academic and research faculty staff', true),
+          (4, 'Department representatives', 'Official university department booking delegates', true),
+          (5, 'Cohort members', 'Incubation program cohort participants', true),
+          (6, 'Entrepreneurs in residence', 'In-house startup mentors and entrepreneurs', true),
+          (7, 'Professionals in residence', 'Industry professionals and technical consultants', true),
+          (8, 'Meeting / Event', 'General meetings, gatherings or community events', true),
+          (9, 'Cohort Startup', 'Incubated startup members', true),
+          (10, 'Department', 'Department sessions and operations', true)
+          ON CONFLICT (name) DO NOTHING;
+        `);
+
+        try {
+          await pool.query(`
+            SELECT setval(pg_get_serial_sequence('booking_types', 'id'), COALESCE(MAX(id), 1)) FROM booking_types;
+          `);
+        } catch (setvalErr: any) {
+          // ignore if sequence isn't fully initialized yet
+        }
+        console.log("Booking types synchronized successfully in PostgreSQL.");
+      } catch (syncBookingTypesErr: any) {
+        console.warn("Could not synchronize booking types in PostgreSQL:", syncBookingTypesErr.message);
+      }
     } catch (err: any) {
+      if (process.env.NODE_ENV === 'production') {
+        console.error("CRITICAL FATAL ERROR: Failed to connect to PostgreSQL database in PRODUCTION mode. Refusing to fallback to local JSON database to prevent silent data loss.");
+        throw err;
+      }
       console.warn("PostgreSQL connection or migration failed. Falling back to local in-memory JSON database engine.", err.message);
       useLocalDB = true;
     }
@@ -862,18 +1140,45 @@ async function ensureDBReady() {
 // Trigger early initialization
 ensureDBReady();
 
-// Base Query Helper
+// Base Query Helper with retry and fallback
 export async function query(text: string, params?: any[]): Promise<any> {
   await ensureDBReady();
   if (!useLocalDB) {
-    try {
-      return await pool.query(text, params);
-    } catch (err: any) {
-      if (err.code === 'ECONNREFUSED' || err.message.includes('connect ECONNREFUSED') || err.message.includes('does not exist')) {
-        console.warn("PostgreSQL query failed with connection error. Switching to local JSON database engine.", err.message);
-        useLocalDB = true;
-      } else {
-        throw err;
+    let retries = 1;
+    while (retries >= 0) {
+      try {
+        return await pool.query(text, params);
+      } catch (err: any) {
+        const errMsg = String(err.message || '');
+        const errCode = String(err.code || '');
+        const isConnectionError = 
+          errCode === 'ECONNREFUSED' || 
+          errMsg.includes('connect ECONNREFUSED') || 
+          errMsg.includes('does not exist') ||
+          errMsg.includes('terminated unexpectedly') ||
+          errMsg.includes('closed') ||
+          errMsg.includes('ECONNRESET') ||
+          errMsg.includes('socket hang up') ||
+          errMsg.includes('hand up') ||
+          errMsg.includes('connection');
+
+        if (isConnectionError) {
+          if (retries > 0) {
+            console.warn(`PostgreSQL connection error detected ("${errMsg}"). Retrying query with a fresh connection...`);
+            retries--;
+            await new Promise(resolve => setTimeout(resolve, 500));
+            continue;
+          }
+          
+          if (process.env.NODE_ENV === 'production') {
+            console.error("CRITICAL CONNECTION LOST in Production Mode. Attempting fallback to keep the service responsive.");
+          }
+          console.warn("PostgreSQL query failed after retries. Switching to local JSON database engine.", err.message);
+          useLocalDB = true;
+          break;
+        } else {
+          throw err;
+        }
       }
     }
   }
@@ -911,7 +1216,10 @@ export async function logAudit(
 // Helper to calculate expiration date of a ban
 export function calculateBanExpiry(duration: string): Date | null {
   const now = new Date();
-  if (duration === '7_days' || duration === '7 days') {
+  if (duration === '3_days' || duration === '3 days') {
+    now.setDate(now.getDate() + 3);
+    return now;
+  } else if (duration === '7_days' || duration === '7 days') {
     now.setDate(now.getDate() + 7);
     return now;
   } else if (duration === '30_days' || duration === '30 days') {
@@ -932,6 +1240,55 @@ export function calculateBanExpiry(duration: string): Date | null {
     }
   }
   return null;
+}
+
+// Automatically expire and lift bans whose expires_at date/time has passed
+export async function autoExpireBans() {
+  try {
+    const now = new Date();
+    if (useLocalDB) {
+      const db = initializeLocalDB();
+      let updated = false;
+      db.ban_records.forEach((b: any) => {
+        if (b.is_active && b.expires_at && new Date(b.expires_at) <= now) {
+          b.is_active = false;
+          b.lifting_reason = 'Ban automatically expired';
+          b.lifted_at = now.toISOString();
+          updated = true;
+          console.log(`[Auto-Expire Local Ban] Expired ban for ${b.email} (ID: ${b.id})`);
+        }
+      });
+      if (updated) {
+        saveLocalDB(db);
+      }
+    } else {
+      // Fetch expired bans that are currently active in Postgres using server-side Date to avoid DB timezone differences
+      const expiredBans = await pool.query(
+        `SELECT id, email FROM ban_records 
+         WHERE is_active = TRUE AND expires_at IS NOT NULL AND expires_at <= $1`,
+        [now]
+      );
+      if (expiredBans.rows.length > 0) {
+        for (const row of expiredBans.rows) {
+          console.log(`[Auto-Expire Postgres Ban] Expiring ban for ${row.email} (ID: ${row.id})`);
+          await pool.query(
+            `UPDATE ban_records 
+             SET is_active = FALSE, lifted_at = $1, lifting_reason = 'Ban automatically expired' 
+             WHERE id = $2`,
+            [now, row.id]
+          );
+          await logAudit(
+            `Ban automatically expired and lifted for ${row.email}`,
+            'ban',
+            String(row.id),
+            'System'
+          );
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to run autoExpireBans:', err);
+  }
 }
 
 // Database snake_case row to CamelCase frontend schema mappers
@@ -1038,10 +1395,14 @@ export function mapBooking(row: any): Booking {
 
 export function mapBan(row: any): Ban {
   let duration = 'Permanent';
-  if (row.duration_type === '7_days') duration = '7 days';
-  else if (row.duration_type === '30_days') duration = '30 days';
-  else if (row.duration_type === '90_days') duration = '90 days';
-  else if (row.duration_type === 'custom') duration = `Custom ${row.custom_days} days`;
+  const dt = String(row.duration_type).toLowerCase().trim();
+  if (dt === '3_days' || dt === '3 days') duration = '3 days';
+  else if (dt === '7_days' || dt === '7 days') duration = '7 days';
+  else if (dt === '30_days' || dt === '30 days') duration = '30 days';
+  else if (dt === '90_days' || dt === '90 days') duration = '90 days';
+  else if (dt === 'custom') duration = `Custom ${row.custom_days} days`;
+  else if (dt === 'permanent') duration = 'Permanent';
+  else if (row.duration_type) duration = row.duration_type;
 
   let status: 'Active' | 'Expired' | 'Lifted' = 'Active';
   if (!row.is_active) {

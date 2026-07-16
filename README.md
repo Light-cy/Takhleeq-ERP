@@ -124,6 +124,91 @@ To connect Microsoft login flows to your application, register it on the Azure/E
 
 ---
 
+## 🔑 Role & Permission Management Guide
+
+Takhleeq ERP utilizes an **Explicit Permission Nodes Pattern** for role-based access control (RBAC). This ensures strict visual control, code readability, and a highly predictable security architecture.
+
+### 1. Governance Persistence Across Rebuilds & Deploys
+*   **Previous Behavior:** System-critical default roles like `Booking Manager` and `Facility Coordinator` would have their permissions and ban duration ceilings overwritten back to hardcoded default values every time the backend server restarted or was redeployed.
+*   **Current Behavior:** On-startup resets for these roles have been completely disabled in `/server/db.ts`. All edits to default roles, permission lists, or duration caps made by Administrators in the UI **persist permanently** across server restarts, re-builds, and deployment cycles.
+
+---
+
+### 2. Design Strategy: Explicit Permission Nodes vs. CRUD Matrix
+Instead of an over-engineered dynamic Matrix (e.g., `hasPermission('ROOMS', 'DELETE')`), we maintain an explicit list of system permissions. 
+
+**Why we use this:**
+*   **High Clarity:** Developers can instantly look up a node like `MANAGE_BOOKING_TYPES` or `VIEW_PENDING_QUEUE` and know exactly which feature it guards.
+*   **Pristine UI Control:** Direct, human-readable tags are rendered seamlessly in the Role Customizer/Governance Center without complicated translation layers.
+*   **Incremental Growth:** It is far simpler to add nodes on an as-needed basis rather than carrying deadweight Matrix queries.
+
+---
+
+### 3. Step-by-Step Developer Guide: Adding a New Permission Node
+
+If you are implementing a new feature (e.g., `VIEW_LOGGED_USERS`) and want to restrict access to it, follow these three simple steps:
+
+#### Step 1: Declare the Node on the Frontend
+Add your new permission key string to the `SYSTEM_PERMISSIONS` array inside `/src/constants/permissions.ts`:
+```typescript
+export const SYSTEM_PERMISSIONS = [
+  "SUBMIT_BOOKING",
+  "CANCEL_OWN_BOOKING",
+  "VIEW_PENDING_QUEUE",
+  "APPROVE_REJECT_BOOKINGS",
+  "BOOKING_OVERRIDE",
+  "ISSUE_BAN",
+  "MANAGE_ROOMS",
+  "VIEW_ANALYTICS_DASHBOARD",
+  "EXPORT_AUDIT_LOGS",
+  "MANAGE_ROLES",
+  "MANAGE_USERS",
+  "CONFIGURE_POLICIES",
+  "LIFT_BAN",
+  "VIEW_LOGGED_USERS" // <-- Add your new node here
+] as const;
+```
+*Note: Any additions here will automatically populate the checklist tags in the Role Customizer / Governance Center UI!*
+
+#### Step 2: Enforce the Permission Gate on the Backend
+To protect your Express backend API endpoint under `/server/modules/`, use the `requirePermission` auth middleware gate:
+```typescript
+import { Router } from "express";
+import { requirePermission } from "../../middleware/auth";
+
+const router = Router();
+
+// Only users belonging to a role containing "VIEW_LOGGED_USERS" can call this API
+router.get("/active-sessions", requirePermission("VIEW_LOGGED_USERS"), async (req, res) => {
+  const users = await getActiveSessions();
+  res.json({ users });
+});
+```
+
+#### Step 3: Guard Visual Components in the React UI
+To hide buttons, sidebars, or complete sections from unauthorized users in the frontend layout, use the `currentUser` permissions context checking:
+```typescript
+import { useAuth } from "../App"; // Or your auth context hook
+
+export function LoggedUsersWidget() {
+  const { currentUser } = useAuth();
+
+  // If the user does not possess the explicit node, do not render this element
+  if (!currentUser?.permissions.includes("VIEW_LOGGED_USERS")) {
+    return null;
+  }
+
+  return (
+    <div className="p-4 bg-white border rounded-xl shadow-sm">
+      <h3 className="font-semibold">Active Session Logs</h3>
+      {/* List users here */}
+    </div>
+  );
+}
+```
+
+---
+
 ## 📁 Updated Directory Structure Overview
 
 ```text

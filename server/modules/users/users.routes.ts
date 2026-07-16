@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth, requirePermission } from '../../middleware/auth.ts';
+import { requireAuth, requirePermission, requireAnyPermission } from '../../middleware/auth.ts';
 import { 
   handleMicrosoftAuth, 
   handleSimulatedAuth, 
@@ -21,10 +21,10 @@ router.post('/auth/simulated', handleSimulatedAuth);
 router.get('/auth/me', requireAuth, getCurrentUser);
 
 // Get User Registry
-router.get('/users', requireAuth, requirePermission('MANAGE_USERS'), getUsers);
+router.get('/users', requireAuth, requireAnyPermission(['MANAGE_USERS', 'MANAGE_ROLES', 'ISSUE_BAN', 'APPROVE_REJECT_BOOKINGS', 'BOOKING_OVERRIDE']), getUsers);
 
 // Assign User Role (MANAGE_ROLES or MANAGE_USERS permission)
-router.post('/users/assign-role', requireAuth, requirePermission('MANAGE_ROLES'), assignUserRole);
+router.post('/users/assign-role', requireAuth, requireAnyPermission(['MANAGE_ROLES', 'MANAGE_USERS']), assignUserRole);
 
 // Admin adds a simulated/pre-registered user account
 router.post('/users', requireAuth, requirePermission('MANAGE_USERS'), createUser);

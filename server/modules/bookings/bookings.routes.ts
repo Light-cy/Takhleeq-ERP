@@ -1,13 +1,94 @@
 import { Router, Response } from 'express';
-import { query, logAudit, mapBooking } from '../../db.ts';
+import { query, logAudit, mapBooking, autoExpireBans } from '../../db.ts';
 import { AuthenticatedRequest, requireAuth, requirePermission } from '../../middleware/auth.ts';
 import { sendBookingStatusEmail } from './email.service.ts';
 
 const router = Router();
 
+// Helper to automatically scan and reject pending requests whose booking date or slot has passed
+async function autoRejectPastPendingBookings() {
+  try {
+    const now = new Date();
+    // Pakistan Standard Time is UTC+5.
+    // Calculate the date & time as they would be in Pakistan (UTC+5) to align with Takhleeq ERP's region.
+    const pktOffset = 5 * 60 * 60 * 1000;
+    const pktDate = new Date(now.getTime() + pktOffset);
+    
+    const year = pktDate.getUTCFullYear();
+    const month = String(pktDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(pktDate.getUTCDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+    
+    const currentHours = String(pktDate.getUTCHours()).padStart(2, '0');
+    const currentMins = String(pktDate.getUTCMinutes()).padStart(2, '0');
+    const nowTimeStr = `${currentHours}:${currentMins}`;
+
+    console.log(`[Auto-Reject Check] Running. Today (PKT): ${todayStr}, Time (PKT): ${nowTimeStr}`);
+
+    // Fetch all bookings that are in PENDING_REVIEW status
+    const pendingRes = await query(
+      `SELECT b.*, r.name as room_name 
+       FROM bookings b
+       LEFT JOIN rooms r ON b.room_id = r.id
+       WHERE b.status = 'PENDING_REVIEW'`
+    );
+
+    for (const row of pendingRes.rows) {
+      const booking = mapBooking(row);
+      const isPastDate = booking.date < todayStr;
+      const isTodayAndPastTime = booking.date === todayStr && booking.startTime < nowTimeStr;
+
+      if (isPastDate || isTodayAndPastTime) {
+        const bookingId = booking.id;
+        const reason = `Booking date and time have passed without an administrative decision.`;
+
+        console.log(`[Auto-Reject Action] Rejecting booking ${bookingId} scheduled for ${booking.date} ${booking.startTime}-${booking.endTime} (Current PKT: ${todayStr} ${nowTimeStr})`);
+
+        // Update booking status in the database
+        await query(
+          `UPDATE bookings 
+           SET status = 'REJECTED_BY_STAFF', rejection_reason = $1, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2`,
+          [reason, row.id]
+        );
+
+        // Audit log
+        await logAudit(
+          `System Auto-Rejection: Booking ${bookingId} auto-rejected because its scheduled slot (${booking.date} ${booking.startTime}-${booking.endTime}) has passed.`,
+          'booking',
+          bookingId,
+          'System (Auto-Reject)'
+        );
+
+        // Prepare updated booking for email dispatch
+        const updatedBooking = {
+          ...booking,
+          status: 'REJECTED BY STAFF' as const,
+          rejectionReason: reason
+        };
+
+        // Send email
+        try {
+          await sendBookingStatusEmail(updatedBooking, 'REJECTED', { rejectionReason: reason });
+        } catch (emailErr) {
+          console.error(`[EMAIL ERROR] Auto-reject email dispatch failed for ${bookingId}:`, emailErr);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to run autoRejectPastPendingBookings:', err);
+  }
+}
+
 // Retrieve all bookings in the system
 router.get('/bookings', async (req, res) => {
   try {
+    // Run the automatic clean-up/rejection routine first
+    await autoRejectPastPendingBookings();
+    
+    // Run the automatic ban expiration clean-up
+    await autoExpireBans();
+
     const bookingsRes = await query(
       `SELECT b.*, r.name as room_name, u.full_name as approver_name, cb.booking_id as conflicting_booking_ref
        FROM bookings b
@@ -33,6 +114,9 @@ router.post('/bookings', async (req, res) => {
   } = req.body;
 
   try {
+    // Run the automatic ban expiration clean-up first
+    await autoExpireBans();
+
     const cleanEmail = String(email || '').trim().toLowerCase();
     const currentYear = new Date().getFullYear();
 
@@ -118,6 +202,8 @@ router.post('/bookings', async (req, res) => {
 
     let isPastDate = false;
     let isPastTimeForToday = false;
+    let isFutureLimitExceeded = false;
+    let maxFutureDateStr = '';
     if (date) {
       const reqDate = new Date(`${date}T00:00:00`);
       const today = new Date();
@@ -125,18 +211,32 @@ router.post('/bookings', async (req, res) => {
       if (reqDate < today) {
         isPastDate = true;
       } else {
-        // If it's today's date, verify the start time is not in the past
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const serverTodayStr = `${year}-${month}-${day}`;
-        if (date === serverTodayStr) {
-          const currentHours = String(now.getHours()).padStart(2, '0');
-          const currentMins = String(now.getMinutes()).padStart(2, '0');
-          const nowTimeStr = `${currentHours}:${currentMins}`;
-          if (startTime < nowTimeStr) {
-            isPastTimeForToday = true;
+        // Calculate 3 months limit
+        const limitDate = new Date();
+        limitDate.setMonth(limitDate.getMonth() + 3);
+        limitDate.setHours(0,0,0,0);
+
+        const limitYear = limitDate.getFullYear();
+        const limitMonth = String(limitDate.getMonth() + 1).padStart(2, '0');
+        const limitDay = String(limitDate.getDate()).padStart(2, '0');
+        maxFutureDateStr = `${limitYear}-${limitMonth}-${limitDay}`;
+
+        if (reqDate > limitDate) {
+          isFutureLimitExceeded = true;
+        } else {
+          // If it's today's date, verify the start time is not in the past
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          const day = String(now.getDate()).padStart(2, '0');
+          const serverTodayStr = `${year}-${month}-${day}`;
+          if (date === serverTodayStr) {
+            const currentHours = String(now.getHours()).padStart(2, '0');
+            const currentMins = String(now.getMinutes()).padStart(2, '0');
+            const nowTimeStr = `${currentHours}:${currentMins}`;
+            if (startTime < nowTimeStr) {
+              isPastTimeForToday = true;
+            }
           }
         }
       }
@@ -165,6 +265,8 @@ router.post('/bookings', async (req, res) => {
       validationErrorMsg = 'Validation Error: Expected Attendance cannot be negative.';
     } else if (isPastDate) {
       validationErrorMsg = 'Validation Error: Past dates cannot be booked.';
+    } else if (isFutureLimitExceeded) {
+      validationErrorMsg = `Validation Error: Bookings can only be scheduled up to 3 months in advance (up to ${maxFutureDateStr}).`;
     } else if (isPastTimeForToday) {
       validationErrorMsg = 'Validation Error: Past times on today\'s date cannot be booked.';
     } else if (!roomRecord) {
@@ -242,9 +344,11 @@ router.post('/bookings', async (req, res) => {
     let finalStatus = 'PENDING_REVIEW';
     let finalRejectionReason = null;
 
+    // Overlapping bookings are no longer auto-rejected. They are saved as PENDING_REVIEW
+    // so administrators can review them and decide whether to reject or override.
     if (conflictStatus === 'CONFLICT_DETECTED') {
-      finalStatus = 'REJECTED_BY_STAFF';
-      finalRejectionReason = 'Instant rejected by system: Schedule overlap detected with another active booking.';
+      finalStatus = 'PENDING_REVIEW';
+      finalRejectionReason = null;
     }
 
     const insBooking = await query(
@@ -333,15 +437,65 @@ router.post('/bookings/:id/approve', requireAuth, requirePermission('APPROVE_REJ
 
     const prevBooking = mapBooking(booking);
 
-    // Update Status to APPROVED and clear rejection reason
+    // 1. Identify all currently APPROVED bookings that overlap with this booking (same room, same date, overlapping time window)
+    const overlappingApprovedRes = await query(
+      `SELECT * FROM bookings
+       WHERE id != $1
+         AND room_id = $2
+         AND date = $3
+         AND status = 'APPROVED'
+         AND start_time < $4
+         AND end_time > $5`,
+      [booking.id, booking.room_id, booking.date, booking.end_time, booking.start_time]
+    );
+
+    const overlappingApprovedBookings = overlappingApprovedRes.rows;
+
+    // 2. Automatically reject/cancel overlapping approved bookings
+    for (const ov of overlappingApprovedBookings) {
+      const ovMapped = mapBooking(ov);
+      const rejectionReason = `Your approved reservation (${ovMapped.id}) for '${ovMapped.room}' has been cancelled and replaced by the administration due to a priority scheduling allocation.`;
+
+      // Update status to REJECTED_BY_STAFF and set the rejection reason
+      await query(
+        `UPDATE bookings 
+         SET status = 'REJECTED_BY_STAFF', rejection_reason = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [rejectionReason, ov.id]
+      );
+
+      // Audit log the automatic replacement action
+      await logAudit(
+        `Priority Override: Automatically cancelled overlapping approved booking ${ovMapped.id} to accommodate priority approval of ${bookingId}`,
+        'booking',
+        ovMapped.id,
+        staff.email,
+        ovMapped,
+        { ...ovMapped, status: 'REJECTED BY STAFF', rejectionReason }
+      );
+
+      // Send status change email to the displaced user
+      try {
+        await sendBookingStatusEmail(
+          { ...ovMapped, status: 'REJECTED BY STAFF', rejectionReason },
+          'REJECTED',
+          { rejectionReason }
+        );
+      } catch (emailErr) {
+        console.error(`[EMAIL ERROR] Failed to send replacement cancellation email to ${ovMapped.email} for booking ${ovMapped.id}:`, emailErr);
+      }
+    }
+
+    // 3. Update Status of current booking to APPROVED and clear any conflict statuses
     await query(
       `UPDATE bookings 
-       SET status = 'APPROVED', approved_by = $1, approved_at = CURRENT_TIMESTAMP, rejection_reason = NULL, updated_at = CURRENT_TIMESTAMP
+       SET status = 'APPROVED', approved_by = $1, approved_at = CURRENT_TIMESTAMP, 
+           conflict_status = 'NO_CONFLICT', conflicting_booking_id = NULL, rejection_reason = NULL, updated_at = CURRENT_TIMESTAMP
        WHERE id = $2`,
       [staff.id, booking.id]
     );
 
-    // Resolve/Mark any overlapping requests currently in PENDING_REVIEW as CONFLICT_DETECTED
+    // 4. Resolve/Mark any OTHER overlapping requests currently in PENDING_REVIEW as CONFLICT_DETECTED
     await query(
       `UPDATE bookings
        SET conflict_status = 'CONFLICT_DETECTED', conflicting_booking_id = $1, updated_at = CURRENT_TIMESTAMP
@@ -367,7 +521,7 @@ router.post('/bookings/:id/approve', requireAuth, requirePermission('APPROVE_REJ
 
     await logAudit(`Approved Booking: ${bookingId}`, 'booking', bookingId, staff.email, prevBooking, updatedBooking);
 
-    // Trigger confirmation email asynchronously
+    // Trigger confirmation email asynchronously to the requester of this approved booking
     try {
       await sendBookingStatusEmail(updatedBooking, 'APPROVED');
     } catch (emailErr) {

@@ -16,7 +16,7 @@ import {
   HelpCircle,
   Copy
 } from 'lucide-react';
-import { Room } from '../../../types';
+import { Room, BookingType } from '../../../types';
 import { bookingsApi } from '../services/bookings.api';
 
 interface BookingFormPageProps {
@@ -38,11 +38,44 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
   const [endTime, setEndTime] = useState('10:00');
   const [eventTitle, setEventTitle] = useState('');
   const [eventDescription, setEventDescription] = useState('');
-  const [bookingType, setBookingType] = useState('Student Society');
+  const [bookingType, setBookingType] = useState('Student societies');
   const [expectedAttendance, setExpectedAttendance] = useState('');
+  const [bookingTypes, setBookingTypes] = useState<BookingType[]>([]);
 
   // UI state
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Fetch dynamic booking types on mount
+  useEffect(() => {
+    fetch('/api/booking-types')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch booking types');
+        return res.json();
+      })
+      .then((data: BookingType[]) => {
+        const activeTypes = data.filter(bt => bt.isActive !== false);
+        setBookingTypes(activeTypes);
+        if (activeTypes.length > 0) {
+          // Default to the first active booking type
+          setBookingType(activeTypes[0].name);
+        }
+      })
+      .catch(err => {
+        console.error('Error loading booking types:', err);
+        // Fallback to initial seed types if backend fails
+        const fallback: BookingType[] = [
+          { id: 1, name: 'Student societies', isActive: true },
+          { id: 2, name: 'Startup teams', isActive: true },
+          { id: 3, name: 'Faculty members', isActive: true },
+          { id: 4, name: 'Department representatives', isActive: true },
+          { id: 5, name: 'Cohort members', isActive: true },
+          { id: 6, name: 'Entrepreneurs in residence', isActive: true },
+          { id: 7, name: 'Professionals in residence', isActive: true }
+        ];
+        setBookingTypes(fallback);
+        setBookingType('Student societies');
+      });
+  }, []);
   const [successData, setSuccessData] = useState<{ id: string; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -142,12 +175,26 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
     return `${year}-${month}-${day}`;
   };
 
+  const getMaxBookingDateString = () => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 3);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const getPastDateTimeError = () => {
     if (!date || !startTime) return null;
     const todayStr = getLocalDateString();
+    const maxDateStr = getMaxBookingDateString();
     
     if (date < todayStr) {
       return "Booking date cannot be in the past.";
+    }
+
+    if (date > maxDateStr) {
+      return `Booking date must be within the next three months (up to ${maxDateStr}).`;
     }
     
     if (date === todayStr) {
@@ -466,10 +513,9 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
                         onChange={e => setBookingType(e.target.value)}
                         className="w-full p-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium cursor-pointer"
                       >
-                        <option value="Student Society">Student Society</option>
-                        <option value="Cohort Startup">Cohort Startup</option>
-                        <option value="Department">Department</option>
-                        <option value="Meeting / Event">Meeting / Event</option>
+                        {bookingTypes.map(bt => (
+                          <option key={bt.id} value={bt.name}>{bt.name}</option>
+                        ))}
                       </select>
                     </div>
 
@@ -553,6 +599,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
                         type="date"
                         required
                         min={getLocalDateString()}
+                        max={getMaxBookingDateString()}
                         value={date}
                         onChange={e => setDate(e.target.value)}
                         className={`w-full p-2.5 border rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium cursor-pointer ${

@@ -365,6 +365,23 @@ export const assignUserRole = async (req: AuthenticatedRequest, res: Response) =
     }
     const targetRole = roleRes.rows[0];
 
+    // Get old role name for audit/security checks
+    const oldRoleRes = await query(
+      `SELECT r.name FROM roles r JOIN user_roles ur ON r.id = ur.role_id WHERE ur.user_id = $1`,
+      [user.id]
+    );
+    const oldRole = oldRoleRes.rows[0]?.name || 'UCP Member';
+
+    // Privilege Restriction: Non-Administrators cannot change or modify Administrator roles
+    if (admin!.role !== 'Administrator') {
+      if (oldRole === 'Administrator') {
+        return res.status(403).json({ error: 'Privilege Restriction: Non-Administrators cannot change the role of an Administrator account.' });
+      }
+      if (role === 'Administrator') {
+        return res.status(403).json({ error: 'Privilege Restriction: Only existing Administrators can assign or elevate another account to the Administrator role.' });
+      }
+    }
+
     // Safeguard: Ensure at least one Administrator always exists
     if (user.email.toLowerCase() === admin!.email.toLowerCase() && role !== 'Administrator') {
       const activeAdminsRes = await query(
@@ -378,13 +395,6 @@ export const assignUserRole = async (req: AuthenticatedRequest, res: Response) =
         return res.status(400).json({ error: 'Conflict Prevention: System prevents demoting the last active Administrator account.' });
       }
     }
-
-    // Get old role name for audit
-    const oldRoleRes = await query(
-      `SELECT r.name FROM roles r JOIN user_roles ur ON r.id = ur.role_id WHERE ur.user_id = $1`,
-      [user.id]
-    );
-    const oldRole = oldRoleRes.rows[0]?.name || 'UCP Member';
 
     // Assign Role (Delete previous assignments first)
     await query(`DELETE FROM user_roles WHERE user_id = $1`, [user.id]);
@@ -417,6 +427,11 @@ export const createUser = async (req: AuthenticatedRequest, res: Response) => {
 
   if (!email || !name || !role) {
     return res.status(400).json({ error: 'Missing required parameters: email, name, role' });
+  }
+
+  // Privilege Restriction: Non-Administrators cannot create accounts with the Administrator role
+  if (admin!.role !== 'Administrator' && role === 'Administrator') {
+    return res.status(403).json({ error: 'Privilege Restriction: Only existing Administrators can create accounts with the Administrator role.' });
   }
 
   try {

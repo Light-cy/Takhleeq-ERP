@@ -9,7 +9,8 @@ export const Permissions = {
   VIEW_AUDIT_LOGS: 'VIEW_AUDIT_LOGS',
   VIEW_ANALYTICS_DASHBOARD: 'VIEW_ANALYTICS_DASHBOARD',
   EXPORT_AUDIT_LOGS: 'EXPORT_AUDIT_LOGS',
-  ISSUE_BAN: 'ISSUE_BAN'
+  ISSUE_BAN: 'ISSUE_BAN',
+  MANAGE_BOOKING_TYPES: 'MANAGE_BOOKING_TYPES'
 } as const;
 
 export type PermissionType = typeof Permissions[keyof typeof Permissions];

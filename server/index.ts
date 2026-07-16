@@ -8,6 +8,7 @@ import userRoutes from './modules/users/users.routes.ts';
 import roleRoutes from './modules/roles/roles.routes.ts';
 import roomRoutes from './modules/rooms/rooms.routes.ts';
 import bookingRoutes from './modules/bookings/bookings.routes.ts';
+import bookingTypeRoutes from './modules/bookings/booking-types.routes.ts';
 import banRoutes from './modules/bans/bans.routes.ts';
 import auditRoutes from './modules/audit/audit.routes.ts';
 import chatbotRoutes from './modules/chatbot/chatbot.routes.ts';
@@ -26,6 +27,7 @@ export async function startServer() {
   app.use('/api', roleRoutes);
   app.use('/api', roomRoutes);
   app.use('/api', bookingRoutes);
+  app.use('/api', bookingTypeRoutes);
   app.use('/api', banRoutes);
   app.use('/api', auditRoutes);
   app.use('/api', chatbotRoutes);

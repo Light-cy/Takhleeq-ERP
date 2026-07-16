@@ -15,7 +15,8 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  FileText
+  FileText,
+  Lock
 } from 'lucide-react';
 import { Booking, Ban } from '../../../types';
 
@@ -26,9 +27,21 @@ interface StaffReviewQueueProps {
   onReject: (bookingId: string, reason: string) => Promise<void>;
   onIssueBanClick: (email: string, name: string) => void;
   onRefresh: () => void;
+  hasPermission?: (permission: string) => boolean;
 }
 
-export function StaffReviewQueue({ bookings, activeBans, onApprove, onReject, onIssueBanClick, onRefresh }: StaffReviewQueueProps) {
+export function StaffReviewQueue({ 
+  bookings, 
+  activeBans, 
+  onApprove, 
+  onReject, 
+  onIssueBanClick, 
+  onRefresh,
+  hasPermission
+}: StaffReviewQueueProps) {
+  const isAllowedToApproveReject = hasPermission ? hasPermission('APPROVE_REJECT_BOOKINGS') : true;
+  const isAllowedToBan = hasPermission ? hasPermission('ISSUE_BAN') : true;
+
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectionInput, setShowRejectionInput] = useState(false);
@@ -107,6 +120,18 @@ export function StaffReviewQueue({ bookings, activeBans, onApprove, onReject, on
   const getConflictDetails = (booking: Booking) => {
     if (booking.conflictStatus !== 'CONFLICT DETECTED' || !booking.conflictingBookingId) return null;
     return bookings.find(b => b.id === booking.conflictingBookingId);
+  };
+
+  // Helper to find all overlapping/conflicting bookings (same room, same date, overlapping time window)
+  const getOverlappingBookings = (booking: Booking) => {
+    return bookings.filter(b => 
+      b.id !== booking.id &&
+      b.room === booking.room &&
+      b.date === booking.date &&
+      b.startTime < booking.endTime &&
+      booking.startTime < b.endTime &&
+      (b.status === 'APPROVED' || b.status === 'PENDING REVIEW')
+    );
   };
 
   return (
@@ -245,6 +270,18 @@ export function StaffReviewQueue({ bookings, activeBans, onApprove, onReject, on
             </div>
 
             <div className="p-6 overflow-y-auto space-y-6 text-left">
+              {!isAllowedToApproveReject && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start gap-2">
+                  <AlertTriangle className="h-4.5 w-4.5 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-extrabold text-rose-900 uppercase tracking-wide">Privilege Restriction</p>
+                    <p className="text-[11px] mt-1 text-rose-800 leading-normal">
+                      Your account lacks the <strong>'APPROVE_REJECT_BOOKINGS'</strong> permission. You can review the details, but you are not authorized to approve or reject reservation requests on this system.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {errorMsg && (
                 <div className="p-3.5 bg-rose-50 border border-rose-100 text-rose-800 text-xs rounded-xl flex gap-2">
                   <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
@@ -268,24 +305,40 @@ export function StaffReviewQueue({ bookings, activeBans, onApprove, onReject, on
               )}
 
               {/* CONFLICT FLAG DETECTOR */}
-              {selectedBooking.conflictStatus === 'CONFLICT DETECTED' ? (
+              {getOverlappingBookings(selectedBooking).length > 0 ? (
                 <div className="p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl space-y-2.5">
                   <p className="font-black text-xs text-amber-800 flex items-center gap-1.5">
                     <AlertTriangle className="h-4 w-4 text-amber-600" /> SCHEDULE OVERLAP CONFLICT DETECTED
                   </p>
-                  {getConflictDetails(selectedBooking) ? (
-                    <div className="text-xs text-amber-800 pl-5 space-y-1 bg-white border border-amber-100 rounded-xl p-3">
-                      <p className="font-bold text-gray-900 mb-1">Overlapping with active booking:</p>
-                      <p><strong>Booking Ref:</strong> <span className="font-mono text-primary font-bold bg-[#F8F5F0] border px-1.5 py-0.5 rounded">{getConflictDetails(selectedBooking)?.id}</span></p>
-                      <p><strong>Title:</strong> {getConflictDetails(selectedBooking)?.eventTitle}</p>
-                      <p><strong>Requester:</strong> {getConflictDetails(selectedBooking)?.name} ({getConflictDetails(selectedBooking)?.email})</p>
-                      <p><strong>Scheduled Slot:</strong> {getConflictDetails(selectedBooking)?.date} @ {getConflictDetails(selectedBooking)?.startTime} - {getConflictDetails(selectedBooking)?.endTime}</p>
+                  <div className="text-xs text-amber-800 pl-5 space-y-2">
+                    <p className="font-bold text-gray-900">Overlapping with other active/pending booking(s):</p>
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {getOverlappingBookings(selectedBooking).map(overlap => (
+                        <div key={overlap.id} className="bg-white border border-amber-100 rounded-xl p-3 text-[11px] space-y-1">
+                          <p className="flex justify-between items-center">
+                            <span>
+                              <strong>Booking Ref:</strong> <span className="font-mono text-primary font-bold bg-[#F8F5F0] border px-1.5 py-0.5 rounded">{overlap.id}</span>
+                            </span>
+                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase ${
+                              overlap.status === 'APPROVED' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
+                            }`}>
+                              {overlap.status}
+                            </span>
+                          </p>
+                          <p><strong>Title:</strong> {overlap.eventTitle}</p>
+                          <p><strong>Requester:</strong> {overlap.name} ({overlap.email})</p>
+                          <p><strong>Scheduled Slot:</strong> {overlap.date} @ {overlap.startTime} - {overlap.endTime}</p>
+                          {overlap.status === 'APPROVED' && (
+                            <p className="text-rose-600 font-extrabold flex items-center gap-1 mt-1.5 bg-rose-50 p-1.5 rounded-md border border-rose-100 animate-pulse">
+                              <AlertTriangle className="h-3 w-3 text-rose-500 shrink-0" /> Approving this will automatically REJECT & replace this approved booking and send a cancellation mail!
+                            </p>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ) : (
-                    <p className="text-xs text-amber-800 pl-5">Another booking reservation is already active or approved for room "{selectedBooking.room}" during this identical block.</p>
-                  )}
-                  <p className="text-[10px] text-amber-700 font-bold">
-                    BR-02 Double Booking Prevention: Standard approval is restricted. Please override schedule details first, reject this request, or bypass rules if authorized.
+                  </div>
+                  <p className="text-[10px] text-amber-700 font-bold bg-white border border-amber-150 p-2.5 rounded-lg leading-normal">
+                    BR-02 Double Booking Bypass Protocol: Standard block restriction is lifted. You can evaluate the priority and click 'Approve Space' to override. Approving will automatically reject all overlapping approved reservations and notify those users.
                   </p>
                 </div>
               ) : (
@@ -353,17 +406,8 @@ export function StaffReviewQueue({ bookings, activeBans, onApprove, onReject, on
             </div>
 
             {/* Modal actions footer */}
-            <div className="bg-gray-50 p-4.5 border-t border-gray-100 flex flex-wrap justify-between gap-3 shrink-0">
+            <div className="bg-gray-50 p-4.5 border-t border-gray-100 flex flex-wrap justify-end gap-3 shrink-0">
               
-              <button
-                type="button"
-                onClick={() => { onIssueBanClick(selectedBooking.email, selectedBooking.name); setSelectedBooking(null); }}
-                className="bg-white hover:bg-rose-50 text-gray-500 hover:text-rose-600 border border-gray-200 hover:border-rose-100 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-                title="Direct blacklisting entry"
-              >
-                <UserMinus className="h-4.5 w-4.5 text-rose-500" /> Blacklist User
-              </button>
-
               <div className="flex gap-2.5">
                 <button
                   type="button"
@@ -376,21 +420,29 @@ export function StaffReviewQueue({ bookings, activeBans, onApprove, onReject, on
                 {!showRejectionInput && (
                   <button
                     type="button"
+                    disabled={!isAllowedToApproveReject}
                     onClick={() => setShowRejectionInput(true)}
-                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-4.5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
+                    className={`px-4.5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 border ${
+                      !isAllowedToApproveReject
+                        ? 'bg-gray-50 text-gray-300 border-gray-150 cursor-not-allowed opacity-55'
+                        : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-100 cursor-pointer'
+                    }`}
                   >
-                    <X className="h-4.5 w-4.5 text-rose-600" /> Reject Request
+                    {!isAllowedToApproveReject ? <Lock className="h-4.5 w-4.5 text-gray-300" /> : <X className="h-4.5 w-4.5 text-rose-600" />} Reject Request
                   </button>
-                )}
-
-                <button
+                )}                 <button
                   type="button"
-                  disabled={processing || selectedBooking.conflictStatus === 'CONFLICT DETECTED' || !!getEmailBanDetails(selectedBooking.email)}
+                  disabled={processing || !!getEmailBanDetails(selectedBooking.email) || !isAllowedToApproveReject}
                   onClick={() => handleApproveAction(selectedBooking.id)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed uppercase tracking-wider transition-colors shadow-sm"
-                  title={selectedBooking.conflictStatus === 'CONFLICT DETECTED' ? 'Blocked: Overlapping Schedule Conflict' : getEmailBanDetails(selectedBooking.email) ? 'Blocked: Banned Account' : 'Approve and lock slot'}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed uppercase tracking-wider transition-colors shadow-sm text-white ${
+                    getOverlappingBookings(selectedBooking).some(o => o.status === 'APPROVED')
+                      ? 'bg-amber-600 hover:bg-amber-700 animate-pulse'
+                      : 'bg-green-600 hover:bg-green-700'
+                  }`}
+                  title={getEmailBanDetails(selectedBooking.email) ? 'Blocked: Banned Account' : !isAllowedToApproveReject ? 'Blocked: Missing permission' : getOverlappingBookings(selectedBooking).some(o => o.status === 'APPROVED') ? 'Bypass conflict & override approved reservation' : 'Approve and lock slot'}
                 >
-                  <Check className="h-4.5 w-4.5" /> Approve Space
+                  {isAllowedToApproveReject ? (getOverlappingBookings(selectedBooking).some(o => o.status === 'APPROVED') ? <AlertTriangle className="h-4.5 w-4.5" /> : <Check className="h-4.5 w-4.5" />) : <Lock className="h-4.5 w-4.5" />}
+                  {getOverlappingBookings(selectedBooking).some(o => o.status === 'APPROVED') ? 'Bypass & Approve' : 'Approve Space'}
                 </button>
               </div>
             </div>

@@ -1,11 +1,11 @@
 import { Router, Response } from 'express';
 import { query, logAudit, mapRole } from '../../db.ts';
-import { AuthenticatedRequest, requireAuth, requirePermission } from '../../middleware/auth.ts';
+import { AuthenticatedRequest, requireAuth, requirePermission, requireAnyPermission } from '../../middleware/auth.ts';
 
 const router = Router();
 
 // Manage custom roles
-router.get('/roles', requireAuth, requirePermission('MANAGE_ROLES'), async (req: AuthenticatedRequest, res: Response) => {
+router.get('/roles', requireAuth, requireAnyPermission(['MANAGE_ROLES', 'MANAGE_USERS', 'ISSUE_BAN', 'APPROVE_REJECT_BOOKINGS', 'BOOKING_OVERRIDE']), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const rolesRes = await query(`SELECT * FROM roles ORDER BY id ASC`);
     const roles = rolesRes.rows.map(mapRole);
@@ -38,7 +38,9 @@ router.post('/roles', requireAuth, requirePermission('MANAGE_ROLES'), async (req
       ? adminRoleRes.rows[0].permissions 
       : JSON.parse(adminRoleRes.rows[0].permissions || '[]');
 
-    const invalidPermissions = permissions.filter((p: string) => !adminPermissions.includes(p));
+    const allowedToGrant = creator.role === 'Administrator' ? adminPermissions : creator.permissions;
+
+    const invalidPermissions = permissions.filter((p: string) => !allowedToGrant.includes(p));
     if (invalidPermissions.length > 0) {
       return res.status(400).json({ 
         error: `Privilege Escalation Blocked: You cannot grant permissions you do not hold: ${invalidPermissions.join(', ')}` 
@@ -149,7 +151,9 @@ router.put('/roles/:name', requireAuth, requirePermission('MANAGE_ROLES'), async
       ? adminRoleRes.rows[0].permissions 
       : JSON.parse(adminRoleRes.rows[0].permissions || '[]');
 
-    const invalidPermissions = permissions.filter((p: string) => !adminPermissions.includes(p));
+    const allowedToGrant = creator.role === 'Administrator' ? adminPermissions : creator.permissions;
+
+    const invalidPermissions = permissions.filter((p: string) => !allowedToGrant.includes(p));
     if (invalidPermissions.length > 0) {
       return res.status(400).json({ 
         error: `Privilege Escalation Blocked: You cannot grant permissions you do not hold: ${invalidPermissions.join(', ')}` 

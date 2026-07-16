@@ -98,6 +98,26 @@ export default function App() {
       setRoles(Array.isArray(rolesData) ? rolesData : []);
       setUsers(Array.isArray(usersData) ? usersData : []);
 
+      // Synchronize activeUser with the latest role and permissions from backend if changed
+      if (activeUser && Array.isArray(usersData) && Array.isArray(rolesData)) {
+        const freshUserRecord = usersData.find(u => u.email.toLowerCase() === activeUser.email.toLowerCase());
+        if (freshUserRecord) {
+          const freshRoleRecord = rolesData.find(r => r.name === freshUserRecord.role);
+          const freshPermissions = freshRoleRecord ? freshRoleRecord.permissions : [];
+          
+          if (activeUser.role !== freshUserRecord.role || 
+              JSON.stringify(activeUser.permissions) !== JSON.stringify(freshPermissions) ||
+              activeUser.status !== freshUserRecord.status) {
+            setActiveUser(prev => ({
+              ...prev,
+              role: freshUserRecord.role,
+              status: freshUserRecord.status,
+              permissions: freshPermissions
+            }));
+          }
+        }
+      }
+
       // Admin or users with specific permission nodes can fetch logs & report data
       const userHasAuditView = activeUser?.role === 'Administrator' || 
         (activeUser?.permissions && (
@@ -217,6 +237,8 @@ export default function App() {
       await bookingsApi.approve(bookingId, jwtToken);
     } catch (err) {
       console.error('Approval failed:', err);
+      await fetchStateData();
+      throw err;
     }
     await fetchStateData();
   };
@@ -228,6 +250,8 @@ export default function App() {
       await bookingsApi.reject(bookingId, reason, jwtToken);
     } catch (err) {
       console.error('Rejection failed:', err);
+      await fetchStateData();
+      throw err;
     }
     await fetchStateData();
   };
@@ -239,6 +263,8 @@ export default function App() {
       await bookingsApi.override(bookingId, updateData, jwtToken);
     } catch (err) {
       console.error('Override failed:', err);
+      await fetchStateData();
+      throw err;
     }
     await fetchStateData();
   };
@@ -412,6 +438,7 @@ export default function App() {
                 onReject={handleRejectBooking}
                 onIssueBanClick={handleQuickBanRedirection}
                 onRefresh={fetchStateData}
+                hasPermission={hasPermission}
               />
             )}
 
@@ -424,6 +451,7 @@ export default function App() {
                 onApprove={handleApproveBooking}
                 onReject={handleRejectBooking}
                 onOverride={handleOverrideBooking}
+                hasPermission={hasPermission}
               />
             )}
 
@@ -431,6 +459,7 @@ export default function App() {
               <GovernanceCenterPage 
                 roles={roles}
                 users={users}
+                bookings={bookings}
                 activeBans={bans}
                 currentUser={activeUser}
                 hasPermission={hasPermission}
@@ -461,6 +490,9 @@ export default function App() {
                 reportsData={reportsData}
                 onRefresh={fetchStateData}
                 hasPermission={hasPermission}
+                bookings={bookings}
+                rooms={rooms}
+                activeBans={bans}
               />
             )}
           </StaffLayout>

@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { query, logAudit, mapBan, calculateBanExpiry } from '../../db.ts';
+import { query, logAudit, mapBan, calculateBanExpiry, autoExpireBans } from '../../db.ts';
 import { AuthenticatedRequest, requireAuth, requirePermission } from '../../middleware/auth.ts';
 
 const router = Router();
@@ -15,6 +15,9 @@ router.get('/bans', requireAuth, (req: AuthenticatedRequest, res: Response, next
   return res.status(401).json({ error: "Privilege Restriction: Missing permission to view bans." });
 }, async (req: AuthenticatedRequest, res: Response) => {
   try {
+    // Run the automatic clean-up/expiration of bans first
+    await autoExpireBans();
+
     const bansRes = await query(
       `SELECT b.*, u1.full_name as issuer_name, u2.full_name as lifter_name
        FROM ban_records b
@@ -84,6 +87,25 @@ router.post('/bans', requireAuth, (req: AuthenticatedRequest, res: Response, nex
       return res.status(400).json({ 
         error: `Validation Error: The email '${cleanEmail}' has no booking history or registered account in the system — cannot issue a ban.` 
       });
+    }
+
+    // Admins cannot be banned, and no admin can ban another admin
+    const targetAdminCheck = await query(
+      `SELECT u.id, u.email, u.full_name, u.is_active, r.name as role_name
+       FROM users u
+       LEFT JOIN user_roles ur ON u.id = ur.user_id
+       LEFT JOIN roles r ON ur.role_id = r.id
+       WHERE LOWER(u.email) = $1`,
+      [cleanEmail]
+    );
+
+    if (targetAdminCheck.rows.length > 0) {
+      const targetRoleName = targetAdminCheck.rows[0].role_name || '';
+      if (targetRoleName.toLowerCase() === 'administrator') {
+        return res.status(400).json({ 
+          error: "Validation Error: Administrators cannot be suspended or banned, and no Administrator can ban another Administrator." 
+        });
+      }
     }
 
     // 1. Fetch staff role's ban duration ceiling

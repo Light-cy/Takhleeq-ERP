@@ -47,3 +47,12 @@ export interface AuditRecord {
   previousValue?: string;
   newValue?: string;
 }
+
+export interface BookingType {
+  id: number;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  createdAt?: string;
+}
+

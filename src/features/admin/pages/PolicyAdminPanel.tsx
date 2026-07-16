@@ -72,7 +72,8 @@ export function PolicyAdminPanel({
     'MANAGE_ROLES',
     'VIEW_AUDIT_LOGS',
     'VIEW_ANALYTICS_DASHBOARD',
-    'EXPORT_AUDIT_LOGS'
+    'EXPORT_AUDIT_LOGS',
+    'MANAGE_BOOKING_TYPES'
   ];
 
   // --- Users Form States ---

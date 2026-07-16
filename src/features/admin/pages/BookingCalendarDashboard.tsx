@@ -19,7 +19,8 @@ import {
   Info,
   ShieldCheck,
   Building,
-  Search
+  Search,
+  Lock
 } from 'lucide-react';
 import { Booking, Room, Ban } from '../../../types';
 
@@ -31,6 +32,7 @@ interface BookingCalendarDashboardProps {
   onApprove: (id: string) => Promise<void>;
   onReject: (id: string, reason: string) => Promise<void>;
   onOverride: (id: string, updateData: any) => Promise<void>;
+  hasPermission?: (permission: string) => boolean;
 }
 
 export function BookingCalendarDashboard({ 
@@ -40,8 +42,12 @@ export function BookingCalendarDashboard({
   onRefresh, 
   onApprove, 
   onReject, 
-  onOverride 
+  onOverride,
+  hasPermission
 }: BookingCalendarDashboardProps) {
+  // Check if current user is allowed to perform overrides
+  const isAllowedToOverride = hasPermission ? hasPermission('BOOKING_OVERRIDE') : true;
+
   // Views: Register list vs. Analytics reports
   const [viewMode, setViewViewMode] = useState<'register' | 'reports'>('register');
 
@@ -168,16 +174,107 @@ export function BookingCalendarDashboard({
       return;
     }
 
-    // Convert to CSV string
-    const headers = 'Booking ID,Requester Name,Email,Phone,Organization,Requested Space,Date,Start Time,End Time,Duration (Mins),Booking Type,Expected Attendance,Status,Conflict Status\n';
-    const rows = filteredBookings.map(b => 
-      `"${b.id}","${b.name}","${b.email}","${b.phone}","${b.organization || ''}","${b.room}","${b.date}","${b.startTime}","${b.endTime}",${b.duration},"${b.bookingType}",${b.expectedAttendance},"${b.status}","${b.conflictStatus}"`
-    ).join('\n');
+    const headers = [
+      'Booking ID',
+      'Requester Name',
+      'Email Address',
+      'Phone Number',
+      'Organization / Department',
+      'Reserved Space / Room',
+      'Booking Date',
+      'Start Time',
+      'End Time',
+      'Duration',
+      'Booking Type / Purpose',
+      'Expected Attendance',
+      'Approval Status',
+      'Conflict Check Status'
+    ];
 
-    const csvContent = "data:text/csv;charset=utf-8," + headers + rows;
-    const encodedUri = encodeURI(csvContent);
+    const toTitleCase = (str: string) => {
+      if (!str) return 'N/A';
+      return str
+        .toLowerCase()
+        .replace(/_/g, ' ')
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    };
+
+    const formatReadableDate = (dateStr: string) => {
+      if (!dateStr) return 'N/A';
+      try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+      } catch {
+        return dateStr;
+      }
+    };
+
+    const formatReadableTime = (timeStr: string) => {
+      if (!timeStr) return 'N/A';
+      try {
+        if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+          return timeStr;
+        }
+        const parts = timeStr.split(':');
+        if (parts.length >= 2) {
+          let hour = parseInt(parts[0], 10);
+          const minute = parts[1].padEnd(2, '0');
+          const ampm = hour >= 12 ? 'PM' : 'AM';
+          hour = hour % 12;
+          hour = hour ? hour : 12;
+          return `${String(hour).padStart(2, '0')}:${minute} ${ampm}`;
+        }
+      } catch {}
+      return timeStr;
+    };
+
+    const rows = filteredBookings.map(b => {
+      const organizationVal = b.organization && b.organization.trim() ? b.organization : 'None';
+      const durationVal = b.duration ? `${b.duration} mins` : '0 mins';
+      const typeVal = b.bookingType ? toTitleCase(b.bookingType) : 'Not Specified';
+      const attendeesVal = b.expectedAttendance ? `${b.expectedAttendance} attendees` : '0 attendees';
+      const statusVal = toTitleCase(b.status || 'PENDING');
+      
+      let conflictVal = 'Clear (No Conflict)';
+      if (b.conflictStatus === 'CONFLICT DETECTED') {
+        conflictVal = 'Conflict Detected';
+      }
+
+      return [
+        `B-${b.id}`,
+        b.name || 'N/A',
+        b.email || 'N/A',
+        b.phone || 'N/A',
+        organizationVal,
+        b.room || 'N/A',
+        formatReadableDate(b.date),
+        formatReadableTime(b.startTime),
+        formatReadableTime(b.endTime),
+        durationVal,
+        typeVal,
+        attendeesVal,
+        statusVal,
+        conflictVal
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => 
+        row.map(val => {
+          const str = val === null || val === undefined ? '' : String(val);
+          return `"${str.replace(/"/g, '""')}"`;
+        }).join(',')
+      )
+    ].join('\r\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    link.setAttribute("href", url);
     link.setAttribute("download", `takhleeq_erp_bookings_snapshot_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
@@ -255,50 +352,8 @@ export function BookingCalendarDashboard({
     }
   };
 
-  return (
-    <div className="space-y-6 text-left" id="booking-calendar-dashboard-view">
-      
-      {/* Switch Navigation & Quick stats */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-3xs">
-        <div>
-          <span className="text-accent text-[9px] font-black uppercase tracking-widest block">Administration Registry</span>
-          <h1 className="text-base font-black text-gray-900 uppercase tracking-wider mt-0.5">Space Reservation Register & Schedule</h1>
-          <p className="text-[11px] text-gray-500">Live operational timetables, administrative overrides, metrics, and CSV snapshots.</p>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setViewViewMode('register')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
-              viewMode === 'register' 
-                ? 'bg-primary text-white shadow-sm' 
-                : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-100'
-            }`}
-          >
-            <List className="h-4 w-4" /> Timetable Register
-          </button>
-          <button
-            onClick={() => setViewViewMode('reports')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
-              viewMode === 'reports' 
-                ? 'bg-primary text-white shadow-sm' 
-                : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-100'
-            }`}
-          >
-            <BarChart2 className="h-4 w-4" /> Operations Reports
-          </button>
-          <button 
-            onClick={onRefresh}
-            className="p-2.5 text-gray-400 hover:text-primary hover:bg-gray-50 border border-gray-100 rounded-xl cursor-pointer"
-            title="Reload registry state"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      {viewMode === 'register' ? (
-        <>
+  const registerView = (
+    <>
           {/* SEARCH FILTERS TOOLBAR */}
           <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-3xs space-y-4">
             <div className="flex items-center justify-between gap-1.5">
@@ -502,10 +557,11 @@ export function BookingCalendarDashboard({
               </table>
             </div>
           </div>
-        </>
-      ) : (
-        /* ANALYTICS & STATS PANEL */
-        <div className="space-y-6">
+    </>
+  );
+
+  const unusedReports = (
+    <div className="space-y-6">
           
           {/* Bento Stats row */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -723,7 +779,31 @@ export function BookingCalendarDashboard({
           </div>
 
         </div>
-      )}
+  );
+
+  return (
+    <div className="space-y-6 text-left" id="booking-calendar-dashboard-view">
+      
+      {/* Switch Navigation & Quick stats */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-3xs">
+        <div>
+          <span className="text-accent text-[9px] font-black uppercase tracking-widest block">Administration Registry</span>
+          <h1 className="text-base font-black text-gray-900 uppercase tracking-wider mt-0.5">Space Reservation Register & Schedule</h1>
+          <p className="text-[11px] text-gray-500">Live operational timetables, administrative overrides, and CSV snapshots.</p>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={onRefresh}
+            className="p-2.5 text-gray-400 hover:text-primary hover:bg-gray-50 border border-gray-100 rounded-xl cursor-pointer"
+            title="Reload registry state"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {registerView}
 
       {/* SCHEDULE OVERRIDE MODAL (MOD-01B.6) */}
       {editingBooking && (
@@ -736,6 +816,18 @@ export function BookingCalendarDashboard({
 
             <form onSubmit={handleOverrideSubmit} className="p-6 space-y-5 text-left overflow-y-auto">
               
+              {!isAllowedToOverride && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-extrabold text-rose-900 uppercase tracking-wide">Privilege Restriction</p>
+                    <p className="text-[11px] mt-1 text-rose-800 leading-normal">
+                      Your account lacks the <strong>'BOOKING_OVERRIDE'</strong> permission. You can review the details, but you are not authorized to save or apply overrides on this system.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {errorMsg && (
                 <div className="p-3 bg-rose-50 border border-rose-100 text-rose-800 text-xs rounded-xl">
                   {errorMsg}
@@ -818,7 +910,7 @@ export function BookingCalendarDashboard({
                 </button>
                 <button
                   type="submit"
-                  disabled={processing}
+                  disabled={processing || !isAllowedToOverride}
                   className="px-5 py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 uppercase tracking-wider"
                 >
                   {processing ? 'Processing Override...' : 'Commit Override'}

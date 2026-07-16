@@ -15,13 +15,15 @@ import {
   Lock,
   Trash2,
   Edit3,
-  Mail
+  Mail,
+  Layers
 } from 'lucide-react';
-import { CustomRole, User, Ban } from '../../../types';
+import { CustomRole, User, Ban, Booking } from '../../../types';
 
 interface GovernanceCenterPageProps {
   roles: CustomRole[];
   users: User[];
+  bookings: Booking[];
   activeBans: Ban[];
   currentUser: User;
   hasPermission: (permission: string) => boolean;
@@ -38,6 +40,7 @@ interface GovernanceCenterPageProps {
 export function GovernanceCenterPage({
   roles,
   users,
+  bookings,
   activeBans,
   currentUser,
   hasPermission,
@@ -57,14 +60,17 @@ export function GovernanceCenterPage({
   } else if (currentUserRoleObj) {
     if (currentUserRoleObj.banDurationCeiling !== undefined && currentUserRoleObj.banDurationCeiling !== null) {
       ceilingDays = Number(currentUserRoleObj.banDurationCeiling);
+    } else if (hasPermission('ISSUE_BAN') || currentUserRoleObj.permissions.includes('ISSUE_BAN')) {
+      ceilingDays = 999999; // undefined/null represents infinite/permanent for roles with issue ban permission
     }
   }
 
-  // Inner Subtabs: 'bans' | 'roles' | 'users'
-  const [govTab, setGovTab] = useState<'bans' | 'roles' | 'users'>(() => {
+  // Inner Subtabs: 'bans' | 'roles' | 'users' | 'types'
+  const [govTab, setGovTab] = useState<'bans' | 'roles' | 'users' | 'types'>(() => {
     if (hasPermission('ISSUE_BAN')) return 'bans';
     if (hasPermission('MANAGE_ROLES')) return 'roles';
     if (hasPermission('MANAGE_USERS')) return 'users';
+    if (hasPermission('MANAGE_BOOKING_TYPES')) return 'types';
     return 'bans';
   });
 
@@ -76,6 +82,8 @@ export function GovernanceCenterPage({
       setGovTab('roles');
     } else if (hasPermission('MANAGE_USERS')) {
       setGovTab('users');
+    } else if (hasPermission('MANAGE_BOOKING_TYPES')) {
+      setGovTab('types');
     }
   }, [currentUser]);
 
@@ -96,15 +104,15 @@ export function GovernanceCenterPage({
     'SUBMIT_BOOKING',
     'CANCEL_OWN_BOOKING',
     'VIEW_PENDING_QUEUE',
-    'APPROVE_BOOKING',
-    'REJECT_BOOKING',
+    'APPROVE_REJECT_BOOKINGS',
     'BOOKING_OVERRIDE',
     'ISSUE_BAN',
     'MANAGE_ROOMS',
     'VIEW_ANALYTICS_DASHBOARD',
     'EXPORT_AUDIT_LOGS',
     'MANAGE_ROLES',
-    'MANAGE_USERS'
+    'MANAGE_USERS',
+    'MANAGE_BOOKING_TYPES'
   ];
 
   // --- Users Form States ---
@@ -119,9 +127,118 @@ export function GovernanceCenterPage({
   const [banDuration, setBanDuration] = useState('7 days');
   const [customDays, setCustomDays] = useState('15');
 
+  const matchedBanUser = users.find(u => u.email.trim().toLowerCase() === banEmail.trim().toLowerCase());
+
   // Ban Lift State
   const [liftingBan, setLiftingBan] = useState<Ban | null>(null);
   const [liftReason, setLiftReason] = useState('');
+
+  // --- Booking Types management states ---
+  const [bTypes, setBTypes] = useState<any[]>([]);
+  const [btName, setBtName] = useState('');
+  const [btDesc, setBtDesc] = useState('');
+  const [btActive, setBtActive] = useState(true);
+  const [editingBt, setEditingBt] = useState<any | null>(null);
+
+  const fetchBTypes = () => {
+    fetch('/api/booking-types')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch booking types');
+        return res.json();
+      })
+      .then(data => {
+        setBTypes(data);
+      })
+      .catch(err => {
+        console.error('Error fetching booking types in admin:', err);
+      });
+  };
+
+  useEffect(() => {
+    if (govTab === 'types') {
+      fetchBTypes();
+    }
+  }, [govTab]);
+
+  // --- Booking Types handlers ---
+  const [deletingBt, setDeletingBt] = useState<{ id: number, name: string } | null>(null);
+
+  const handleCreateOrUpdateBt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearMessages();
+    if (!btName.trim()) {
+      setErrorMsg("Booking type name is required.");
+      return;
+    }
+    setProcessing(true);
+    const method = editingBt ? 'PUT' : 'POST';
+    const url = editingBt ? `/api/booking-types/${editingBt.id}` : '/api/booking-types';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: btName.trim(),
+          description: btDesc.trim(),
+          isActive: btActive
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save booking type');
+      }
+      setSuccessMsg(editingBt ? `Booking type '${btName.trim()}' updated successfully.` : `Booking type '${btName.trim()}' created successfully.`);
+      setBtName('');
+      setBtDesc('');
+      setBtActive(true);
+      setEditingBt(null);
+      fetchBTypes();
+      onRefresh();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'An error occurred.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleEditBtClick = (bt: any) => {
+    clearMessages();
+    setEditingBt(bt);
+    setBtName(bt.name);
+    setBtDesc(bt.description || '');
+    setBtActive(bt.isActive !== false);
+  };
+
+  const handleCancelBtEdit = () => {
+    setEditingBt(null);
+    setBtName('');
+    setBtDesc('');
+    setBtActive(true);
+  };
+
+  const handleConfirmDeleteBt = async () => {
+    if (!deletingBt) return;
+    clearMessages();
+    setProcessing(true);
+    try {
+      const res = await fetch(`/api/booking-types/${deletingBt.id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to delete booking type');
+      }
+      setSuccessMsg(`Booking type '${deletingBt.name}' deleted successfully.`);
+      setDeletingBt(null);
+      fetchBTypes();
+      onRefresh();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'An error occurred.');
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   // Adjust default banDuration based on ceilingDays
   useEffect(() => {
@@ -138,6 +255,22 @@ export function GovernanceCenterPage({
     }
   }, [ceilingDays, currentUser.role]);
 
+  // Automatically fetch user name from simulated users list or bookings history if the email matches
+  useEffect(() => {
+    if (matchedBanUser) {
+      setBanName(matchedBanUser.name);
+    } else {
+      const matchedBooking = bookings.find(b => b.email.trim().toLowerCase() === banEmail.trim().toLowerCase());
+      if (matchedBooking) {
+        setBanName(matchedBooking.name);
+      } else if (banEmail.trim()) {
+        setBanName("External / Booking Profile");
+      } else {
+        setBanName("");
+      }
+    }
+  }, [matchedBanUser, banEmail, bookings]);
+
   const clearMessages = () => {
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -147,6 +280,19 @@ export function GovernanceCenterPage({
   const handleIssueBanSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessages();
+
+    const targetEmail = banEmail.trim().toLowerCase();
+
+    // Prevent banning Administrators
+    const targetUser = users.find(u => u.email.toLowerCase() === targetEmail);
+    if (
+      (targetUser && targetUser.role?.toLowerCase() === 'administrator') ||
+      targetEmail === 'director@takhleeq.pk'
+    ) {
+      setErrorMsg("Validation Error: Administrators cannot be suspended or banned, and no Administrator can ban another Administrator.");
+      return;
+    }
+
     setProcessing(true);
 
     const days = banDuration === 'Custom' ? parseInt(customDays) : 
@@ -207,6 +353,10 @@ export function GovernanceCenterPage({
 
   // ROLE SUBMISSIONS
   const handlePermissionToggle = (perm: string) => {
+    if (!hasPermission(perm)) {
+      setErrorMsg(`Privilege Escalation Blocked: You cannot assign '${perm}' because you do not hold this permission yourself.`);
+      return;
+    }
     setSelectedPermissions(prev => 
       prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]
     );
@@ -295,6 +445,12 @@ export function GovernanceCenterPage({
   const handleCreateUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearMessages();
+
+    if (currentUser.role !== 'Administrator' && newUserRole === 'Administrator') {
+      setErrorMsg("Privilege Escalation Blocked: Only existing Administrators can register profiles with the Administrator role.");
+      return;
+    }
+
     setProcessing(true);
 
     try {
@@ -317,6 +473,19 @@ export function GovernanceCenterPage({
 
   const handleQuickAssignRole = async (email: string, role: string) => {
     clearMessages();
+
+    const targetUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (currentUser.role !== 'Administrator') {
+      if (targetUser?.role === 'Administrator') {
+        setErrorMsg("Privilege Escalation Blocked: Non-Administrators cannot change the role of an Administrator account.");
+        return;
+      }
+      if (role === 'Administrator') {
+        setErrorMsg("Privilege Escalation Blocked: Only existing Administrators can assign or elevate another account to the Administrator role.");
+        return;
+      }
+    }
+
     setProcessing(true);
     try {
       await onAssignRole(email, role);
@@ -391,6 +560,19 @@ export function GovernanceCenterPage({
           <span>Simulated Users</span>
           {!hasPermission('MANAGE_USERS') && <Lock className="h-3 w-3 text-gray-400" />}
         </button>
+        <button
+          onClick={() => { setGovTab('types'); clearMessages(); }}
+          disabled={!hasPermission('MANAGE_BOOKING_TYPES')}
+          className={`flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+            govTab === 'types' 
+              ? 'bg-primary text-white shadow-sm' 
+              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+          } disabled:opacity-40 disabled:cursor-not-allowed`}
+        >
+          <Layers className="h-4 w-4" /> 
+          <span>Booking Types</span>
+          {!hasPermission('MANAGE_BOOKING_TYPES') && <Lock className="h-3 w-3 text-gray-400" />}
+        </button>
       </div>
 
       {govTab === 'bans' && (
@@ -422,10 +604,19 @@ export function GovernanceCenterPage({
                   type="text"
                   required
                   value={banName}
-                  onChange={e => setBanName(e.target.value)}
-                  placeholder="e.g. Asad Jamil"
-                  className="w-full p-2.5 border border-gray-150 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:bg-white bg-gray-50/50"
+                  disabled={true}
+                  placeholder="Will autofill based on email..."
+                  className="w-full p-2.5 border border-gray-200 rounded-xl text-xs bg-gray-100 text-gray-400 cursor-not-allowed font-medium"
                 />
+                {matchedBanUser ? (
+                  <p className="text-[10px] text-emerald-600 font-semibold mt-1 flex items-center gap-1 animate-fade-in">
+                    <Check className="h-3 w-3" /> Verified simulated profile: {matchedBanUser.name}
+                  </p>
+                ) : banEmail.trim() ? (
+                  <p className="text-[10px] text-amber-600 font-semibold mt-1 flex items-center gap-1 animate-fade-in">
+                    <Info className="h-3 w-3" /> External / Booking-only history profile
+                  </p>
+                ) : null}
               </div>
 
               <div>
@@ -606,19 +797,30 @@ export function GovernanceCenterPage({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto border p-3 rounded-xl bg-gray-50/30">
                   {availablePermissions.map(perm => {
                     const isChecked = selectedPermissions.includes(perm);
+                    const isAllowed = hasPermission(perm);
                     return (
                       <button
                         type="button"
                         key={perm}
+                        disabled={!isAllowed}
                         onClick={() => handlePermissionToggle(perm)}
                         className={`p-2 rounded-lg border text-left text-[10px] font-mono font-bold transition-all flex items-center justify-between cursor-pointer ${
-                          isChecked 
-                            ? 'bg-primary/5 text-primary border-primary/25' 
-                            : 'bg-white text-gray-500 border-gray-150 hover:bg-gray-50'
+                          !isAllowed
+                            ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed opacity-50'
+                            : isChecked 
+                              ? 'bg-primary/5 text-primary border-primary/25' 
+                              : 'bg-white text-gray-500 border-gray-150 hover:bg-gray-50'
                         }`}
+                        title={!isAllowed ? `Locked: You do not hold the '${perm}' permission` : undefined}
                       >
                         <span className="truncate">{perm}</span>
-                        {isChecked ? <Check className="h-3 w-3 shrink-0 text-primary" /> : <Plus className="h-3 w-3 shrink-0" />}
+                        {!isAllowed ? (
+                          <Lock className="h-3 w-3 shrink-0 text-gray-400" />
+                        ) : isChecked ? (
+                          <Check className="h-3 w-3 shrink-0 text-primary" />
+                        ) : (
+                          <Plus className="h-3 w-3 shrink-0" />
+                        )}
                       </button>
                     );
                   })}
@@ -740,7 +942,14 @@ export function GovernanceCenterPage({
                   onChange={e => setNewUserRole(e.target.value)}
                   className="w-full p-2.5 border border-gray-150 rounded-xl text-xs bg-gray-50/50 focus:bg-white focus:ring-1 focus:ring-primary"
                 >
-                  {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+                  {roles.map(r => {
+                    const isAllowed = currentUser.role === 'Administrator' || r.name !== 'Administrator';
+                    return (
+                      <option key={r.name} value={r.name} disabled={!isAllowed}>
+                        {r.name} {!isAllowed ? '(Locked)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -779,15 +988,211 @@ export function GovernanceCenterPage({
                         <select
                           value={user.role}
                           onChange={(e) => handleQuickAssignRole(user.email, e.target.value)}
-                          className="p-1.5 border border-gray-100 rounded-lg text-[11px] bg-gray-50 font-semibold cursor-pointer"
+                          disabled={currentUser.role !== 'Administrator' && user.role === 'Administrator'}
+                          className={`p-1.5 border border-gray-100 rounded-lg text-[11px] bg-gray-50 font-semibold cursor-pointer ${
+                            currentUser.role !== 'Administrator' && user.role === 'Administrator' ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
                         >
-                          {roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+                          {roles.map(r => {
+                            const isAllowed = currentUser.role === 'Administrator' || r.name !== 'Administrator';
+                            return (
+                              <option key={r.name} value={r.name} disabled={!isAllowed}>
+                                {r.name} {!isAllowed ? '(Locked)' : ''}
+                              </option>
+                            );
+                          })}
                         </select>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {govTab === 'types' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
+          
+          {/* Create/Edit Booking Type Form */}
+          <div className="lg:col-span-5 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5 h-fit">
+            <div className="space-y-1">
+              <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">
+                {editingBt ? 'Modify Booking Type' : 'Register Booking Type'}
+              </h3>
+              <p className="text-[11px] text-gray-500">
+                {editingBt ? 'Update the active properties of the selected classification.' : 'Create a new organizational classification for submitting booking requests.'}
+              </p>
+            </div>
+
+            <form onSubmit={handleCreateOrUpdateBt} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Classification Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={btName}
+                  onChange={e => setBtName(e.target.value)}
+                  placeholder="e.g. Entrepreneurs in residence"
+                  className="w-full p-2.5 border border-gray-150 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:bg-white bg-gray-50/50 text-gray-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Scope / Usage Description</label>
+                <textarea
+                  value={btDesc}
+                  onChange={e => setBtDesc(e.target.value)}
+                  placeholder="Who does this booking classification cover?"
+                  rows={3}
+                  className="w-full p-2.5 border border-gray-150 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:bg-white bg-gray-50/50 text-gray-800"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 py-1 bg-gray-50/40 p-3 rounded-xl border border-gray-100">
+                <input
+                  type="checkbox"
+                  id="bt-active-checkbox"
+                  checked={btActive}
+                  onChange={e => setBtActive(e.target.checked)}
+                  className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded cursor-pointer"
+                />
+                <label htmlFor="bt-active-checkbox" className="text-xs font-bold text-gray-700 cursor-pointer select-none">
+                  Active (Show on booking form)
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                {editingBt && (
+                  <button
+                    type="button"
+                    onClick={handleCancelBtEdit}
+                    className="flex-1 border border-gray-150 text-gray-600 hover:bg-gray-50 font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={processing}
+                  className="flex-1 bg-primary hover:bg-primary/95 text-white font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {processing ? 'Saving...' : editingBt ? 'Update Type' : 'Register Type'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Booking Types List Table */}
+          <div className="lg:col-span-7 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
+            <div className="space-y-1">
+              <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">System Booking Classifications</h3>
+              <p className="text-[11px] text-gray-500">Organizations and groups authorized to book facility rooms.</p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-gray-150 text-[9px] font-black text-gray-400 uppercase bg-gray-50/50">
+                    <th className="py-2.5 px-3">Classification</th>
+                    <th className="py-2.5 px-3">Scope Description</th>
+                    <th className="py-2.5 px-3 text-center">Status</th>
+                    <th className="py-2.5 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {bTypes.map((bt) => (
+                    <tr key={bt.id} className="hover:bg-gray-50/30 text-gray-700">
+                      <td className="py-3.5 px-3 font-extrabold text-gray-900">{bt.name}</td>
+                      <td className="py-3.5 px-3 text-gray-500 leading-normal max-w-[200px] break-words">
+                        {bt.description || <span className="text-gray-300 italic">No description provided</span>}
+                      </td>
+                      <td className="py-3.5 px-3 text-center">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                          bt.isActive !== false
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                            : 'bg-gray-100 text-gray-400 border border-gray-150'
+                        }`}>
+                          {bt.isActive !== false ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-3 text-right">
+                        <div className="flex gap-1 justify-end">
+                          <button
+                            onClick={() => handleEditBtClick(bt)}
+                            className="text-primary hover:bg-primary/5 p-1.5 rounded-lg border border-transparent hover:border-primary/10 transition-colors cursor-pointer"
+                            title="Edit booking type"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeletingBt({ id: bt.id, name: bt.name })}
+                            className="text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg border border-transparent hover:border-rose-100 transition-colors cursor-pointer"
+                            title="Purge booking type"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {bTypes.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-gray-400 italic">
+                        No booking classifications registered in the database.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE BOOKING TYPE CONFIRMATION MODAL */}
+      {deletingBt && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="delete-bt-modal">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-gray-155 overflow-hidden flex flex-col">
+            <div className="bg-rose-600 text-white p-4 font-black text-xs flex items-center justify-between">
+              <span className="uppercase tracking-wider flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4" />
+                Purge Booking Type
+              </span>
+              <button onClick={() => setDeletingBt(null)} className="text-white hover:text-rose-200 font-bold cursor-pointer text-xs">✕</button>
+            </div>
+
+            <div className="p-6 space-y-4 text-left">
+              <p className="text-xs text-gray-700 leading-relaxed">
+                Are you sure you want to completely delete the booking type classification <strong className="text-rose-700 font-black">"{deletingBt.name}"</strong>? This will permanently decompile its active policy classification and is completely irreversible.
+              </p>
+
+              <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl text-[11px] text-amber-800 leading-normal flex gap-2">
+                <Info className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+                <span>
+                  <strong>System Notice:</strong> Deleting a booking type classification removes it from future booking forms. Existing/historical bookings under this type will remain in the database unaltered.
+                </span>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-gray-50 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setDeletingBt(null)}
+                  className="px-3.5 py-2 border border-gray-150 text-gray-600 hover:bg-gray-50 rounded-lg text-[10px] font-bold cursor-pointer uppercase tracking-wider"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={processing}
+                  onClick={handleConfirmDeleteBt}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-lg text-[10px] cursor-pointer disabled:opacity-50 uppercase tracking-wider flex items-center gap-1.5"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  {processing ? 'Purging...' : 'Purge Type'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
