@@ -10,11 +10,11 @@ import { LandingPage } from './features/booking/pages/LandingPage';
 import { LoginPage } from './features/auth/pages/LoginPage';
 import { BookingFormPage } from './features/booking/pages/BookingFormPage';
 import { TrackPage } from './features/booking/pages/TrackPage';
-import { StaffReviewQueue } from './features/admin/pages/StaffReviewQueuePage';
+import { StaffReviewQueue } from './features/admin/pages/StaffReviewQueue';
 import { BookingCalendarDashboard } from './features/admin/pages/BookingCalendarDashboard';
-import { GovernanceCenterPage } from './features/admin/pages/GovernanceCenterPage';
-import { RoomManagementPage } from './features/admin/pages/RoomManagementPage';
-import { AuditLogsPage } from './features/admin/pages/AuditLogsPage';
+import { GovernanceCenterPage } from './features/admin/pages/GovernanceCenter';
+import { RoomManagementPage } from './features/admin/pages/RoomManagement';
+import { AuditLogsPage } from './features/admin/pages/AuditLogs';
 
 
 // Services
