@@ -1523,20 +1523,20 @@ export function AuditLogsPage({ auditLogs, reportsData, onRefresh, hasPermission
                                 ) : (
                                   paginatedBookings.map(b => (
                                     <tr key={b.id} className="hover:bg-gray-50/50 text-gray-700 transition-colors">
-                                      <td className="py-4 px-5 font-mono text-[10px] text-gray-500">{b.id}</td>
+                                      <td className="py-4 px-5 font-mono text-[10px] text-gray-500 whitespace-nowrap">{b.id}</td>
                                       <td className="py-4 px-5">
                                         <p className="font-extrabold text-gray-900 leading-tight">{b.name}</p>
                                         <p className="text-[9.5px] text-gray-400 font-mono">{b.email}</p>
                                       </td>
-                                      <td className="py-4 px-5 font-bold text-gray-800">{b.room}</td>
-                                      <td className="py-4 px-5 font-medium">
+                                      <td className="py-4 px-5 font-bold text-gray-800 whitespace-nowrap">{b.room}</td>
+                                      <td className="py-4 px-5 font-medium whitespace-nowrap">
                                         <p>{b.date}</p>
                                         <p className="text-[10px] text-gray-400 font-mono">{b.startTime} - {b.endTime} ({b.duration}m)</p>
                                       </td>
-                                      <td className="py-4 px-5 text-gray-600 font-bold capitalize">{b.bookingType}</td>
-                                      <td className="py-4 px-5 font-mono text-center font-bold text-gray-850">{b.expectedAttendance}</td>
-                                      <td className="py-4 px-5 text-right">
-                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                                      <td className="py-4 px-5 text-gray-600 font-bold capitalize whitespace-nowrap">{b.bookingType}</td>
+                                      <td className="py-4 px-5 font-mono text-center font-bold text-gray-850 whitespace-nowrap">{b.expectedAttendance}</td>
+                                      <td className="py-4 px-5 text-right whitespace-nowrap">
+                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider whitespace-nowrap ${
                                           b.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' :
                                           b.status.includes('PENDING') ? 'bg-blue-50 text-blue-800 border border-blue-100' :
                                           b.status === 'CANCELLED' ? 'bg-gray-100 text-gray-500 border border-gray-200' :

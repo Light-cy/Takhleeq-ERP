@@ -201,7 +201,7 @@ export function StaffReviewQueue({
                 const banInfo = getEmailBanDetails(booking.email);
                 return (
                   <tr key={booking.id} className="hover:bg-gray-50/40 transition-colors text-xs text-gray-700">
-                    <td className="py-4.5 px-6 font-mono font-black text-primary">{booking.id}</td>
+                    <td className="py-4.5 px-6 font-mono font-black text-primary whitespace-nowrap">{booking.id}</td>
                     <td className="py-4.5 px-6">
                       <p className="font-black text-gray-900">{booking.name}</p>
                       <p className="text-[10px] text-gray-400 font-mono flex items-center gap-1.5 mt-0.5">
@@ -209,35 +209,35 @@ export function StaffReviewQueue({
                       </p>
                     </td>
                     <td className="py-4.5 px-6">
-                      <p className="font-extrabold text-gray-800">{booking.room}</p>
-                      <p className="text-[10px] text-gray-500 font-mono flex items-center gap-1 mt-0.5">
+                      <p className="font-extrabold text-gray-800 whitespace-nowrap">{booking.room}</p>
+                      <p className="text-[10px] text-gray-500 font-mono flex items-center gap-1 mt-0.5 whitespace-nowrap">
                         <Clock className="h-3 w-3 text-gray-400 shrink-0" />
                         <span>{booking.date} @ {booking.startTime} - {booking.endTime}</span>
                       </p>
                     </td>
                     <td className="py-4.5 px-6">
-                      <span className="bg-[#F8F5F0] border border-gray-150 text-gray-700 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-lg">
+                      <span className="bg-[#F8F5F0] border border-gray-150 text-gray-700 text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-lg whitespace-nowrap inline-block">
                         {booking.bookingType}
                       </span>
                     </td>
                     <td className="py-4.5 px-6">
                       {booking.conflictStatus === 'CONFLICT DETECTED' ? (
-                        <span className="bg-amber-150 text-amber-900 border border-amber-200 text-[9px] font-black px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 animate-pulse">
+                        <span className="bg-amber-150 text-amber-900 border border-amber-200 text-[9px] font-black px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 animate-pulse whitespace-nowrap">
                           <AlertTriangle className="h-3 w-3 text-amber-700 shrink-0" /> OVERLAP DETECTED
                         </span>
                       ) : (
-                        <span className="bg-emerald-50 text-emerald-800 border border-emerald-100 text-[9px] font-black px-2.5 py-0.5 rounded-full inline-flex items-center gap-0.5">
+                        <span className="bg-emerald-50 text-emerald-800 border border-emerald-100 text-[9px] font-black px-2.5 py-0.5 rounded-full inline-flex items-center gap-0.5 whitespace-nowrap">
                           <ShieldCheck className="h-3 w-3 text-emerald-600" /> SAFE
                         </span>
                       )}
                     </td>
                     <td className="py-4.5 px-6">
                       {banInfo ? (
-                        <span className="bg-rose-50 text-rose-800 border border-rose-100 text-[9px] font-black px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 animate-pulse" title={`Reason: ${banInfo.reason}`}>
+                        <span className="bg-rose-50 text-rose-800 border border-rose-100 text-[9px] font-black px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 animate-pulse whitespace-nowrap" title={`Reason: ${banInfo.reason}`}>
                           <ShieldAlert className="h-3 w-3 text-rose-600 shrink-0" /> BANNED ({banInfo.daysRemaining})
                         </span>
                       ) : (
-                        <span className="text-emerald-600 font-bold text-[10px] inline-flex items-center gap-1">
+                        <span className="text-emerald-600 font-bold text-[10px] inline-flex items-center gap-1 whitespace-nowrap">
                           <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> CLEAR
                         </span>
                       )}

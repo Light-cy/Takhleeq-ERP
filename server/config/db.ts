@@ -3,6 +3,11 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Override default pg DATE (OID 1082) parser to return plain date strings (YYYY-MM-DD) 
+// instead of instantiating timezone-dependent JS Date objects at local midnight.
+// This prevents off-by-one errors when running on systems in positive/negative timezone offsets.
+pg.types.setTypeParser(1082, (val) => val);
+
 const { Pool } = pg;
 
 const connectionString = process.env.DATABASE_URL;

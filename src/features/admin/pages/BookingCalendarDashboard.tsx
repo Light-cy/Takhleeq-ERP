@@ -500,47 +500,47 @@ export function BookingCalendarDashboard({
                       const isBanned = activeBans.some(ban => ban.email.toLowerCase() === b.email.toLowerCase() && ban.status === 'Active');
                       return (
                         <tr key={b.id} className="hover:bg-gray-50/30 transition-colors text-xs text-gray-700">
-                          <td className="py-4 px-6 font-mono font-black text-primary">{b.id}</td>
+                          <td className="py-4 px-6 font-mono font-black text-primary whitespace-nowrap">{b.id}</td>
                           <td className="py-4 px-6">
                             <p className="font-black text-gray-900">{b.eventTitle}</p>
                             <p className="text-[10px] text-gray-400 max-w-xs truncate">{b.eventDescription}</p>
                           </td>
-                          <td className="py-4 px-6 font-extrabold text-gray-800">{b.room}</td>
-                          <td className="py-4 px-6">
+                          <td className="py-4 px-6 font-extrabold text-gray-800 whitespace-nowrap">{b.room}</td>
+                          <td className="py-4 px-6 whitespace-nowrap">
                             <p className="font-extrabold text-gray-800 font-mono">{b.date}</p>
                             <p className="text-[10px] text-gray-400 font-mono">{b.startTime} - {b.endTime}</p>
                           </td>
                           <td className="py-4 px-6">
-                            <p className="font-extrabold text-gray-900">{b.name}</p>
-                            <p className="text-[10px] text-gray-400 font-mono">{b.email}</p>
+                            <p className="font-extrabold text-gray-900 whitespace-nowrap">{b.name}</p>
+                            <p className="text-[10px] text-gray-400 font-mono whitespace-nowrap">{b.email}</p>
                           </td>
-                          <td className="py-4 px-6 font-semibold text-gray-800">{b.bookingType}</td>
-                          <td className="py-4 px-6 font-semibold text-gray-800">{b.approvedBy || '—'}</td>
-                          <td className="py-4 px-6 font-mono text-gray-500">{b.approvalDate ? new Date(b.approvalDate).toLocaleDateString() : '—'}</td>
-                          <td className="py-4 px-6">
+                          <td className="py-4 px-6 font-semibold text-gray-800 whitespace-nowrap">{b.bookingType}</td>
+                          <td className="py-4 px-6 font-semibold text-gray-800 whitespace-nowrap">{b.approvedBy || '—'}</td>
+                          <td className="py-4 px-6 font-mono text-gray-500 whitespace-nowrap">{b.approvalDate ? new Date(b.approvalDate).toLocaleDateString() : '—'}</td>
+                          <td className="py-4 px-6 whitespace-nowrap">
                             {b.conflictStatus === 'CONFLICT DETECTED' ? (
-                              <span className="bg-rose-50 text-rose-800 border border-rose-100 text-[9px] font-bold px-2 py-0.5 rounded uppercase">CONFLICT DETECTED</span>
+                              <span className="bg-rose-50 text-rose-800 border border-rose-100 text-[9px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap">CONFLICT DETECTED</span>
                             ) : (
-                              <span className="bg-green-50 text-green-800 border border-green-100 text-[9px] font-bold px-2 py-0.5 rounded uppercase">NO CONFLICT</span>
+                              <span className="bg-green-50 text-green-800 border border-green-100 text-[9px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap">NO CONFLICT</span>
                             )}
                           </td>
-                          <td className="py-4 px-6">
+                          <td className="py-4 px-6 whitespace-nowrap">
                             {isBanned ? (
-                              <span className="bg-red-100 text-red-800 border border-red-200 text-[9px] font-bold px-2 py-0.5 rounded uppercase">BANNED</span>
+                              <span className="bg-red-100 text-red-800 border border-red-200 text-[9px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap">BANNED</span>
                             ) : (
-                              <span className="bg-gray-100 text-gray-800 border border-gray-200 text-[9px] font-bold px-2 py-0.5 rounded uppercase">CLEAR</span>
+                              <span className="bg-gray-100 text-gray-800 border border-gray-200 text-[9px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap">CLEAR</span>
                             )}
                           </td>
-                          <td className="py-4 px-6">
-                            <div className="flex flex-col gap-1 items-start">
+                          <td className="py-4 px-6 whitespace-nowrap">
+                            <div className="flex flex-col gap-1 items-start whitespace-nowrap">
                               {getStatusBadge(b.status)}
                             </div>
                           </td>
-                          <td className="py-4 px-6 text-right">
+                          <td className="py-4 px-6 text-right whitespace-nowrap">
                             <button
                               onClick={() => startEditing(b)}
                               disabled={b.status.includes('REJECTED') || b.status === 'CANCELLED' || isDateInPast(b.date, todayStr)}
-                              className={`border px-3 py-1.5 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all duration-200 ${
+                              className={`border px-3 py-1.5 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all duration-200 whitespace-nowrap ${
                                 b.status.includes('REJECTED') || b.status === 'CANCELLED' || isDateInPast(b.date, todayStr)
                                   ? 'border-gray-150 text-gray-300 bg-gray-50/50 cursor-not-allowed'
                                   : 'text-primary hover:text-white hover:bg-primary border-primary/20 hover:border-primary cursor-pointer'
