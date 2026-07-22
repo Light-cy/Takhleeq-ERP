@@ -236,3 +236,112 @@ VALUES
 (10, 'Department', 'Department sessions and operations', true)
 ON CONFLICT (name) DO NOTHING;
 
+-- COHORT TABLES SCHEMA
+CREATE TABLE IF NOT EXISTS cohorts (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    status VARCHAR(50) DEFAULT 'DRAFT',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS cohort_form_settings (
+    is_active BOOLEAN DEFAULT TRUE,
+    fields JSONB NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS applicants (
+    id SERIAL PRIMARY KEY,
+    tracking_token VARCHAR(100) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    phone VARCHAR(255) NOT NULL,
+    cnic VARCHAR(255) NOT NULL,
+    startup_name VARCHAR(255) NOT NULL,
+    startup_description TEXT NOT NULL,
+    status VARCHAR(100) DEFAULT 'SUBMITTED',
+    panel_scores JSONB,
+    parent_applicant_id INTEGER REFERENCES applicants(id) ON DELETE SET NULL,
+    form_data JSONB,
+    orientation_conducted BOOLEAN DEFAULT FALSE,
+    cohort_id INTEGER REFERENCES cohorts(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS cohort_sessions (
+    id SERIAL PRIMARY KEY,
+    cohort_id INTEGER REFERENCES cohorts(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    mentor_name VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS session_attendance (
+    id SERIAL PRIMARY KEY,
+    session_id INTEGER REFERENCES cohort_sessions(id) ON DELETE CASCADE,
+    applicant_id INTEGER REFERENCES applicants(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL,
+    marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS team_checkins (
+    id SERIAL PRIMARY KEY,
+    cohort_id INTEGER REFERENCES cohorts(id) ON DELETE CASCADE,
+    applicant_id INTEGER REFERENCES applicants(id) ON DELETE CASCADE,
+    logged_by VARCHAR(255) NOT NULL,
+    blockers TEXT NOT NULL,
+    progress_score INTEGER NOT NULL,
+    mentor_notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS performance_warnings (
+    id SERIAL PRIMARY KEY,
+    cohort_id INTEGER REFERENCES cohorts(id) ON DELETE CASCADE,
+    applicant_id INTEGER REFERENCES applicants(id) ON DELETE CASCADE,
+    issued_by VARCHAR(255) NOT NULL,
+    reason TEXT NOT NULL,
+    severity VARCHAR(50) NOT NULL,
+    status VARCHAR(50) DEFAULT 'ACTIVE',
+    resolution_notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- SEED COHORT DATA
+INSERT INTO cohorts (id, name, status)
+VALUES (1, 'Takhleeq Cohort 1', 'ACTIVE')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO cohort_form_settings (is_active, fields)
+VALUES (TRUE, '[
+  {"id": "field_startup_name", "label": "Startup Name", "type": "text", "required": true, "placeholder": "Enter your startup name"},
+  {"id": "field_startup_desc", "label": "Idea Description", "type": "text", "required": true, "placeholder": "Explain your business idea in 2-3 sentences"},
+  {"id": "field_founder_name", "label": "Team Lead Name", "type": "text", "required": true, "placeholder": "Enter full name of the team lead"},
+  {"id": "field_founder_email", "label": "Email Address", "type": "email", "required": true, "placeholder": "Enter team lead email"},
+  {"id": "field_founder_phone", "label": "Phone Number", "type": "phone", "required": true, "placeholder": "e.g. 03xx-xxxxxxx"},
+  {"id": "field_founder_cnic", "label": "CNIC Number", "type": "cnic", "required": true, "placeholder": "e.g. 35201-xxxxxxx-x"}
+]'::jsonb);
+
+INSERT INTO applicants (id, tracking_token, name, email, phone, cnic, startup_name, startup_description, cohort_id, status, panel_scores, form_data, orientation_conducted)
+VALUES 
+(1, 'TK-STR-7821', 'Zohaib Niaz', 'zohaib@startup.pk', '0300-1234567', '35201-1234567-1', 'MedRoute', 'An AI-powered pharmaceutical route planner reducing delivery times by 40%.', 1, 'CONFIRMED', '{"viability": 8, "team": 9, "scalability": 8, "average": 8.3}'::jsonb, '{}'::jsonb, TRUE),
+(2, 'TK-STR-5921', 'Ayesha Malik', 'ayesha@fintech.pk', '0321-7654321', '35201-7654321-2', 'PaisaFlow', 'Micro-lending platform for small merchants using alternative credit scoring.', 1, 'CONFIRMED', '{"viability": 9, "team": 8, "scalability": 9, "average": 8.7}'::jsonb, '{}'::jsonb, TRUE),
+(3, 'TK-STR-4412', 'Imran Khan', 'imran@edtech.pk', '0333-5551212', '35201-5551212-3', 'Dars-e-Nau', 'Localized video-based educational app for public school students in Urdu.', null, 'IN_REVIEW', NULL, '{}'::jsonb, FALSE),
+(4, 'TK-STR-1092', 'Qasim Ali', 'qasim@agritech.pk', '0345-9998887', '35201-9998887-4', 'AgriSense', 'IoT-enabled soil nutrient analysis probe for smallholder farmers.', null, 'BACKUP_CANDIDATE', '{"viability": 7, "team": 7, "scalability": 7, "average": 7.0}'::jsonb, '{}'::jsonb, FALSE),
+(5, 'TK-STR-2291', 'Raza Jafar', 'raza@delivery.pk', '0312-3334445', '35201-3334445-5', 'LogiSwift', 'B2B express delivery aggregator connecting local freight vans.', null, 'REJECTED', '{"viability": 4, "team": 5, "scalability": 4, "average": 4.3}'::jsonb, '{}'::jsonb, FALSE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO cohort_sessions (id, cohort_id, title, date, start_time, end_time, mentor_name)
+VALUES 
+(1, 1, 'Orientation & Incubation Blueprint', '2026-07-22', '10:00:00', '12:00:00', 'Dr. Qaseeb Ahmed'),
+(2, 1, 'Value Proposition & Customer Discovery', '2026-07-29', '14:00:00', '16:00:00', 'Syed Usman')
+ON CONFLICT DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('cohorts', 'id'), COALESCE(MAX(id), 1)) FROM cohorts;
+SELECT setval(pg_get_serial_sequence('applicants', 'id'), COALESCE(MAX(id), 1)) FROM applicants;
+SELECT setval(pg_get_serial_sequence('cohort_sessions', 'id'), COALESCE(MAX(id), 1)) FROM cohort_sessions;
+
+

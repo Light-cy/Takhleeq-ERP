@@ -30,7 +30,7 @@ import {
 import { motion } from 'motion/react';
 
 interface LandingPageProps {
-  onNavigate: (path: string) => void;
+  onNavigate: (path: string, tab?: string) => void;
   activeUser: any;
 }
 
@@ -117,19 +117,27 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
             <div className="flex flex-wrap gap-3.5 pt-4">
               <button 
                 onClick={() => onNavigate('/booking')}
-                className="bg-primary hover:bg-primary/95 hover:translate-y-[-1px] text-white text-xs font-bold uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all shadow-md shadow-primary/20 cursor-pointer flex items-center gap-2"
+                className="bg-primary hover:bg-[#5A0F0F] hover:translate-y-[-1px] text-white text-xs font-bold uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all shadow-md shadow-primary/20 cursor-pointer flex items-center gap-2"
                 id="hero-book-btn"
               >
                 <CalendarRange className="h-4 w-4" />
                 Book a Space
               </button>
               <button 
-                onClick={() => onNavigate('/track')}
+                onClick={() => onNavigate('/cohort-apply')}
+                className="bg-[#121214] hover:bg-[#202024] hover:translate-y-[-1px] text-white text-xs font-bold uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-2"
+                id="hero-apply-btn"
+              >
+                <GraduationCap className="h-4 w-4 text-accent" />
+                Apply for Incubation
+              </button>
+              <button 
+                onClick={() => onNavigate('/cohort-track')}
                 className="bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold uppercase tracking-wider px-6 py-3.5 rounded-xl transition-all cursor-pointer flex items-center gap-2"
-                id="hero-track-btn"
+                id="hero-track-cohort-btn"
               >
                 <Search className="h-4 w-4 text-gray-500" />
-                Track Booking
+                Track Application
               </button>
             </div>
           </div>
@@ -304,22 +312,59 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
               </button>
             </div>
 
-            {/* Inactive module 2 */}
-            <div className="border border-gray-100 bg-gray-50/20 p-6 rounded-2xl flex flex-col justify-between opacity-80">
+            {/* Active module 2: Cohort Management */}
+            <div className="border-2 border-primary/25 bg-white p-6 rounded-2xl shadow-md shadow-primary/5 flex flex-col justify-between hover:border-primary/40 transition-all relative">
+              <div className="absolute top-4 right-4 bg-primary text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full">
+                Active
+              </div>
               <div className="space-y-4">
-                <div className="h-12 w-12 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400">
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
                   <Users className="h-6 w-6" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-black text-gray-400 uppercase tracking-wider">Cohort Management</h4>
-                  <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
-                    Track applicant onboarding, incubation scoring, mentor matching, startup evaluation milestones, and seed fund requests.
+                  <h4 className="text-sm font-black text-gray-900 uppercase tracking-wider">Cohort Incubator</h4>
+                  <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                    Track applicant onboarding, dynamic admissions settings, evaluations, workshop scheduling, attendance checklists, weekly check-ins, and performance warnings.
                   </p>
                 </div>
               </div>
-              <span className="mt-6 w-full py-2 bg-gray-100 text-center text-gray-400 text-xs font-bold uppercase tracking-wider rounded-xl select-none">
-                Coming Soon
-              </span>
+              
+              <div className="mt-6 space-y-3">
+                <button 
+                  onClick={() => {
+                    if (!activeUser) {
+                      onNavigate('/login');
+                    } else if (activeUser.role === 'Cohort Founder') {
+                      onNavigate('/founder-dashboard');
+                    } else if (activeUser.role === 'UCP Member') {
+                      // Navigate to /founder-dashboard where they will see the unauthorized/not-found screen
+                      // rather than going directly to the application form (which has a separate button below).
+                      onNavigate('/founder-dashboard');
+                    } else {
+                      onNavigate('/staff/dashboard', 'cohorts');
+                    }
+                  }}
+                  className="w-full py-2 bg-primary hover:bg-primary/95 text-white text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1.5"
+                >
+                  Launch Module
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </button>
+
+                <div className="flex justify-between items-center pt-2.5 border-t border-gray-100 text-[10px] font-extrabold uppercase tracking-wider">
+                  <button 
+                    onClick={() => onNavigate('/cohort-apply')} 
+                    className="text-primary hover:text-[#5A0F0F] transition-colors cursor-pointer"
+                  >
+                    Apply Now
+                  </button>
+                  <button 
+                    onClick={() => onNavigate('/cohort-track')} 
+                    className="text-gray-500 hover:text-primary transition-colors cursor-pointer"
+                  >
+                    Track Status
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Inactive module 3 */}

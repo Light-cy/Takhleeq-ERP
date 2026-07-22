@@ -15,6 +15,10 @@ import { BookingCalendarDashboard } from './features/admin/pages/BookingCalendar
 import { GovernanceCenterPage } from './features/admin/pages/GovernanceCenter';
 import { RoomManagementPage } from './features/admin/pages/RoomManagement';
 import { AuditLogsPage } from './features/admin/pages/AuditLogs';
+import { PublicCohortApplyPage } from './features/cohort/pages/PublicCohortApplyPage';
+import { PublicCohortTrackPage } from './features/cohort/pages/PublicCohortTrackPage';
+import { CohortFounderDashboardPage } from './features/cohort/pages/CohortFounderDashboardPage';
+import { CohortManagementPage } from './features/admin/pages/CohortManagement/CohortManagementPage';
 
 
 // Services
@@ -27,7 +31,7 @@ import { auditApi } from './features/admin/services/audit.api';
 import { authApi } from './features/auth/services/auth.api';
 
 // Types
-import { Room, Booking, Ban, CustomRole, User as ERPUser, AuditRecord } from './types';
+import { Room, Booking, Ban, CustomRole, User as ERPUser, AuditRecord, Cohort } from './types';
 
 export default function App() {
   // Real path-based URL state
@@ -45,7 +49,8 @@ export default function App() {
     { email: 'faisal@ucp.edu.pk', name: 'Faisal Mehmood (Coordinator)', role: 'Facility Coordinator', status: 'Active' },
     { email: 'maheen@ucp.edu.pk', name: 'Maheen Malik (Manager)', role: 'Booking Manager', status: 'Active' },
     { email: 'director@takhleeq.pk', name: 'Dr. Qaseeb (Director)', role: 'Administrator', status: 'Active' },
-    { email: 'banned-test@ucp.edu.pk', name: 'Banned Student (Testing)', role: 'UCP Member', status: 'Inactive' }
+    { email: 'banned-test@ucp.edu.pk', name: 'Banned Student (Testing)', role: 'UCP Member', status: 'Inactive' },
+    { email: 'zohaib@startup.pk', name: 'Zohaib Niaz (MedRoute Founder)', role: 'Cohort Founder', status: 'Active' }
   ];
 
   const [activeUser, setActiveUser] = useState<ERPUser>(simulatedIdentities[3]); // Default to Administrator for easy testing
@@ -63,8 +68,15 @@ export default function App() {
   const [jwtToken, setJwtToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Cohort context state
+  const [cohortsList, setCohortsList] = useState<Cohort[]>([]);
+  const [selectedCohortId, setSelectedCohortId] = useState<number | null>(null);
+
   // Custom multi-route navigation handler
-  const navigate = (path: string) => {
+  const navigate = (path: string, tab?: string) => {
+    if (tab) {
+      setActiveTab(tab);
+    }
     window.history.pushState({}, '', path);
     setCurrentPath(path);
   };
@@ -97,6 +109,20 @@ export default function App() {
       setBans(Array.isArray(bansData) ? bansData : []);
       setRoles(Array.isArray(rolesData) ? rolesData : []);
       setUsers(Array.isArray(usersData) ? usersData : []);
+
+      // Fetch Cohorts
+      fetch('/api/cohorts', { headers: { 'Authorization': `Bearer ${currentToken}` } })
+        .then(res => res.json())
+        .then(cData => {
+          if (Array.isArray(cData)) {
+            setCohortsList(cData);
+            if (cData.length > 0 && !selectedCohortId) {
+              const active = cData.find((c: any) => c.status === 'ACTIVE') || cData[cData.length - 1];
+              if (active) setSelectedCohortId(active.id);
+            }
+          }
+        })
+        .catch(() => {});
 
       // Synchronize activeUser with the latest role and permissions from backend if changed
       if (activeUser && Array.isArray(usersData) && Array.isArray(rolesData)) {
@@ -190,7 +216,9 @@ export default function App() {
         await fetchStateData(data.token);
 
         // Auto route to respective environments
-        if (data.user.role === 'UCP Member') {
+        if (data.user.role === 'Cohort Founder') {
+          navigate('/founder-dashboard');
+        } else if (data.user.role === 'UCP Member') {
           navigate('/booking');
         } else {
           navigate('/staff/dashboard');
@@ -221,7 +249,9 @@ export default function App() {
     setJwtToken(token);
     setActiveUser(user);
     fetchStateData(token);
-    if (user.role === 'UCP Member') {
+    if (user.role === 'Cohort Founder') {
+      navigate('/founder-dashboard');
+    } else if (user.role === 'UCP Member') {
       navigate('/booking');
     } else {
       navigate('/staff/dashboard');
@@ -420,6 +450,45 @@ export default function App() {
           </PublicLayout>
         );
 
+      case '/cohort-apply':
+        return (
+          <PublicLayout
+            currentPath={currentPath}
+            activeUser={activeUser}
+            onNavigate={navigate}
+            onLogout={handleLogout}
+          >
+            <PublicCohortApplyPage onNavigate={navigate} />
+          </PublicLayout>
+        );
+
+      case '/cohort-track':
+        return (
+          <PublicLayout
+            currentPath={currentPath}
+            activeUser={activeUser}
+            onNavigate={navigate}
+            onLogout={handleLogout}
+          >
+            <PublicCohortTrackPage onNavigate={navigate} />
+          </PublicLayout>
+        );
+
+      case '/founder-dashboard':
+        return (
+          <PublicLayout
+            currentPath={currentPath}
+            activeUser={activeUser}
+            onNavigate={navigate}
+            onLogout={handleLogout}
+          >
+            <CohortFounderDashboardPage 
+              jwtToken={jwtToken} 
+              onNavigate={navigate} 
+            />
+          </PublicLayout>
+        );
+
       case '/staff/dashboard':
         return (
           <StaffLayout
@@ -429,6 +498,10 @@ export default function App() {
             hasPermission={hasPermission}
             onNavigate={navigate}
             onLogout={handleLogout}
+            jwtToken={jwtToken}
+            cohortsList={cohortsList}
+            selectedCohortId={selectedCohortId}
+            setSelectedCohortId={setSelectedCohortId}
           >
             {activeTab === 'queue' && (
               <StaffReviewQueue 
@@ -493,6 +566,20 @@ export default function App() {
                 bookings={bookings}
                 rooms={rooms}
                 activeBans={bans}
+              />
+            )}
+
+            {(activeTab.startsWith('cohort') || activeTab === 'builder') && (
+              <CohortManagementPage 
+                currentUser={activeUser}
+                hasPermission={hasPermission}
+                onRefresh={fetchStateData}
+                jwtToken={jwtToken}
+                activeTab={activeTab}
+                selectedCohortId={selectedCohortId}
+                setSelectedCohortId={setSelectedCohortId}
+                cohortsList={cohortsList}
+                auditLogs={auditLogs}
               />
             )}
           </StaffLayout>

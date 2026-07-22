@@ -17,40 +17,91 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
   onLogout,
   children
 }) => {
+  const isCohortPath = currentPath.includes('cohort') || currentPath.includes('founder-dashboard');
+
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-[#FFFFFF]">
       <header className="bg-[#FFFFFF] border-b border-gray-100 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0 shadow-3xs">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => onNavigate('/')}>
           <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center">
-            <span className="text-white text-base font-black tracking-widest font-mono">T</span>
+            <span className="text-white text-base font-black tracking-widest font-mono">
+              {isCohortPath ? 'C' : 'T'}
+            </span>
           </div>
           <div>
-            <h1 className="text-sm font-black text-primary uppercase tracking-wider">Takhleeq public scheduler</h1>
-            <p className="text-[10px] text-gray-400 font-black tracking-widest uppercase">University of Central Punjab</p>
+            <h1 className="text-sm font-black text-primary uppercase tracking-wider">
+              {isCohortPath ? 'Takhleeq Cohort Portal' : 'Takhleeq public scheduler'}
+            </h1>
+            <p className="text-[10px] text-gray-400 font-black tracking-widest uppercase">
+              {isCohortPath ? 'Incubation & Acceleration' : 'University of Central Punjab'}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 bg-[#F8F5F0] p-1 rounded-xl border border-gray-150">
-          <button
-            onClick={() => onNavigate('/booking')}
-            className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
-              currentPath === '/booking'
-                ? 'bg-primary text-white shadow-3xs'
-                : 'text-gray-600 hover:text-gray-950'
-            }`}
-          >
-            Book Space
-          </button>
-          <button
-            onClick={() => onNavigate('/track')}
-            className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
-              currentPath === '/track'
-                ? 'bg-primary text-white shadow-3xs'
-                : 'text-gray-600 hover:text-gray-950'
-            }`}
-          >
-            Track booking
-          </button>
+          {isCohortPath ? (
+            <>
+              {currentPath !== '/founder-dashboard' && (
+                <>
+                  <button
+                    onClick={() => onNavigate('/cohort-apply')}
+                    className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
+                      currentPath === '/cohort-apply'
+                        ? 'bg-primary text-white shadow-3xs'
+                        : 'text-gray-600 hover:text-gray-950'
+                    }`}
+                  >
+                    Apply Now
+                  </button>
+                  <button
+                    onClick={() => onNavigate('/cohort-track')}
+                    className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
+                      currentPath === '/cohort-track'
+                        ? 'bg-primary text-white shadow-3xs'
+                        : 'text-gray-600 hover:text-gray-950'
+                    }`}
+                  >
+                    Track Status
+                  </button>
+                </>
+              )}
+              {activeUser && (activeUser.role === 'Cohort Founder' || activeUser.role === 'Administrator') && (
+                <button
+                  onClick={() => onNavigate('/founder-dashboard')}
+                  className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
+                    currentPath === '/founder-dashboard'
+                      ? 'bg-primary text-white shadow-3xs'
+                      : 'text-gray-600 hover:text-gray-950'
+                  }`}
+                >
+                  Founder Portal
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => onNavigate('/booking')}
+                className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
+                  currentPath === '/booking'
+                    ? 'bg-primary text-white shadow-3xs'
+                    : 'text-gray-600 hover:text-gray-950'
+                }`}
+              >
+                Book Space
+              </button>
+              <button
+                onClick={() => onNavigate('/track')}
+                className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
+                  currentPath === '/track'
+                    ? 'bg-primary text-white shadow-3xs'
+                    : 'text-gray-600 hover:text-gray-950'
+                }`}
+              >
+                Track booking
+              </button>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-2 text-xs">

@@ -81,7 +81,9 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
           // Successful authentication
           onLoginSuccess(data.token, data.user);
           
-          if (data.user.role === 'UCP Member') {
+          if (data.user.role === 'Cohort Founder') {
+            onNavigate('/founder-dashboard');
+          } else if (data.user.role === 'UCP Member') {
             if (isStaff) {
               setErrorMessage('Access Denied: This UCP Member account does not have Back-office ERP staff clearance.');
               setLoading(false);
@@ -127,7 +129,9 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
       onLoginSuccess(data.token, data.user);
       
       // Redirect based on role context
-      if (data.user.role === 'UCP Member') {
+      if (data.user.role === 'Cohort Founder') {
+        onNavigate('/founder-dashboard');
+      } else if (data.user.role === 'UCP Member') {
         if (isStaff) {
           setErrorMessage('Access Denied: This UCP Member account does not have Back-office ERP staff clearance.');
           setLoading(false);

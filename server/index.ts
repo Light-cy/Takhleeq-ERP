@@ -12,6 +12,7 @@ import bookingTypeRoutes from './modules/bookings/booking-types.routes.ts';
 import banRoutes from './modules/bans/bans.routes.ts';
 import auditRoutes from './modules/audit/audit.routes.ts';
 import chatbotRoutes from './modules/chatbot/chatbot.routes.ts';
+import cohortRoutes from './modules/cohorts/cohorts.routes.ts';
 
 const PORT = 3000;
 
@@ -31,6 +32,7 @@ export async function startServer() {
   app.use('/api', banRoutes);
   app.use('/api', auditRoutes);
   app.use('/api', chatbotRoutes);
+  app.use('/api', cohortRoutes);
 
   // --- INTEGRATION WITH VITE FOR WEB SERVING ---
   if (process.env.NODE_ENV !== 'production') {

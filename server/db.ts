@@ -7,7 +7,7 @@ import { pool } from './config/db.ts';
 dotenv.config();
 
 // --- LOCAL JSON DATABASE ENGINE FALLBACK ---
-let useLocalDB = false;
+let useLocalDB = true;
 
 const localDbPath = path.join(process.cwd(), 'server', 'local_db.json');
 
@@ -40,11 +40,78 @@ function initializeLocalDB() {
     "VIEW_AUDIT_LOGS",
     "LIFT_BAN",
     "MANAGE_BANS",
-    "MANAGE_BOOKING_TYPES"
+    "MANAGE_BOOKING_TYPES",
+    "cohort:form_manage",
+    "cohort:applicant_review",
+    "cohort:session_manage",
+    "cohort:attendance_write",
+    "cohort:checkin_log",
+    "cohort:warning_write",
+    "cohort:profile_write",
+    "cohort:feedback_submit",
+    "cohort:assignment_upload"
   ];
 
   if (db) {
     let updated = false;
+    
+    // Core cohort tables dynamic schema migration
+    if (!db.cohorts || !Array.isArray(db.cohorts)) {
+      db.cohorts = [
+        { id: 1, name: 'Takhleeq Cohort 1', status: 'ACTIVE', created_at: new Date().toISOString() }
+      ];
+      updated = true;
+    }
+    
+    if (!db.cohort_form_settings) {
+      db.cohort_form_settings = {
+        is_active: true,
+        fields: [
+          { id: 'field_startup_name', label: 'Startup Name', type: 'text', required: true, placeholder: 'Enter your startup name' },
+          { id: 'field_startup_desc', label: 'Idea Description', type: 'text', required: true, placeholder: 'Explain your business idea in 2-3 sentences' },
+          { id: 'field_founder_name', label: 'Team Lead Name', type: 'text', required: true, placeholder: 'Enter full name of the team lead' },
+          { id: 'field_founder_email', label: 'Email Address', type: 'email', required: true, placeholder: 'Enter team lead email' },
+          { id: 'field_founder_phone', label: 'Phone Number', type: 'phone', required: true, placeholder: 'e.g. 03xx-xxxxxxx' },
+          { id: 'field_founder_cnic', label: 'CNIC Number', type: 'cnic', required: true, placeholder: 'e.g. 35201-xxxxxxx-x' }
+        ]
+      };
+      updated = true;
+    }
+
+    if (!db.applicants || !Array.isArray(db.applicants)) {
+      db.applicants = [
+        { id: 1, tracking_token: 'TK-STR-7821', name: 'Zohaib Niaz', email: 'zohaib@startup.pk', phone: '0300-1234567', cnic: '35201-1234567-1', startup_name: 'MedRoute', startup_description: 'An AI-powered pharmaceutical route planner reducing delivery times by 40%.', cohort_id: 1, status: 'CONFIRMED', panel_scores: { viability: 8, team: 9, scalability: 8, average: 8.3 }, parent_applicant_id: null, form_data: {}, orientation_conducted: true, created_at: '2026-07-20T00:00:00.000Z' },
+        { id: 2, tracking_token: 'TK-STR-5921', name: 'Ayesha Malik', email: 'ayesha@fintech.pk', phone: '0321-7654321', cnic: '35201-7654321-2', startup_name: 'PaisaFlow', startup_description: 'Micro-lending platform for small merchants using alternative credit scoring.', cohort_id: 1, status: 'CONFIRMED', panel_scores: { viability: 9, team: 8, scalability: 9, average: 8.7 }, parent_applicant_id: null, form_data: {}, orientation_conducted: true, created_at: '2026-07-20T00:00:00.000Z' },
+        { id: 3, tracking_token: 'TK-STR-4412', name: 'Imran Khan', email: 'imran@edtech.pk', phone: '0333-5551212', cnic: '35201-5551212-3', startup_name: 'Dars-e-Nau', startup_description: 'Localized video-based educational app for public school students in Urdu.', cohort_id: null, status: 'IN_REVIEW', panel_scores: null, parent_applicant_id: null, form_data: {}, orientation_conducted: false, created_at: '2026-07-20T00:00:00.000Z' },
+        { id: 4, tracking_token: 'TK-STR-1092', name: 'Qasim Ali', email: 'qasim@agritech.pk', phone: '0345-9998887', cnic: '35201-9998887-4', startup_name: 'AgriSense', startup_description: 'IoT-enabled soil nutrient analysis probe for smallholder farmers.', cohort_id: null, status: 'BACKUP_CANDIDATE', panel_scores: { viability: 7, team: 7, scalability: 7, average: 7.0 }, parent_applicant_id: null, form_data: {}, orientation_conducted: false, created_at: '2026-07-20T00:00:00.000Z' },
+        { id: 5, tracking_token: 'TK-STR-2291', name: 'Raza Jafar', email: 'raza@delivery.pk', phone: '0312-3334445', cnic: '35201-3334445-5', startup_name: 'LogiSwift', startup_description: 'B2B express delivery aggregator connecting local freight vans.', cohort_id: null, status: 'REJECTED', panel_scores: { viability: 4, team: 5, scalability: 4, average: 4.3 }, parent_applicant_id: null, form_data: {}, orientation_conducted: false, created_at: '2026-07-20T00:00:00.000Z' }
+      ];
+      updated = true;
+    }
+
+    if (!db.cohort_sessions || !Array.isArray(db.cohort_sessions)) {
+      db.cohort_sessions = [
+        { id: 1, cohort_id: 1, title: 'Orientation & Incubation Blueprint', date: '2026-07-22', start_time: '10:00:00', end_time: '12:00:00', mentor_name: 'Dr. Qaseeb Ahmed', created_at: '2026-07-20T00:00:00.000Z' },
+        { id: 2, cohort_id: 1, title: 'Value Proposition & Customer Discovery', date: '2026-07-29', start_time: '14:00:00', end_time: '16:00:00', mentor_name: 'Syed Usman', created_at: '2026-07-20T00:00:00.000Z' }
+      ];
+      updated = true;
+    }
+
+    if (!db.session_attendance || !Array.isArray(db.session_attendance)) {
+      db.session_attendance = [];
+      updated = true;
+    }
+
+    if (!db.team_checkins || !Array.isArray(db.team_checkins)) {
+      db.team_checkins = [];
+      updated = true;
+    }
+
+    if (!db.performance_warnings || !Array.isArray(db.performance_warnings)) {
+      db.performance_warnings = [];
+      updated = true;
+    }
+
     if (db.roles && Array.isArray(db.roles)) {
       // 1. Upgrade Administrator role
       const adminRole = db.roles.find((r: any) => r.name === 'Administrator');
@@ -192,6 +259,244 @@ function getUsersWithRoles(db: any) {
 export function executeLocalQuery(text: string, params: any[] = []): { rows: any[] } {
   const db = initializeLocalDB();
   const q = text.toLowerCase().replace(/\s+/g, ' ').trim();
+
+  // --- MODULE 02 COHORT QUERY INTERCEPTORS (JSON FALLBACK ENGINE) ---
+  
+  // 1. Cohort Form Settings Interceptors
+  if (q.includes('select * from cohort_form_settings') || q.includes('select is_active, fields from cohort_form_settings')) {
+    return { rows: [db.cohort_form_settings] };
+  }
+  if (q.includes('update cohort_form_settings')) {
+    db.cohort_form_settings.is_active = params[0] === true || params[0] === 'true';
+    db.cohort_form_settings.fields = typeof params[1] === 'string' ? JSON.parse(params[1]) : params[1];
+    saveLocalDB(db);
+    return { rows: [db.cohort_form_settings] };
+  }
+
+  // 2. Cohorts Interceptors
+  if (q.includes('select * from cohorts') || q.includes('select * from cohorts order by id')) {
+    return { rows: db.cohorts || [] };
+  }
+  if (q.includes('insert into cohorts')) {
+    const id = Math.max(...(db.cohorts || []).map((c: any) => c.id), 0) + 1;
+    const newCohort = { id, name: params[0], status: params[1] || 'DRAFT', created_at: new Date().toISOString() };
+    db.cohorts = db.cohorts || [];
+    db.cohorts.push(newCohort);
+    saveLocalDB(db);
+    return { rows: [newCohort] };
+  }
+  if (q.includes('update cohorts set status =')) {
+    const status = params[0];
+    const id = parseInt(params[1]);
+    const c = (db.cohorts || []).find((x: any) => x.id === id);
+    if (c) {
+      c.status = status;
+      saveLocalDB(db);
+    }
+    return { rows: c ? [c] : [] };
+  }
+
+  // 3. Applicants Interceptors
+  if (q.includes('select * from applicants where tracking_token =') || (q.includes('select * from applicants') && q.includes('tracking_token = $1'))) {
+    const tok = String(params[0] || '').toUpperCase();
+    return { rows: (db.applicants || []).filter((a: any) => String(a.tracking_token).toUpperCase() === tok) };
+  }
+  if (q.includes('select * from applicants where id =') || (q.includes('select * from applicants') && q.includes('id = $1'))) {
+    const aid = parseInt(params[0]);
+    return { rows: (db.applicants || []).filter((a: any) => a.id === aid) };
+  }
+  if (q.includes('select * from applicants') && q.includes('cohort_id = $1')) {
+    const cid = parseInt(params[0]);
+    return { rows: (db.applicants || []).filter((a: any) => a.cohort_id === cid) };
+  }
+  if (q.includes('select * from applicants') || q.includes('select a.*')) {
+    return { rows: db.applicants || [] };
+  }
+  if (q.includes('insert into applicants')) {
+    const id = Math.max(...(db.applicants || []).map((a: any) => a.id), 0) + 1;
+    const tracking_token = params[0];
+    const name = params[1];
+    const email = params[2];
+    const phone = params[3];
+    const cnic = params[4];
+    const startup_name = params[5];
+    const startup_description = params[6];
+    const status = params[7];
+    const panel_scores = params[8] ? (typeof params[8] === 'string' ? JSON.parse(params[8]) : params[8]) : null;
+    const parent_applicant_id = params[9] ? parseInt(params[9]) : null;
+    const form_data = params[10] ? (typeof params[10] === 'string' ? JSON.parse(params[10]) : params[10]) : {};
+    const orientation_conducted = params[11] === true || params[11] === 'true';
+    const newApp = {
+      id,
+      tracking_token,
+      name,
+      email,
+      phone,
+      cnic,
+      startup_name,
+      startup_description,
+      status,
+      panel_scores,
+      parent_applicant_id,
+      form_data,
+      orientation_conducted,
+      cohort_id: null,
+      created_at: new Date().toISOString()
+    };
+    db.applicants = db.applicants || [];
+    db.applicants.push(newApp);
+    saveLocalDB(db);
+    return { rows: [newApp] };
+  }
+  if (q.includes('update applicants set')) {
+    const idVal = parseInt(params[params.length - 1]);
+    const app = (db.applicants || []).find((x: any) => x.id === idVal);
+    if (app) {
+      if (q.includes('status =') && q.includes('cohort_id =')) {
+        app.status = params[0];
+        app.cohort_id = params[1] ? parseInt(params[1]) : null;
+      } else if (q.includes('status =') && q.includes('orientation_conducted =')) {
+        app.status = params[0];
+        app.orientation_conducted = params[1] === true || params[1] === 'true';
+      } else if (q.includes('status =')) {
+        app.status = params[0];
+      } else if (q.includes('cohort_id =')) {
+        app.cohort_id = params[0] ? parseInt(params[0]) : null;
+      } else if (q.includes('panel_scores =')) {
+        app.panel_scores = params[0] ? (typeof params[0] === 'string' ? JSON.parse(params[0]) : params[0]) : null;
+      } else if (q.includes('orientation_conducted =')) {
+        app.orientation_conducted = params[0] === true || params[0] === 'true';
+      }
+      saveLocalDB(db);
+    }
+    return { rows: app ? [app] : [] };
+  }
+
+  // 4. Cohort Sessions Interceptors
+  if (q.includes('select * from cohort_sessions') || q.includes('select * from cohort_sessions where cohort_id = $1')) {
+    if (params.length > 0) {
+      const cid = parseInt(params[0]);
+      return { rows: (db.cohort_sessions || []).filter((s: any) => s.cohort_id === cid) };
+    }
+    return { rows: db.cohort_sessions || [] };
+  }
+  if (q.includes('insert into cohort_sessions')) {
+    const id = Math.max(...(db.cohort_sessions || []).map((s: any) => s.id), 0) + 1;
+    const newSession = {
+      id,
+      cohort_id: parseInt(params[0]),
+      title: params[1],
+      date: params[2],
+      start_time: params[3],
+      end_time: params[4],
+      mentor_name: params[5] || null,
+      topic_category: params[6] || null,
+      venue: params[7] || null,
+      recording_url: params[8] || null,
+      created_at: new Date().toISOString()
+    };
+    db.cohort_sessions = db.cohort_sessions || [];
+    db.cohort_sessions.push(newSession);
+    saveLocalDB(db);
+    return { rows: [newSession] };
+  }
+  if (q.includes('delete from cohort_sessions where id = $1')) {
+    const sid = parseInt(params[0]);
+    const idx = (db.cohort_sessions || []).findIndex((s: any) => s.id === sid);
+    let deleted = null;
+    if (idx !== -1) {
+      deleted = db.cohort_sessions.splice(idx, 1)[0];
+      saveLocalDB(db);
+    }
+    return { rows: deleted ? [deleted] : [] };
+  }
+
+  // 5. Session Attendance Interceptors
+  if (q.includes('select * from session_attendance where session_id = $1')) {
+    const sid = parseInt(params[0]);
+    return { rows: (db.session_attendance || []).filter((a: any) => a.session_id === sid) };
+  }
+  if (q.includes('delete from session_attendance where session_id = $1')) {
+    const sid = parseInt(params[0]);
+    db.session_attendance = (db.session_attendance || []).filter((a: any) => a.session_id !== sid);
+    saveLocalDB(db);
+    return { rows: [] };
+  }
+  if (q.includes('insert into session_attendance')) {
+    const id = Math.max(...(db.session_attendance || []).map((a: any) => a.id), 0) + 1;
+    const newAtt = {
+      id,
+      session_id: parseInt(params[0]),
+      applicant_id: parseInt(params[1]),
+      status: params[2],
+      marked_at: new Date().toISOString()
+    };
+    db.session_attendance = db.session_attendance || [];
+    db.session_attendance.push(newAtt);
+    saveLocalDB(db);
+    return { rows: [newAtt] };
+  }
+
+  // 6. Team Check-ins Interceptors
+  if (q.includes('select * from team_checkins') && q.includes('cohort_id = $1')) {
+    const cid = parseInt(params[0]);
+    return { rows: (db.team_checkins || []).filter((t: any) => t.cohort_id === cid) };
+  }
+  if (q.includes('insert into team_checkins')) {
+    const id = Math.max(...(db.team_checkins || []).map((t: any) => t.id), 0) + 1;
+    const newCheck = {
+      id,
+      cohort_id: parseInt(params[0]),
+      applicant_id: parseInt(params[1]),
+      logged_by: params[2],
+      blockers: params[3],
+      progress_score: parseInt(params[4]),
+      mentor_notes: params[5],
+      created_at: new Date().toISOString()
+    };
+    db.team_checkins = db.team_checkins || [];
+    db.team_checkins.push(newCheck);
+    saveLocalDB(db);
+    return { rows: [newCheck] };
+  }
+
+  // 7. Performance Warnings Interceptors
+  if (q.includes('select * from performance_warnings') && q.includes('cohort_id = $1')) {
+    const cid = parseInt(params[0]);
+    return { rows: (db.performance_warnings || []).filter((w: any) => w.cohort_id === cid) };
+  }
+  if (q.includes('insert into performance_warnings')) {
+    const id = Math.max(...(db.performance_warnings || []).map((w: any) => w.id), 0) + 1;
+    const newWarn = {
+      id,
+      cohort_id: parseInt(params[0]),
+      applicant_id: parseInt(params[1]),
+      issued_by: params[2],
+      reason: params[3],
+      severity: params[4],
+      status: params[5],
+      resolution_notes: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    db.performance_warnings = db.performance_warnings || [];
+    db.performance_warnings.push(newWarn);
+    saveLocalDB(db);
+    return { rows: [newWarn] };
+  }
+  if (q.includes('update performance_warnings set')) {
+    const idVal = parseInt(params[2]);
+    const warn = (db.performance_warnings || []).find((x: any) => x.id === idVal);
+    if (warn) {
+      warn.status = params[0];
+      warn.resolution_notes = params[1];
+      warn.updated_at = new Date().toISOString();
+      saveLocalDB(db);
+    }
+    return { rows: warn ? [warn] : [] };
+  }
+
+  // --- EXISTING QUERIES BELOW ---
 
   // 1. SELECT * FROM rooms ORDER BY id ASC
   if (q.includes('select * from rooms') && q.includes('order by id asc')) {
@@ -910,6 +1215,11 @@ async function ensureDBReady() {
   if (dbReadyPromise) return dbReadyPromise;
 
   dbReadyPromise = (async () => {
+    if (useLocalDB) {
+      console.log("⚡ Using local JSON database engine (server/local_db.json). Online database connections bypassed.");
+      initializeLocalDB();
+      return;
+    }
     try {
       await pool.query('SELECT 1');
       console.log("Successfully connected to PostgreSQL database.");
@@ -1002,7 +1312,7 @@ async function ensureDBReady() {
         console.log("Synchronizing default Administrator role with new permission nodes...");
         await pool.query(`
           UPDATE roles 
-          SET permissions = '["SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_BOOKING", "REJECT_BOOKING", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "ISSUE_BAN", "MANAGE_ROOMS", "CONFIGURE_ROOMS", "CONFIGURE_POLICIES", "VIEW_ANALYTICS_DASHBOARD", "EXPORT_AUDIT_LOGS", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "LIFT_BAN", "MANAGE_BANS", "MANAGE_BOOKING_TYPES"]'::jsonb
+          SET permissions = '["SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_BOOKING", "REJECT_BOOKING", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "ISSUE_BAN", "MANAGE_ROOMS", "CONFIGURE_ROOMS", "CONFIGURE_POLICIES", "VIEW_ANALYTICS_DASHBOARD", "EXPORT_AUDIT_LOGS", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "LIFT_BAN", "MANAGE_BANS", "MANAGE_BOOKING_TYPES", "cohort:form_manage", "cohort:applicant_review", "cohort:session_manage", "cohort:attendance_write", "cohort:checkin_log", "cohort:warning_write", "cohort:profile_write", "cohort:feedback_submit", "cohort:assignment_upload"]'::jsonb
           WHERE name = 'Administrator';
         `);
       } catch (syncAdminErr: any) {
@@ -1022,6 +1332,13 @@ async function ensureDBReady() {
           ON CONFLICT (name) DO NOTHING;
         `);
 
+        // Ensure Cohort Founder role exists
+        await pool.query(`
+          INSERT INTO roles (id, name, description, permissions, ban_duration_ceiling)
+          VALUES (5, 'Cohort Founder', 'Enrolled startup founder with access to Cohort Self-Service dashboard', '["cohort:profile_write", "cohort:feedback_submit", "cohort:assignment_upload"]'::jsonb, NULL)
+          ON CONFLICT (name) DO NOTHING;
+        `);
+
         // 2. Insert all simulated users
         await pool.query(`
           INSERT INTO users (id, email, full_name, is_active, last_login)
@@ -1032,7 +1349,8 @@ async function ensureDBReady() {
           (4, 'usman@society.pk', 'Usman Ghani (Society Rep)', TRUE, CURRENT_TIMESTAMP),
           (5, 'faisal@ucp.edu.pk', 'Faisal Mehmood (Coordinator)', TRUE, CURRENT_TIMESTAMP),
           (6, 'maheen@ucp.edu.pk', 'Maheen Malik (Manager)', TRUE, CURRENT_TIMESTAMP),
-          (7, 'banned-test@ucp.edu.pk', 'Banned Student (Testing)', FALSE, CURRENT_TIMESTAMP)
+          (7, 'banned-test@ucp.edu.pk', 'Banned Student (Testing)', FALSE, CURRENT_TIMESTAMP),
+          (8, 'zohaib@startup.pk', 'Zohaib Niaz (MedRoute Founder)', TRUE, CURRENT_TIMESTAMP)
           ON CONFLICT (email) DO UPDATE SET
             full_name = EXCLUDED.full_name,
             is_active = EXCLUDED.is_active;
@@ -1060,7 +1378,8 @@ async function ensureDBReady() {
           { email: 'usman@society.pk', role: 'UCP Member' },
           { email: 'faisal@ucp.edu.pk', role: 'Facility Coordinator' },
           { email: 'maheen@ucp.edu.pk', role: 'Booking Manager' },
-          { email: 'banned-test@ucp.edu.pk', role: 'UCP Member' }
+          { email: 'banned-test@ucp.edu.pk', role: 'UCP Member' },
+          { email: 'zohaib@startup.pk', role: 'Cohort Founder' }
         ];
 
         for (const assign of assignments) {
@@ -1123,6 +1442,195 @@ async function ensureDBReady() {
         console.log("Booking types synchronized successfully in PostgreSQL.");
       } catch (syncBookingTypesErr: any) {
         console.warn("Could not synchronize booking types in PostgreSQL:", syncBookingTypesErr.message);
+      }
+
+      // Synchronize cohort tables and initial seed data in PostgreSQL
+      try {
+        console.log("Synchronizing cohort tables in PostgreSQL...");
+        
+        // 1. cohorts table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS cohorts (
+              id SERIAL PRIMARY KEY,
+              name VARCHAR(255) NOT NULL,
+              status VARCHAR(50) DEFAULT 'DRAFT',
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        // Seed default cohort if none exists
+        const cohortCountRes = await pool.query('SELECT count(*) FROM cohorts');
+        if (parseInt(cohortCountRes.rows[0].count) === 0) {
+          await pool.query(`
+            INSERT INTO cohorts (id, name, status)
+            VALUES (1, 'Takhleeq Cohort 1', 'ACTIVE')
+            ON CONFLICT DO NOTHING;
+          `);
+          try {
+            await pool.query(`SELECT setval(pg_get_serial_sequence('cohorts', 'id'), COALESCE(MAX(id), 1)) FROM cohorts;`);
+          } catch (e) {}
+        }
+
+        // 2. cohort_form_settings table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS cohort_form_settings (
+              is_active BOOLEAN DEFAULT TRUE,
+              fields JSONB NOT NULL
+          );
+        `);
+
+        // Seed default form settings if empty
+        const settingsCountRes = await pool.query('SELECT count(*) FROM cohort_form_settings');
+        if (parseInt(settingsCountRes.rows[0].count) === 0) {
+          const defaultFields = [
+            { id: 'field_startup_name', label: 'Startup Name', type: 'text', required: true, placeholder: 'Enter your startup name' },
+            { id: 'field_startup_desc', label: 'Idea Description', type: 'text', required: true, placeholder: 'Explain your business idea in 2-3 sentences' },
+            { id: 'field_founder_name', label: 'Team Lead Name', type: 'text', required: true, placeholder: 'Enter full name of the team lead' },
+            { id: 'field_founder_email', label: 'Email Address', type: 'email', required: true, placeholder: 'Enter team lead email' },
+            { id: 'field_founder_phone', label: 'Phone Number', type: 'phone', required: true, placeholder: 'e.g. 03xx-xxxxxxx' },
+            { id: 'field_founder_cnic', label: 'CNIC Number', type: 'cnic', required: true, placeholder: 'e.g. 35201-xxxxxxx-x' }
+          ];
+          await pool.query(
+            `INSERT INTO cohort_form_settings (is_active, fields) VALUES (TRUE, $1)`,
+            [JSON.stringify(defaultFields)]
+          );
+        }
+
+        // 3. applicants table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS applicants (
+              id SERIAL PRIMARY KEY,
+              tracking_token VARCHAR(100) UNIQUE NOT NULL,
+              name VARCHAR(255) NOT NULL,
+              email VARCHAR(255) NOT NULL,
+              phone VARCHAR(255) NOT NULL,
+              cnic VARCHAR(255) NOT NULL,
+              startup_name VARCHAR(255) NOT NULL,
+              startup_description TEXT NOT NULL,
+              status VARCHAR(100) DEFAULT 'SUBMITTED',
+              panel_scores JSONB,
+              parent_applicant_id INTEGER REFERENCES applicants(id) ON DELETE SET NULL,
+              form_data JSONB,
+              orientation_conducted BOOLEAN DEFAULT FALSE,
+              cohort_id INTEGER REFERENCES cohorts(id) ON DELETE SET NULL,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        // Seed default applicants if empty
+        const applicantsCountRes = await pool.query('SELECT count(*) FROM applicants');
+        if (parseInt(applicantsCountRes.rows[0].count) === 0) {
+          const defaultApplicants = [
+            { id: 1, tracking_token: 'TK-STR-7821', name: 'Zohaib Niaz', email: 'zohaib@startup.pk', phone: '0300-1234567', cnic: '35201-1234567-1', startup_name: 'MedRoute', startup_description: 'An AI-powered pharmaceutical route planner reducing delivery times by 40%.', cohort_id: 1, status: 'CONFIRMED', panel_scores: { viability: 8, team: 9, scalability: 8, average: 8.3 }, form_data: {}, orientation_conducted: true },
+            { id: 2, tracking_token: 'TK-STR-5921', name: 'Ayesha Malik', email: 'ayesha@fintech.pk', phone: '0321-7654321', cnic: '35201-7654321-2', startup_name: 'PaisaFlow', startup_description: 'Micro-lending platform for small merchants using alternative credit scoring.', cohort_id: 1, status: 'CONFIRMED', panel_scores: { viability: 9, team: 8, scalability: 9, average: 8.7 }, form_data: {}, orientation_conducted: true },
+            { id: 3, tracking_token: 'TK-STR-4412', name: 'Imran Khan', email: 'imran@edtech.pk', phone: '0333-5551212', cnic: '35201-5551212-3', startup_name: 'Dars-e-Nau', startup_description: 'Localized video-based educational app for public school students in Urdu.', cohort_id: null, status: 'IN_REVIEW', panel_scores: null, form_data: {}, orientation_conducted: false },
+            { id: 4, tracking_token: 'TK-STR-1092', name: 'Qasim Ali', email: 'qasim@agritech.pk', phone: '0345-9998887', cnic: '35201-9998887-4', startup_name: 'AgriSense', startup_description: 'IoT-enabled soil nutrient analysis probe for smallholder farmers.', cohort_id: null, status: 'BACKUP_CANDIDATE', panel_scores: { viability: 7, team: 7, scalability: 7, average: 7.0 }, form_data: {}, orientation_conducted: false },
+            { id: 5, tracking_token: 'TK-STR-2291', name: 'Raza Jafar', email: 'raza@delivery.pk', phone: '0312-3334445', cnic: '35201-3334445-5', startup_name: 'LogiSwift', startup_description: 'B2B express delivery aggregator connecting local freight vans.', cohort_id: null, status: 'REJECTED', panel_scores: { viability: 4, team: 5, scalability: 4, average: 4.3 }, form_data: {}, orientation_conducted: false }
+          ];
+
+          for (const a of defaultApplicants) {
+            await pool.query(
+              `INSERT INTO applicants (id, tracking_token, name, email, phone, cnic, startup_name, startup_description, cohort_id, status, panel_scores, form_data, orientation_conducted)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+               ON CONFLICT DO NOTHING`,
+              [a.id, a.tracking_token, a.name, a.email, a.phone, a.cnic, a.startup_name, a.startup_description, a.cohort_id, a.status, JSON.stringify(a.panel_scores), JSON.stringify(a.form_data), a.orientation_conducted]
+            );
+          }
+          try {
+            await pool.query(`SELECT setval(pg_get_serial_sequence('applicants', 'id'), COALESCE(MAX(id), 1)) FROM applicants;`);
+          } catch (e) {}
+        }
+
+        // 4. cohort_sessions table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS cohort_sessions (
+              id SERIAL PRIMARY KEY,
+              cohort_id INTEGER REFERENCES cohorts(id) ON DELETE CASCADE,
+              title VARCHAR(255) NOT NULL,
+              date DATE NOT NULL,
+              start_time TIME NOT NULL,
+              end_time TIME NOT NULL,
+              mentor_name VARCHAR(255),
+              topic_category VARCHAR(255),
+              venue VARCHAR(255),
+              recording_url VARCHAR(1024),
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        // Add columns in case table was already created
+        try {
+          await pool.query(`ALTER TABLE cohort_sessions ADD COLUMN IF NOT EXISTS topic_category VARCHAR(255);`);
+          await pool.query(`ALTER TABLE cohort_sessions ADD COLUMN IF NOT EXISTS venue VARCHAR(255);`);
+          await pool.query(`ALTER TABLE cohort_sessions ADD COLUMN IF NOT EXISTS recording_url VARCHAR(1024);`);
+        } catch (e) {
+          console.error("Failed to alter cohort_sessions table columns", e);
+        }
+
+        // Seed default cohort_sessions if empty
+        const sessionsCountRes = await pool.query('SELECT count(*) FROM cohort_sessions');
+        if (parseInt(sessionsCountRes.rows[0].count) === 0) {
+          const defaultSessions = [
+            { id: 1, cohort_id: 1, title: 'Orientation & Incubation Blueprint', date: '2026-07-22', start_time: '10:00:00', end_time: '12:00:00', mentor_name: 'Dr. Qaseeb Ahmed' },
+            { id: 2, cohort_id: 1, title: 'Value Proposition & Customer Discovery', date: '2026-07-29', start_time: '14:00:00', end_time: '16:00:00', mentor_name: 'Syed Usman' }
+          ];
+          for (const s of defaultSessions) {
+            await pool.query(
+              `INSERT INTO cohort_sessions (id, cohort_id, title, date, start_time, end_time, mentor_name)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT DO NOTHING`,
+              [s.id, s.cohort_id, s.title, s.date, s.start_time, s.end_time, s.mentor_name]
+            );
+          }
+          try {
+            await pool.query(`SELECT setval(pg_get_serial_sequence('cohort_sessions', 'id'), COALESCE(MAX(id), 1)) FROM cohort_sessions;`);
+          } catch (e) {}
+        }
+
+        // 5. session_attendance table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS session_attendance (
+              id SERIAL PRIMARY KEY,
+              session_id INTEGER REFERENCES cohort_sessions(id) ON DELETE CASCADE,
+              applicant_id INTEGER REFERENCES applicants(id) ON DELETE CASCADE,
+              status VARCHAR(50) NOT NULL,
+              marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        // 6. team_checkins table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS team_checkins (
+              id SERIAL PRIMARY KEY,
+              cohort_id INTEGER REFERENCES cohorts(id) ON DELETE CASCADE,
+              applicant_id INTEGER REFERENCES applicants(id) ON DELETE CASCADE,
+              logged_by VARCHAR(255) NOT NULL,
+              blockers TEXT NOT NULL,
+              progress_score INTEGER NOT NULL,
+              mentor_notes TEXT,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        // 7. performance_warnings table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS performance_warnings (
+              id SERIAL PRIMARY KEY,
+              cohort_id INTEGER REFERENCES cohorts(id) ON DELETE CASCADE,
+              applicant_id INTEGER REFERENCES applicants(id) ON DELETE CASCADE,
+              issued_by VARCHAR(255) NOT NULL,
+              reason TEXT NOT NULL,
+              severity VARCHAR(50) NOT NULL,
+              status VARCHAR(50) DEFAULT 'ACTIVE',
+              resolution_notes TEXT,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        console.log("Cohort tables synchronized successfully in PostgreSQL.");
+      } catch (syncCohortsErr: any) {
+        console.error("Could not synchronize cohort tables in PostgreSQL:", syncCohortsErr.message);
       }
     } catch (err: any) {
       if (process.env.NODE_ENV === 'production') {

@@ -247,6 +247,7 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
       if (cleanEmail.includes('director')) roleName = 'Administrator';
       else if (cleanEmail.includes('manager') || cleanEmail.includes('maheen')) roleName = 'Booking Manager';
       else if (cleanEmail.includes('coordinator') || cleanEmail.includes('faisal')) roleName = 'Facility Coordinator';
+      else if (cleanEmail.includes('founder') || cleanEmail === 'zohaib@startup.pk' || cleanEmail.endsWith('@takhleeq.com')) roleName = 'Cohort Founder';
 
       const insertRes = await query(
         `INSERT INTO users (email, full_name, is_active)

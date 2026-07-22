@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Takhleeq ERP - Cohort Management & Tracking Specification</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Space Grotesk and Inter Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    h1, h2, h3, h4 {
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    code, pre {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    @media print {
+      body {
+        background-color: white;
+        color: black;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+      .spec-card {
+        border: 1px solid #e2e8f0 !important;
+        box-shadow: none !important;
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased selection:bg-rose-500 selection:text-white print:bg-white print:text-black">
+
+  <!-- Floating Navigation Panel for Web Browsing -->
+  <div class="no-print sticky top-0 z-50 bg-white/85 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm">
+    <div class="flex items-center space-x-3">
+      <div class="w-8 h-8 rounded-lg bg-rose-600 flex items-center justify-center font-bold text-white text-lg">T</div>
+      <div>
+        <span class="font-semibold text-slate-900 block leading-tight">Takhleeq ERP Specification</span>
+        <span class="text-xs text-slate-500">Module 02: Cohort Management & Tracking</span>
+      </div>
+    </div>
+    <div class="flex items-center space-x-4">
+      <span class="text-xs bg-rose-50 text-rose-700 px-2.5 py-1 rounded-full font-medium border border-rose-150">V1.0 Approved</span>
+      <button onclick="window.print()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-sm transition-all flex items-center space-x-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0/0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+        </svg>
+        <span>Print or Save to PDF</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="max-w-4xl mx-auto px-6 py-12 print:py-0 print:px-4">
+    <!-- Header Section -->
+    <header class="border-b border-slate-200 pb-8 mb-12 print:mb-8">
+      <p class="text-xs font-bold text-rose-600 uppercase tracking-widest mb-2">Takhleeq Business Incubator</p>
+      <h1 class="text-4xl font-extrabold text-slate-900 tracking-tight mb-4">Module 02: Cohort Management & Tracking</h1>
+      <p class="text-slate-600 text-lg leading-relaxed max-w-3xl">
+        This document outlines the final, comprehensive technical specification and database alignment rules for Module 02. Built directly around the feedback, flowcharts, and operational needs of Takhleeq ERP.
+      </p>
+    </header>
+
+    <!-- Executive Urdu Alignment -->
+    <div class="spec-card bg-amber-50/50 border border-amber-150 rounded-2xl p-6 mb-10 shadow-sm print:bg-white">
+      <div class="flex items-start space-x-3">
+        <div class="p-2 bg-amber-100 rounded-lg text-amber-800">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div>
+          <h4 class="font-bold text-amber-900 mb-1">Quick Alignment Note (Urdu/Hindi Context)</h4>
+          <p class="text-sm text-amber-800 leading-relaxed">
+            Boss, humne jitni bhi discussions ki hain, un sab ke gaps, business rules, enums, login mechanisms, aur application flows ko is single document mein consolidate kar diya hai. Is specification ko follow karke jab hum code likhenge, toh database design se lekar UI/UX tak koi compliance issue nahi aega. 
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 1: Resolved Architectural Gaps -->
+    <section class="mb-12">
+      <div class="flex items-center space-x-2 mb-6">
+        <span class="w-8 h-8 rounded-lg bg-slate-900 text-white font-bold flex items-center justify-center text-sm">01</span>
+        <h2 class="text-2xl font-bold text-slate-900">Resolved Gaps & Structural Decisions</h2>
+      </div>
+
+      <div class="space-y-6">
+        <!-- Subpoint A -->
+        <div class="spec-card bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <h3 class="text-lg font-bold text-slate-900 mb-3 flex items-center space-x-2">
+            <span class="text-rose-500 font-mono">A.</span>
+            <span>Applicant Resubmission & Audit Trail (FRD §5.2.24 Compliance)</span>
+          </h3>
+          <p class="text-slate-600 text-sm leading-relaxed mb-4">
+            If an applicant is rejected but asked to modify and resubmit, reusing the same <code>Applicant</code> record would overwrite the previous status, timeline, and reviewer comments, violating the audit log integrity requirements.
+          </p>
+          <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+            <p class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Technical Resolution</p>
+            <ul class="list-disc pl-5 text-xs text-slate-600 space-y-1.5">
+              <li><strong>Linked-Chain Data Model:</strong> Every fresh application submission (including resubmissions) creates a <strong>new</strong> record in the <code>applicants</code> table.</li>
+              <li><strong>Lineage Tracking:</strong> A self-referential foreign key column <code>parent_applicant_id</code> links the new submission to the previous one.</li>
+              <li><strong>Timeline Projection:</strong> The admin panel displays a unified "Submission History Timeline" grouping all versions under the same startup concept, keeping comments and scores perfectly isolated and historically queryable.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Subpoint B -->
+        <div class="spec-card bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <h3 class="text-lg font-bold text-slate-900 mb-3 flex items-center space-x-2">
+            <span class="text-rose-500 font-mono">B.</span>
+            <span>"Accepted" vs. "Confirmed" Status Distinction</span>
+          </h3>
+          <p class="text-slate-600 text-sm leading-relaxed mb-3">
+            Treating "Accepted" and "Confirmed" as a single state creates operational friction. We separate them cleanly in the database and state engine.
+          </p>
+          <div class="grid grid-cols-2 gap-4 text-xs">
+            <div class="bg-rose-50/50 p-3 rounded-lg border border-rose-100">
+              <span class="font-bold text-rose-800 block mb-1">State 1: Accepted</span>
+              <span class="text-slate-600">The startup evaluation panel has approved the startup. An automated email offer is dispatched.</span>
+            </div>
+            <div class="bg-emerald-50/50 p-3 rounded-lg border border-emerald-100">
+              <span class="font-bold text-emerald-800 block mb-1">State 2: Confirmed</span>
+              <span class="text-slate-600">The startup formalizes acceptance by clicking the link, which auto-triggers official email/SSO provisioning.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subpoint C -->
+        <div class="spec-card bg-white border border-slate-200 rounded-2xl p-6 shadow-sm page-break">
+          <h3 class="text-lg font-bold text-slate-900 mb-3 flex items-center space-x-2">
+            <span class="text-rose-500 font-mono">C.</span>
+            <span>Cohort Status vs. Startup Program Status (The Isolation Principle)</span>
+          </h3>
+          <p class="text-slate-600 text-sm leading-relaxed mb-4">
+            To prevent UI/UX conflation (which FRD explicitly warns against), we strictly decouple these two state engines in separate tables:
+          </p>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="border border-slate-150 rounded-xl p-4">
+              <span class="text-xs font-bold text-slate-500 block uppercase mb-2">Cohort Status (Temporal States)</span>
+              <div class="space-y-1">
+                <span class="text-xs bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-mono inline-block">DRAFT</span>
+                <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-mono inline-block">ACTIVE</span>
+                <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded font-mono inline-block">COMPLETED</span>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-2">Describes the cohort as a single collective class.</p>
+            </div>
+            <div class="border border-slate-150 rounded-xl p-4">
+              <span class="text-xs font-bold text-slate-500 block uppercase mb-2">Startup Program Status (Performance States)</span>
+              <div class="space-y-1 flex flex-wrap gap-1">
+                <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-mono">ACTIVE</span>
+                <span class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-mono">PAUSED</span>
+                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-mono">GRADUATED</span>
+                <span class="text-xs bg-rose-100 text-rose-800 px-2 py-0.5 rounded font-mono">KICKED_OUT</span>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-2">Decoupled from global cohort status as required by the FRD.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subpoint D -->
+        <div class="spec-card bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <h3 class="text-lg font-bold text-slate-900 mb-3 flex items-center space-x-2">
+            <span class="text-rose-500 font-mono">D.</span>
+            <span>Centralized Governance Center & Granular Permission Nodes</span>
+          </h3>
+          <p class="text-slate-600 text-sm leading-relaxed mb-4">
+            Takhleeq ERP already features a centralized **Governance Center** managing roles and dynamic custom user permissions. To prevent siloed code or permission leaks, we directly **extend** this engine by registering custom, granular permission nodes for all Module 02 features:
+          </p>
+          <div class="space-y-3 text-xs">
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <span class="font-bold text-slate-800 block mb-1">Intake & Application Nodes</span>
+              <ul class="list-disc pl-5 text-slate-600 space-y-1">
+                <li><code>cohort:form_manage</code>: Edit the Dynamic Form Builder, fields schema, and toggle open/close schedules.</li>
+                <li><code>cohort:applicant_review</code>: Allows screening, grading, adding panel scores, and decision-making.</li>
+              </ul>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <span class="font-bold text-slate-800 block mb-1">Cohort Operations Nodes</span>
+              <ul class="list-disc pl-5 text-slate-600 space-y-1">
+                <li><code>cohort:session_manage</code>: Create, edit, reschedule, or cancel cohort-specific workshop sessions.</li>
+                <li><code>cohort:attendance_write</code>: Power to mark, edit, and audit daily attendance rosters.</li>
+                <li><code>cohort:checkin_log</code>: Document structured update feedback, mentors' actions, and progress stages.</li>
+                <li><code>cohort:warning_write</code>: System power to issue, track, or resolve active performance warnings.</li>
+              </ul>
+            </div>
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <span class="font-bold text-slate-800 block mb-1">Founder / Delegated Permissions</span>
+              <ul class="list-disc pl-5 text-slate-600 space-y-1">
+                <li><code>cohort:profile_write</code>: Enables updating self-service parameters (logos, links, bio).</li>
+                <li><code>cohort:feedback_submit</code>: Grants safe access to submit completely anonymous rating feedback cards.</li>
+                <li><code>cohort:assignment_upload</code>: Unlocks assignment submission capabilities against deadlined requests.</li>
+              </ul>
+            </div>
+          </div>
+          <p class="text-slate-500 text-[11px] mt-4 italic">
+            This guarantees zero permission leaks because administrators can dynamically enable or disable these exact nodes for any staff, manager, or guest role directly from the centralized Governance UI.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Flowchart Sync & Enums -->
+    <section class="mb-12 page-break">
+      <div class="flex items-center space-x-2 mb-6">
+        <span class="w-8 h-8 rounded-lg bg-slate-900 text-white font-bold flex items-center justify-center text-sm">02</span>
+        <h2 class="text-2xl font-bold text-slate-900">Updated Lifecycle Flow & Enum Sync</h2>
+      </div>
+
+      <div class="spec-card bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <p class="text-slate-600 text-sm leading-relaxed mb-4">
+          To ensure perfect synchronization with the updated physical flowchart, we have successfully added the following missing statuses to the database enums:
+        </p>
+
+        <div class="space-y-4 mb-6">
+          <div class="flex items-start space-x-3 p-3 bg-rose-50/30 rounded-xl border border-rose-100">
+            <span class="text-xs font-bold text-rose-700 uppercase bg-rose-100 px-2 py-1 rounded font-mono">BACKUP_CANDIDATE</span>
+            <p class="text-xs text-slate-650 leading-relaxed">
+              <strong>Flowchart Sync:</strong> Replaces baseline rejected states for qualified backup teams. Creates a formal pool. If space opens, prompts the admin to trigger a custom "Space Opened" invitation email directly.
+            </p>
+          </div>
+          <div class="flex items-start space-x-3 p-3 bg-indigo-50/30 rounded-xl border border-indigo-100">
+            <span class="text-xs font-bold text-indigo-700 uppercase bg-indigo-100 px-2 py-1 rounded font-mono">ORIENTATION_CONDUCTED</span>
+            <p class="text-xs text-slate-650 leading-relaxed">
+              <strong>Flowchart Sync:</strong> Added as a required operational milestone bridge between <code>Confirmation Email Sent</code> and the startup transitioning to <code>Active Cohort</code>. Stores date & orientation log.
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 rounded-xl p-5 text-slate-300">
+          <h4 class="text-xs font-bold uppercase text-slate-450 tracking-wider mb-3">Auto-Graduation Business Rule Reconciliation (BR-COH-12)</h4>
+          <p class="text-xs leading-relaxed text-slate-350 mb-3">
+            <strong>The Constraint:</strong> System auto-graduating active startups upon cohort close clashes with BR-COH-12: <em>"Only authorized staff may modify startup program statuses."</em>
+          </p>
+          <p class="text-xs leading-relaxed text-emerald-400">
+            <strong>The UX Solution:</strong> Instead of silent automated state updates, clicking "Complete Cohort" triggers a confirmation modal: <em>"You are completing Cohort X. Do you want to bulk-graduate the remaining 5 Active startups?"</em> Confirming logs an authorized bulk audit change.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Core Operational Modules -->
+    <section class="mb-12 page-break">
+      <div class="flex items-center space-x-2 mb-6">
+        <span class="w-8 h-8 rounded-lg bg-slate-900 text-white font-bold flex items-center justify-center text-sm">03</span>
+        <h2 class="text-2xl font-bold text-slate-900">Core Operational Modules & Flows</h2>
+      </div>
+
+      <div class="space-y-6">
+        <!-- Module A -->
+        <div class="spec-card bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <span class="text-xs font-bold text-rose-600 block uppercase tracking-wider mb-1">Module A</span>
+          <h3 class="text-lg font-bold text-slate-900 mb-3">Admin Dynamic Application Form Builder</h3>
+          <p class="text-slate-600 text-sm leading-relaxed mb-4">
+            Allows administrators to customize intake questionnaires and toggle public availability dynamically with 100% manual accuracy:
+          </p>
+          <ul class="list-disc pl-5 text-xs text-slate-650 space-y-2">
+            <li><strong>Always Visible to Admin:</strong> The entire dynamic builder, question editor, and configurations are permanently accessible to administrators in the backend.</li>
+            <li><strong>Manual On/Off Toggle Switch:</strong> Public submission availability is controlled strictly by a manual toggle switch in the admin panel. If switched **ON**, submissions are accepted; if switched **OFF**, the public portal is locked with a "Submissions Closed" card. No automatic date/time schedules to avoid operational errors.</li>
+            <li><strong>Dynamic Fields Editor:</strong> Admin panel lets you add, remove, and sort custom input fields (validated text, numerical entries, CNIC/phone fields, file uploads).</li>
+          </ul>
+        </div>
+
+        <!-- Module B -->
+        <div class="spec-card bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <span class="text-xs font-bold text-rose-600 block uppercase tracking-wider mb-1">Module B</span>
+          <h3 class="text-lg font-bold text-slate-900 mb-3">Public-Facing Applicant Status Lookup Portal</h3>
+          <p class="text-slate-600 text-sm leading-relaxed mb-4">
+            Since applicants do not have login credentials yet, their progress is tracked securely using a zero-friction status lookup system:
+          </p>
+          <ul class="list-disc pl-5 text-xs text-slate-650 space-y-2">
+            <li><strong>Secure Tracking Token:</strong> Submitting an application automatically triggers an email containing a customized, secure tracking link and Token.</li>
+            <li><strong>State Tracker:</strong> Renders a clear linear timeline from <code>Applied</code> up to <code>Decision</code>.</li>
+            <li><strong>Actionable Resubmission Box:</strong> If flagged with review issues, the page turns into a clean form displaying staff review comments with an upload field for fast file/details resubmissions.</li>
+          </ul>
+        </div>
+
+        <!-- Module C -->
+        <div class="spec-card bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <span class="text-xs font-bold text-rose-600 block uppercase tracking-wider mb-1">Module C</span>
+          <h3 class="text-lg font-bold text-slate-900 mb-3">Startup Identity & Microsoft SSO Authentication Flow</h3>
+          <p class="text-slate-600 text-sm leading-relaxed mb-4">
+            Keeps system access simple and compliant with Takhleeq corporate accounts:
+          </p>
+          <ul class="list-disc pl-5 text-xs text-slate-650 space-y-2">
+            <li><strong>SSO Provisioning:</strong> Once an applicant transitions to <code>Confirmed</code>, Takhleeq admins provision standard Microsoft accounts (e.g., <code>startupname@takhleeq.com</code>).</li>
+            <li><strong>Role-Based Router:</strong> All login routes lead through a single portal. If a normal student/faculty user logs in, they only see room booking. If an active startup logs in, their sidebar unlocks Module 02.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Phase Roadmap -->
+    <section class="mb-12 page-break">
+      <div class="flex items-center space-x-2 mb-6">
+        <span class="w-8 h-8 rounded-lg bg-slate-900 text-white font-bold flex items-center justify-center text-sm">04</span>
+        <h2 class="text-2xl font-bold text-slate-900">Sprint Implementation Roadmap</h2>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div class="border border-slate-200 bg-white rounded-xl p-4 shadow-sm">
+          <span class="text-xs font-bold text-rose-600 block mb-1">Sprint 1: Schema & RBAC Core</span>
+          <p class="text-xs text-slate-600">Deploy structural DB tables, role flags, state models, and Microsoft SSO routing configurations.</p>
+        </div>
+        <div class="border border-slate-200 bg-white rounded-xl p-4 shadow-sm">
+          <span class="text-xs font-bold text-rose-600 block mb-1">Sprint 2: Form Builder & Tracker</span>
+          <p class="text-xs text-slate-600">Build the Admin dynamic form creator, the applicant intake pages, and the public-facing tracking portals.</p>
+        </div>
+        <div class="border border-slate-200 bg-white rounded-xl p-4 shadow-sm">
+          <span class="text-xs font-bold text-rose-600 block mb-1">Sprint 3: Staff/Admin Control Panel</span>
+          <p class="text-xs text-slate-600">Deploy scheduling panels, check-ins loggers, attendance registries, and warnings workflows with manual graduation checks.</p>
+        </div>
+        <div class="border border-slate-200 bg-white rounded-xl p-4 shadow-sm">
+          <span class="text-xs font-bold text-rose-600 block mb-1">Sprint 4: Founder Self-Service</span>
+          <p class="text-xs text-slate-600">Deploy student dashboard profiles, feedback forms, file assignment upload links, and metrics charts summaries.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer Sign-off -->
+    <footer class="border-t border-slate-200 pt-8 mt-12 flex justify-between text-xs text-slate-400">
+      <span>Takhleeq Cohort Management Spec v1.0</span>
+      <span>Printed on: 2026-07-20</span>
+    </footer>
+  </div>
+
+</body>
+</html>
