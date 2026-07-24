@@ -195,10 +195,10 @@ export default function App() {
   useEffect(() => {
     if (currentPath !== '/staff/dashboard' || !jwtToken) return;
 
-    // Fetch fresh database tables every 1.5 seconds to keep the review queue auto-updated instantly
+    // Fetch fresh database tables every 15 seconds to keep the review queue auto-updated smoothly
     const interval = setInterval(() => {
       fetchStateData();
-    }, 1500);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, [currentPath, jwtToken]);

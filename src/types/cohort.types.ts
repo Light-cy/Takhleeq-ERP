@@ -22,7 +22,20 @@ export interface CohortFormSettings {
   fields: FormField[];
 }
 
-export type ApplicantStatus = 'SUBMITTED' | 'IN_REVIEW' | 'BACKUP_CANDIDATE' | 'ACCEPTED' | 'CONFIRMED' | 'REJECTED';
+export type ApplicantStatus = 
+  | 'APPLIED' 
+  | 'UNDER_REVIEW' 
+  | 'SHORTLISTED_FOR_PRESENTATION' 
+  | 'PRESENTATION_CONDUCTED' 
+  | 'CONDITIONAL_ACCEPTED' 
+  | 'ACCEPTED' 
+  | 'REJECTED' 
+  | 'WAITLISTED' 
+  | 'BACKUP_CANDIDATE' 
+  | 'CONFIRMED' 
+  | 'ORIENTATION_CONDUCTED' 
+  | 'ENROLLED';
+export type ProgramStatus = 'NOT_ENROLLED' | 'ACTIVE' | 'PAUSED' | 'GRADUATED' | 'KICKED_OUT';
 
 export interface Applicant {
   id: number;
@@ -35,12 +48,13 @@ export interface Applicant {
   startup_description: string;
   cohort_id: number | null;
   status: ApplicantStatus;
-  panel_scores: {
-    viability: number;
-    team: number;
-    scalability: number;
-    average: number;
-    [key: string]: number;
+  program_status: ProgramStatus;
+  panel_scores?: {
+    viability?: number;
+    team?: number;
+    scalability?: number;
+    average?: number;
+    [key: string]: any;
   } | null;
   parent_applicant_id: number | null;
   form_data: Record<string, any>;

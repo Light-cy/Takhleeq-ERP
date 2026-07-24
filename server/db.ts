@@ -80,13 +80,30 @@ function initializeLocalDB() {
 
     if (!db.applicants || !Array.isArray(db.applicants)) {
       db.applicants = [
-        { id: 1, tracking_token: 'TK-STR-7821', name: 'Zohaib Niaz', email: 'zohaib@startup.pk', phone: '0300-1234567', cnic: '35201-1234567-1', startup_name: 'MedRoute', startup_description: 'An AI-powered pharmaceutical route planner reducing delivery times by 40%.', cohort_id: 1, status: 'CONFIRMED', panel_scores: { viability: 8, team: 9, scalability: 8, average: 8.3 }, parent_applicant_id: null, form_data: {}, orientation_conducted: true, created_at: '2026-07-20T00:00:00.000Z' },
-        { id: 2, tracking_token: 'TK-STR-5921', name: 'Ayesha Malik', email: 'ayesha@fintech.pk', phone: '0321-7654321', cnic: '35201-7654321-2', startup_name: 'PaisaFlow', startup_description: 'Micro-lending platform for small merchants using alternative credit scoring.', cohort_id: 1, status: 'CONFIRMED', panel_scores: { viability: 9, team: 8, scalability: 9, average: 8.7 }, parent_applicant_id: null, form_data: {}, orientation_conducted: true, created_at: '2026-07-20T00:00:00.000Z' },
-        { id: 3, tracking_token: 'TK-STR-4412', name: 'Imran Khan', email: 'imran@edtech.pk', phone: '0333-5551212', cnic: '35201-5551212-3', startup_name: 'Dars-e-Nau', startup_description: 'Localized video-based educational app for public school students in Urdu.', cohort_id: null, status: 'IN_REVIEW', panel_scores: null, parent_applicant_id: null, form_data: {}, orientation_conducted: false, created_at: '2026-07-20T00:00:00.000Z' },
-        { id: 4, tracking_token: 'TK-STR-1092', name: 'Qasim Ali', email: 'qasim@agritech.pk', phone: '0345-9998887', cnic: '35201-9998887-4', startup_name: 'AgriSense', startup_description: 'IoT-enabled soil nutrient analysis probe for smallholder farmers.', cohort_id: null, status: 'BACKUP_CANDIDATE', panel_scores: { viability: 7, team: 7, scalability: 7, average: 7.0 }, parent_applicant_id: null, form_data: {}, orientation_conducted: false, created_at: '2026-07-20T00:00:00.000Z' },
-        { id: 5, tracking_token: 'TK-STR-2291', name: 'Raza Jafar', email: 'raza@delivery.pk', phone: '0312-3334445', cnic: '35201-3334445-5', startup_name: 'LogiSwift', startup_description: 'B2B express delivery aggregator connecting local freight vans.', cohort_id: null, status: 'REJECTED', panel_scores: { viability: 4, team: 5, scalability: 4, average: 4.3 }, parent_applicant_id: null, form_data: {}, orientation_conducted: false, created_at: '2026-07-20T00:00:00.000Z' }
+        { id: 1, tracking_token: 'TK-STR-7821', name: 'Zohaib Niaz', email: 'zohaib@startup.pk', phone: '0300-1234567', cnic: '35201-1234567-1', startup_name: 'MedRoute', startup_description: 'An AI-powered pharmaceutical route planner reducing delivery times by 40%.', cohort_id: 1, status: 'CONFIRMED', program_status: 'ACTIVE', panel_scores: { viability: 8, team: 9, scalability: 8, average: 8.3 }, parent_applicant_id: null, form_data: {}, orientation_conducted: true, created_at: '2026-07-20T00:00:00.000Z' },
+        { id: 2, tracking_token: 'TK-STR-5921', name: 'Ayesha Malik', email: 'ayesha@fintech.pk', phone: '0321-7654321', cnic: '35201-7654321-2', startup_name: 'PaisaFlow', startup_description: 'Micro-lending platform for small merchants using alternative credit scoring.', cohort_id: 1, status: 'CONFIRMED', program_status: 'ACTIVE', panel_scores: { viability: 9, team: 8, scalability: 9, average: 8.7 }, parent_applicant_id: null, form_data: {}, orientation_conducted: true, created_at: '2026-07-20T00:00:00.000Z' },
+        { id: 3, tracking_token: 'TK-STR-4412', name: 'Imran Khan', email: 'imran@edtech.pk', phone: '0333-5551212', cnic: '35201-5551212-3', startup_name: 'Dars-e-Nau', startup_description: 'Localized video-based educational app for public school students in Urdu.', cohort_id: null, status: 'IN_REVIEW', program_status: 'NOT_ENROLLED', panel_scores: null, parent_applicant_id: null, form_data: {}, orientation_conducted: false, created_at: '2026-07-20T00:00:00.000Z' },
+        { id: 4, tracking_token: 'TK-STR-1092', name: 'Qasim Ali', email: 'qasim@agritech.pk', phone: '0345-9998887', cnic: '35201-9998887-4', startup_name: 'AgriSense', startup_description: 'IoT-enabled soil nutrient analysis probe for smallholder farmers.', cohort_id: null, status: 'BACKUP_CANDIDATE', program_status: 'NOT_ENROLLED', panel_scores: { viability: 7, team: 7, scalability: 7, average: 7.0 }, parent_applicant_id: null, form_data: {}, orientation_conducted: false, created_at: '2026-07-20T00:00:00.000Z' },
+        { id: 5, tracking_token: 'TK-STR-2291', name: 'Raza Jafar', email: 'raza@delivery.pk', phone: '0312-3334445', cnic: '35201-3334445-5', startup_name: 'LogiSwift', startup_description: 'B2B express delivery aggregator connecting local freight vans.', cohort_id: null, status: 'REJECTED', program_status: 'NOT_ENROLLED', panel_scores: { viability: 4, team: 5, scalability: 4, average: 4.3 }, parent_applicant_id: null, form_data: {}, orientation_conducted: false, created_at: '2026-07-20T00:00:00.000Z' }
       ];
       updated = true;
+    } else {
+      // Migrate existing applicants in memory DB to have valid program_status
+      db.applicants.forEach((app: any) => {
+        if (!app.program_status || app.program_status === '{}' || typeof app.program_status !== 'string') {
+          if (['ACTIVE', 'PAUSED', 'GRADUATED', 'KICKED_OUT'].includes(app.status)) {
+            app.program_status = app.status;
+            app.status = 'CONFIRMED';
+            updated = true;
+          } else if (app.status === 'CONFIRMED' || app.status === 'ACCEPTED' || app.cohort_id) {
+            app.program_status = 'ACTIVE';
+            updated = true;
+          } else {
+            app.program_status = 'NOT_ENROLLED';
+            updated = true;
+          }
+        }
+      });
     }
 
     if (!db.cohort_sessions || !Array.isArray(db.cohort_sessions)) {
@@ -161,6 +178,141 @@ function initializeLocalDB() {
         { id: 8, name: 'Meeting / Event', description: 'General meetings, gatherings or community events', is_active: true },
         { id: 9, name: 'Cohort Startup', description: 'Incubated startup members', is_active: true },
         { id: 10, name: 'Department', description: 'Department sessions and operations', is_active: true }
+      ];
+      updated = true;
+    }
+
+    if (!db.bookings || !Array.isArray(db.bookings) || db.bookings.length === 0) {
+      db.bookings = [
+        {
+          id: 1,
+          booking_id: 'BK-2026-001',
+          requester_name: 'Usman Ghani',
+          requester_email: 'usman@society.pk',
+          requester_phone: '0300-1112223',
+          organization_name: 'ACM Student Chapter',
+          room_id: 1,
+          booking_type: 'Student societies',
+          event_title: 'ACM Executive Council Sync',
+          event_description: 'Planning upcoming Hackathon 2026 and assigning operational committees.',
+          date: '2026-07-25',
+          start_time: '10:00:00',
+          end_time: '11:30:00',
+          expected_attendance: 12,
+          status: 'PENDING_REVIEW',
+          conflict_status: 'CLEAR',
+          conflicting_booking_id: null,
+          rejection_reason: null,
+          approved_by: null,
+          decision_reason: null,
+          reviewed_at: null,
+          created_at: '2026-07-21T10:00:00.000Z'
+        },
+        {
+          id: 2,
+          booking_id: 'BK-2026-002',
+          requester_name: 'Ayesha Malik',
+          requester_email: 'ayesha@fintech.pk',
+          requester_phone: '0321-7654321',
+          organization_name: 'PaisaFlow Startup',
+          room_id: 2,
+          booking_type: 'Startup teams',
+          event_title: 'PaisaFlow Pitch Rehearsal',
+          event_description: 'Dry run presentation ahead of investor demo day.',
+          date: '2026-07-26',
+          start_time: '14:00:00',
+          end_time: '16:00:00',
+          expected_attendance: 25,
+          status: 'PENDING_REVIEW',
+          conflict_status: 'CLEAR',
+          conflicting_booking_id: null,
+          rejection_reason: null,
+          approved_by: null,
+          decision_reason: null,
+          reviewed_at: null,
+          created_at: '2026-07-21T11:15:00.000Z'
+        },
+        {
+          id: 3,
+          booking_id: 'BK-2026-003',
+          requester_name: 'Dr. Qaseeb Ahmed',
+          requester_email: 'director@takhleeq.pk',
+          requester_phone: '0300-9998887',
+          organization_name: 'Takhleeq Incubation Center',
+          room_id: 1,
+          booking_type: 'Cohort Startup',
+          event_title: 'Cohort 1 Orientation Briefing',
+          event_description: 'Official welcome session and milestone review with inducted startups.',
+          date: '2026-07-22',
+          start_time: '10:00:00',
+          end_time: '12:00:00',
+          expected_attendance: 15,
+          status: 'APPROVED',
+          conflict_status: 'CLEAR',
+          conflicting_booking_id: null,
+          rejection_reason: null,
+          approved_by: 1,
+          decision_reason: 'Approved for incubator operations',
+          reviewed_at: '2026-07-20T09:00:00.000Z',
+          created_at: '2026-07-20T08:00:00.000Z'
+        },
+        {
+          id: 4,
+          booking_id: 'BK-2026-004',
+          requester_name: 'Syed Usman',
+          requester_email: 'manager@takhleeq.pk',
+          requester_phone: '0333-4445556',
+          organization_name: 'Takhleeq Operations',
+          room_id: 3,
+          booking_type: 'Faculty members',
+          event_title: 'Mentor Advisory Session',
+          event_description: 'One-on-one mentorship clinic with resident industry experts.',
+          date: '2026-07-23',
+          start_time: '11:00:00',
+          end_time: '12:00:00',
+          expected_attendance: 4,
+          status: 'APPROVED',
+          conflict_status: 'CLEAR',
+          conflicting_booking_id: null,
+          rejection_reason: null,
+          approved_by: 1,
+          decision_reason: 'Regular mentor clinic session',
+          reviewed_at: '2026-07-21T09:00:00.000Z',
+          created_at: '2026-07-21T08:00:00.000Z'
+        }
+      ];
+      updated = true;
+    }
+
+    if (!db.audit_logs || !Array.isArray(db.audit_logs) || db.audit_logs.length === 0) {
+      db.audit_logs = [
+        {
+          id: 1,
+          actor_email: 'director@takhleeq.pk',
+          action: 'APPROVED_BOOKING',
+          target_type: 'BOOKING',
+          target_id: 'BK-2026-003',
+          details: 'Approved booking request for Cohort 1 Orientation Briefing in Board Room',
+          created_at: '2026-07-20T09:00:00.000Z'
+        },
+        {
+          id: 2,
+          actor_email: 'manager@takhleeq.pk',
+          action: 'APPROVED_BOOKING',
+          target_type: 'BOOKING',
+          target_id: 'BK-2026-004',
+          details: 'Approved Mentor Advisory Session booking in Cube 1',
+          created_at: '2026-07-21T09:00:00.000Z'
+        },
+        {
+          id: 3,
+          actor_email: 'director@takhleeq.pk',
+          action: 'UPDATE_POLICY',
+          target_type: 'SETTINGS',
+          target_id: '1',
+          details: 'Updated local database configuration to offline JSON storage mode',
+          created_at: '2026-07-22T05:00:00.000Z'
+        }
       ];
       updated = true;
     }
@@ -297,19 +449,23 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   }
 
   // 3. Applicants Interceptors
-  if (q.includes('select * from applicants where tracking_token =') || (q.includes('select * from applicants') && q.includes('tracking_token = $1'))) {
-    const tok = String(params[0] || '').toUpperCase();
-    return { rows: (db.applicants || []).filter((a: any) => String(a.tracking_token).toUpperCase() === tok) };
-  }
-  if (q.includes('select * from applicants where id =') || (q.includes('select * from applicants') && q.includes('id = $1'))) {
-    const aid = parseInt(params[0]);
-    return { rows: (db.applicants || []).filter((a: any) => a.id === aid) };
-  }
-  if (q.includes('select * from applicants') && q.includes('cohort_id = $1')) {
-    const cid = parseInt(params[0]);
-    return { rows: (db.applicants || []).filter((a: any) => a.cohort_id === cid) };
-  }
-  if (q.includes('select * from applicants') || q.includes('select a.*')) {
+  if (q.includes('from applicants') && !q.includes('insert into applicants') && !q.includes('update applicants')) {
+    if (q.includes('tracking_token =')) {
+      const tok = String(params[0] || '').toUpperCase();
+      return { rows: (db.applicants || []).filter((a: any) => String(a.tracking_token).toUpperCase() === tok) };
+    }
+    if (q.includes('where id =') || q.includes('id = $1')) {
+      const aid = parseInt(params[0]);
+      return { rows: (db.applicants || []).filter((a: any) => a.id === aid) };
+    }
+    if (q.includes('cohort_id =')) {
+      const cid = parseInt(params[0]);
+      return { rows: (db.applicants || []).filter((a: any) => a.cohort_id === cid) };
+    }
+    if (q.includes('lower(email) =')) {
+      const em = String(params[0] || '').toLowerCase();
+      return { rows: (db.applicants || []).filter((a: any) => String(a.email).toLowerCase() === em) };
+    }
     return { rows: db.applicants || [] };
   }
   if (q.includes('insert into applicants')) {
@@ -321,11 +477,28 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     const cnic = params[4];
     const startup_name = params[5];
     const startup_description = params[6];
-    const status = params[7];
-    const panel_scores = params[8] ? (typeof params[8] === 'string' ? JSON.parse(params[8]) : params[8]) : null;
-    const parent_applicant_id = params[9] ? parseInt(params[9]) : null;
-    const form_data = params[10] ? (typeof params[10] === 'string' ? JSON.parse(params[10]) : params[10]) : {};
-    const orientation_conducted = params[11] === true || params[11] === 'true';
+
+    let status = 'SUBMITTED';
+    let program_status = 'NOT_ENROLLED';
+    let panel_scores = null;
+    let parent_applicant_id = null;
+    let form_data = {};
+    let orientation_conducted = false;
+
+    if (q.includes("'submitted'") || q.includes("'not_enrolled'")) {
+      status = 'SUBMITTED';
+      program_status = 'NOT_ENROLLED';
+      parent_applicant_id = params[7] ? parseInt(params[7]) : null;
+      form_data = params[8] ? (typeof params[8] === 'string' ? JSON.parse(params[8]) : params[8]) : {};
+    } else {
+      status = typeof params[7] === 'string' && params[7] !== '{}' ? params[7] : 'SUBMITTED';
+      program_status = typeof params[8] === 'string' && params[8] !== '{}' ? params[8] : 'NOT_ENROLLED';
+      panel_scores = params[9] ? (typeof params[9] === 'string' ? JSON.parse(params[9]) : params[9]) : null;
+      parent_applicant_id = params[10] ? parseInt(params[10]) : null;
+      form_data = params[11] ? (typeof params[11] === 'string' ? JSON.parse(params[11]) : params[11]) : {};
+      orientation_conducted = params[12] === true || params[12] === 'true';
+    }
+
     const newApp = {
       id,
       tracking_token,
@@ -336,6 +509,7 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       startup_name,
       startup_description,
       status,
+      program_status,
       panel_scores,
       parent_applicant_id,
       form_data,
@@ -352,20 +526,36 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     const idVal = parseInt(params[params.length - 1]);
     const app = (db.applicants || []).find((x: any) => x.id === idVal);
     if (app) {
-      if (q.includes('status =') && q.includes('cohort_id =')) {
+      if (q.includes('status = $1') && q.includes('program_status = $2') && q.includes('cohort_id = $3')) {
+        app.status = params[0];
+        app.program_status = typeof params[1] === 'string' && params[1] !== '{}' ? params[1] : (app.cohort_id || params[2] ? 'ACTIVE' : 'NOT_ENROLLED');
+        app.cohort_id = params[2] ? parseInt(params[2]) : null;
+      } else if (q.includes('program_status = $1')) {
+        app.program_status = typeof params[0] === 'string' && params[0] !== '{}' ? params[0] : 'NOT_ENROLLED';
+      } else if (q.includes('status = $1') && q.includes('cohort_id = $2')) {
         app.status = params[0];
         app.cohort_id = params[1] ? parseInt(params[1]) : null;
-      } else if (q.includes('status =') && q.includes('orientation_conducted =')) {
+        if (app.status === 'CONFIRMED' && (!app.program_status || app.program_status === '{}' || app.program_status === 'NOT_ENROLLED')) {
+          app.program_status = 'ACTIVE';
+        }
+      } else if (q.includes('status = $1')) {
         app.status = params[0];
-        app.orientation_conducted = params[1] === true || params[1] === 'true';
-      } else if (q.includes('status =')) {
-        app.status = params[0];
-      } else if (q.includes('cohort_id =')) {
+        if (app.status === 'CONFIRMED' && (!app.program_status || app.program_status === '{}' || app.program_status === 'NOT_ENROLLED')) {
+          app.program_status = 'ACTIVE';
+        }
+      } else if (q.includes('cohort_id = $1')) {
         app.cohort_id = params[0] ? parseInt(params[0]) : null;
-      } else if (q.includes('panel_scores =')) {
+      } else if (q.includes('panel_scores = $1')) {
         app.panel_scores = params[0] ? (typeof params[0] === 'string' ? JSON.parse(params[0]) : params[0]) : null;
-      } else if (q.includes('orientation_conducted =')) {
+      } else if (q.includes('orientation_conducted = $1')) {
         app.orientation_conducted = params[0] === true || params[0] === 'true';
+      } else if (q.includes('phone = $1') && q.includes('startup_description = $2')) {
+        app.phone = params[0];
+        app.startup_description = params[1];
+        app.form_data = params[2] ? (typeof params[2] === 'string' ? JSON.parse(params[2]) : params[2]) : app.form_data;
+      } else if (q.includes('phone = $1') && q.includes('form_data = $2')) {
+        app.phone = params[0];
+        app.form_data = params[1] ? (typeof params[1] === 'string' ? JSON.parse(params[1]) : params[1]) : app.form_data;
       }
       saveLocalDB(db);
     }
@@ -1508,6 +1698,7 @@ async function ensureDBReady() {
               startup_name VARCHAR(255) NOT NULL,
               startup_description TEXT NOT NULL,
               status VARCHAR(100) DEFAULT 'SUBMITTED',
+              program_status VARCHAR(50) DEFAULT 'NOT_ENROLLED',
               panel_scores JSONB,
               parent_applicant_id INTEGER REFERENCES applicants(id) ON DELETE SET NULL,
               form_data JSONB,
@@ -1517,23 +1708,45 @@ async function ensureDBReady() {
           );
         `);
 
+        // Migration for existing PostgreSQL databases: ensure program_status column exists and data is migrated
+        try {
+          await pool.query(`ALTER TABLE applicants ADD COLUMN IF NOT EXISTS program_status VARCHAR(50) DEFAULT 'NOT_ENROLLED';`);
+          await pool.query(`
+            UPDATE applicants 
+            SET program_status = status, status = 'CONFIRMED' 
+            WHERE status IN ('ACTIVE', 'PAUSED', 'GRADUATED', 'KICKED_OUT');
+          `);
+          await pool.query(`
+            UPDATE applicants 
+            SET program_status = 'ACTIVE' 
+            WHERE (status = 'CONFIRMED' OR status = 'ACCEPTED') AND cohort_id IS NOT NULL AND (program_status IS NULL OR program_status = 'NOT_ENROLLED');
+          `);
+          await pool.query(`
+            UPDATE applicants 
+            SET program_status = 'NOT_ENROLLED' 
+            WHERE program_status IS NULL;
+          `);
+        } catch (mErr) {
+          console.error('Applicants schema migration notice:', mErr);
+        }
+
         // Seed default applicants if empty
         const applicantsCountRes = await pool.query('SELECT count(*) FROM applicants');
         if (parseInt(applicantsCountRes.rows[0].count) === 0) {
           const defaultApplicants = [
-            { id: 1, tracking_token: 'TK-STR-7821', name: 'Zohaib Niaz', email: 'zohaib@startup.pk', phone: '0300-1234567', cnic: '35201-1234567-1', startup_name: 'MedRoute', startup_description: 'An AI-powered pharmaceutical route planner reducing delivery times by 40%.', cohort_id: 1, status: 'CONFIRMED', panel_scores: { viability: 8, team: 9, scalability: 8, average: 8.3 }, form_data: {}, orientation_conducted: true },
-            { id: 2, tracking_token: 'TK-STR-5921', name: 'Ayesha Malik', email: 'ayesha@fintech.pk', phone: '0321-7654321', cnic: '35201-7654321-2', startup_name: 'PaisaFlow', startup_description: 'Micro-lending platform for small merchants using alternative credit scoring.', cohort_id: 1, status: 'CONFIRMED', panel_scores: { viability: 9, team: 8, scalability: 9, average: 8.7 }, form_data: {}, orientation_conducted: true },
-            { id: 3, tracking_token: 'TK-STR-4412', name: 'Imran Khan', email: 'imran@edtech.pk', phone: '0333-5551212', cnic: '35201-5551212-3', startup_name: 'Dars-e-Nau', startup_description: 'Localized video-based educational app for public school students in Urdu.', cohort_id: null, status: 'IN_REVIEW', panel_scores: null, form_data: {}, orientation_conducted: false },
-            { id: 4, tracking_token: 'TK-STR-1092', name: 'Qasim Ali', email: 'qasim@agritech.pk', phone: '0345-9998887', cnic: '35201-9998887-4', startup_name: 'AgriSense', startup_description: 'IoT-enabled soil nutrient analysis probe for smallholder farmers.', cohort_id: null, status: 'BACKUP_CANDIDATE', panel_scores: { viability: 7, team: 7, scalability: 7, average: 7.0 }, form_data: {}, orientation_conducted: false },
-            { id: 5, tracking_token: 'TK-STR-2291', name: 'Raza Jafar', email: 'raza@delivery.pk', phone: '0312-3334445', cnic: '35201-3334445-5', startup_name: 'LogiSwift', startup_description: 'B2B express delivery aggregator connecting local freight vans.', cohort_id: null, status: 'REJECTED', panel_scores: { viability: 4, team: 5, scalability: 4, average: 4.3 }, form_data: {}, orientation_conducted: false }
+            { id: 1, tracking_token: 'TK-STR-7821', name: 'Zohaib Niaz', email: 'zohaib@startup.pk', phone: '0300-1234567', cnic: '35201-1234567-1', startup_name: 'MedRoute', startup_description: 'An AI-powered pharmaceutical route planner reducing delivery times by 40%.', cohort_id: 1, status: 'CONFIRMED', program_status: 'ACTIVE', panel_scores: { viability: 8, team: 9, scalability: 8, average: 8.3 }, form_data: {}, orientation_conducted: true },
+            { id: 2, tracking_token: 'TK-STR-5921', name: 'Ayesha Malik', email: 'ayesha@fintech.pk', phone: '0321-7654321', cnic: '35201-7654321-2', startup_name: 'PaisaFlow', startup_description: 'Micro-lending platform for small merchants using alternative credit scoring.', cohort_id: 1, status: 'CONFIRMED', program_status: 'ACTIVE', panel_scores: { viability: 9, team: 8, scalability: 9, average: 8.7 }, form_data: {}, orientation_conducted: true },
+            { id: 3, tracking_token: 'TK-STR-4412', name: 'Imran Khan', email: 'imran@edtech.pk', phone: '0333-5551212', cnic: '35201-5551212-3', startup_name: 'Dars-e-Nau', startup_description: 'Localized video-based educational app for public school students in Urdu.', cohort_id: null, status: 'IN_REVIEW', program_status: 'NOT_ENROLLED', panel_scores: null, form_data: {}, orientation_conducted: false },
+            { id: 4, tracking_token: 'TK-STR-1092', name: 'Qasim Ali', email: 'qasim@agritech.pk', phone: '0345-9998887', cnic: '35201-9998887-4', startup_name: 'AgriSense', startup_description: 'IoT-enabled soil nutrient analysis probe for smallholder farmers.', cohort_id: null, status: 'BACKUP_CANDIDATE', program_status: 'NOT_ENROLLED', panel_scores: { viability: 7, team: 7, scalability: 7, average: 7.0 }, form_data: {}, orientation_conducted: false },
+            { id: 5, tracking_token: 'TK-STR-2291', name: 'Raza Jafar', email: 'raza@delivery.pk', phone: '0312-3334445', cnic: '35201-3334445-5', startup_name: 'LogiSwift', startup_description: 'B2B express delivery aggregator connecting local freight vans.', cohort_id: null, status: 'REJECTED', program_status: 'NOT_ENROLLED', panel_scores: { viability: 4, team: 5, scalability: 4, average: 4.3 }, form_data: {}, orientation_conducted: false }
           ];
 
           for (const a of defaultApplicants) {
             await pool.query(
-              `INSERT INTO applicants (id, tracking_token, name, email, phone, cnic, startup_name, startup_description, cohort_id, status, panel_scores, form_data, orientation_conducted)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+              `INSERT INTO applicants (id, tracking_token, name, email, phone, cnic, startup_name, startup_description, cohort_id, status, program_status, panel_scores, form_data, orientation_conducted)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                ON CONFLICT DO NOTHING`,
-              [a.id, a.tracking_token, a.name, a.email, a.phone, a.cnic, a.startup_name, a.startup_description, a.cohort_id, a.status, JSON.stringify(a.panel_scores), JSON.stringify(a.form_data), a.orientation_conducted]
+              [a.id, a.tracking_token, a.name, a.email, a.phone, a.cnic, a.startup_name, a.startup_description, a.cohort_id, a.status, a.program_status, JSON.stringify(a.panel_scores), JSON.stringify(a.form_data), a.orientation_conducted]
             );
           }
           try {

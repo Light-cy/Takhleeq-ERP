@@ -9,6 +9,7 @@ import {
   getApplicantById,
   updateApplicantScores,
   updateApplicantStatus,
+  updateApplicantProgramStatus,
   updateApplicantOrientation,
   getCohorts,
   createCohort,
@@ -55,6 +56,7 @@ router.get('/applicants/:id', requireAuth, requirePermission('cohort:applicant_r
 // Applicant Admissions, Panel Scoring & Selection Decider
 router.put('/applicants/:id/scores', requireAuth, requirePermission('cohort:applicant_review'), updateApplicantScores);
 router.put('/applicants/:id/status', updateApplicantStatus);
+router.put('/applicants/:id/program-status', requireAuth, requirePermission('cohort:applicant_review'), updateApplicantProgramStatus);
 router.put('/applicants/:id/orientation', requireAuth, requirePermission('cohort:attendance_write'), updateApplicantOrientation);
 
 // Cohort lists and metadata

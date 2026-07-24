@@ -56,19 +56,21 @@ export function useGovernance({
 
   // Automatically fetch user name from simulated users list or bookings history if the email matches
   useEffect(() => {
+    if (!banEmail.trim()) {
+      setBanName("");
+      return;
+    }
     if (matchedBanUser) {
       setBanName(matchedBanUser.name);
     } else {
-      const matchedBooking = bookings.find(b => b.email.trim().toLowerCase() === banEmail.trim().toLowerCase());
+      const matchedBooking = bookings.find(b => b.email && b.email.trim().toLowerCase() === banEmail.trim().toLowerCase());
       if (matchedBooking) {
         setBanName(matchedBooking.name);
-      } else if (banEmail.trim()) {
-        setBanName("External / Booking Profile");
       } else {
-        setBanName("");
+        setBanName("External / Booking Profile");
       }
     }
-  }, [matchedBanUser, banEmail, bookings]);
+  }, [matchedBanUser?.name, banEmail]);
 
   const clearMessages = () => {
     setErrorMsg(null);

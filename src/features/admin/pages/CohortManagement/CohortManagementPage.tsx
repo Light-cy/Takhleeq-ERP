@@ -27,7 +27,7 @@ import {
   FileText,
   Rocket
 } from 'lucide-react';
-import { FormField, Cohort, Applicant, CohortSession, TeamCheckIn, PerformanceWarning, CohortAssignment, MilestoneSubmission, AuditRecord } from '../../../../types';
+import { FormField, Cohort, Applicant, ApplicantStatus, CohortSession, TeamCheckIn, PerformanceWarning, CohortAssignment, MilestoneSubmission, AuditRecord } from '../../../../types';
 import { CohortDashboardView } from './CohortDashboardView';
 
 interface CohortManagementPageProps {
@@ -153,7 +153,9 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   useEffect(() => {
     if (selectedCohortId && cohorts.length > 0) {
       const found = cohorts.find(c => c.id === selectedCohortId);
-      if (found) setSelectedCohort(found);
+      if (found && found.id !== selectedCohort?.id) {
+        setSelectedCohort(found);
+      }
     }
   }, [selectedCohortId, cohorts]);
 
@@ -161,13 +163,8 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
     if (selectedCohort && setSelectedCohortId && selectedCohort.id !== selectedCohortId) {
       setSelectedCohortId(selectedCohort.id);
     }
-  }, [selectedCohort]);
+  }, [selectedCohort?.id]);
   
-  // Evaluation Scores Temp state
-  const [viabilityScore, setViabilityScore] = useState<number>(5);
-  const [teamScore, setTeamScore] = useState<number>(5);
-  const [scalabilityScore, setScalabilityScore] = useState<number>(5);
-
   // Form Builder Temp fields
   const [newFieldLabel, setNewFieldLabel] = useState('');
   const [newFieldType, setNewFieldType] = useState<'text' | 'email' | 'number' | 'phone' | 'cnic' | 'file'>('text');
@@ -247,49 +244,57 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
   // Sync sub-data when selected cohort changes
   useEffect(() => {
-    if (!selectedCohort) return;
+    if (!selectedCohort?.id) return;
     const cohortId = selectedCohort.id;
 
     // Fetch sessions
     fetchWithAuth(`/api/cohorts/${cohortId}/sessions`)
-      .then(res => res.json())
+      .then(res => res.ok ? res.json() : [])
       .then(data => {
-        setSessions(data);
-        if (data.length > 0) {
-          setSelectedSession(data[0]);
-        } else {
-          setSelectedSession(null);
+        if (Array.isArray(data)) {
+          setSessions(data);
+          if (data.length > 0) {
+            setSelectedSession(prev => (prev && data.some(s => s.id === prev.id) ? prev : data[0]));
+          } else {
+            setSelectedSession(null);
+          }
         }
-      });
+      })
+      .catch(() => setSessions([]));
 
     // Fetch checkins
     fetchWithAuth(`/api/cohorts/${cohortId}/checkins`)
-      .then(res => res.json())
-      .then(data => setCheckins(data));
+      .then(res => res.ok ? res.json() : [])
+      .then(data => Array.isArray(data) && setCheckins(data))
+      .catch(() => setCheckins([]));
 
     // Fetch warnings
     fetchWithAuth(`/api/cohorts/${cohortId}/warnings`)
-      .then(res => res.json())
-      .then(data => setWarnings(data));
+      .then(res => res.ok ? res.json() : [])
+      .then(data => Array.isArray(data) && setWarnings(data))
+      .catch(() => setWarnings([]));
 
-  }, [selectedCohort]);
+  }, [selectedCohort?.id]);
 
   // Sync attendance sheet when selected session changes
   useEffect(() => {
-    if (!selectedSession) {
+    if (!selectedSession?.id) {
       setAttendanceSheet({});
       return;
     }
     fetchWithAuth(`/api/sessions/${selectedSession.id}/attendance`)
-      .then(res => res.json())
+      .then(res => res.ok ? res.json() : [])
       .then(data => {
-        const mapping: Record<number, 'PRESENT' | 'ABSENT' | 'EXCUSED'> = {};
-        data.forEach((att: any) => {
-          mapping[att.applicant_id] = att.status;
-        });
-        setAttendanceSheet(mapping);
-      });
-  }, [selectedSession]);
+        if (Array.isArray(data)) {
+          const mapping: Record<number, 'PRESENT' | 'ABSENT' | 'EXCUSED'> = {};
+          data.forEach((att: any) => {
+            mapping[att.applicant_id] = att.status;
+          });
+          setAttendanceSheet(mapping);
+        }
+      })
+      .catch(() => setAttendanceSheet({}));
+  }, [selectedSession?.id]);
 
   // Alert handler helpers
   const triggerSuccess = (msg: string) => {
@@ -388,9 +393,6 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   const handleSelectApplicant = async (app: Applicant) => {
     setSelectedApplicant(app);
     setApplicantParent(null);
-    setViabilityScore(app.panel_scores?.viability || 5);
-    setTeamScore(app.panel_scores?.team || 5);
-    setScalabilityScore(app.panel_scores?.scalability || 5);
 
     // If has parent, fetch parent application status history
     if (app.parent_applicant_id) {
@@ -406,31 +408,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
     }
   };
 
-  const handleSaveEvaluationScores = async () => {
-    if (!selectedApplicant) return;
-    try {
-      const res = await fetchWithAuth(`/api/applicants/${selectedApplicant.id}/scores`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          viability: viabilityScore,
-          team: teamScore,
-          scalability: scalabilityScore
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to record panel evaluation scores.');
-
-      // Update state locally
-      setApplicants(prev => prev.map(a => a.id === selectedApplicant.id ? { ...a, panel_scores: data.applicant.panel_scores } : a));
-      setSelectedApplicant(prev => prev ? { ...prev, panel_scores: data.applicant.panel_scores } : null);
-      triggerSuccess(`Evaluation panel scores logged successfully for '${selectedApplicant.startup_name}'.`);
-    } catch (err: any) {
-      triggerError(err.message);
-    }
-  };
-
-  const handleUpdateApplicantStatus = async (newStatus: 'IN_REVIEW' | 'BACKUP_CANDIDATE' | 'ACCEPTED' | 'CONFIRMED' | 'REJECTED') => {
+  const handleUpdateApplicantStatus = async (newStatus: ApplicantStatus | string) => {
     if (!selectedApplicant) return;
     try {
       const res = await fetchWithAuth(`/api/applicants/${selectedApplicant.id}/status`, {
@@ -444,8 +422,9 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update status.');
 
-      setApplicants(prev => prev.map(a => a.id === selectedApplicant.id ? { ...a, status: newStatus, cohort_id: data.applicant.cohort_id } : a));
-      setSelectedApplicant(prev => prev ? { ...prev, status: newStatus, cohort_id: data.applicant.cohort_id } : null);
+      const updatedApplicant = data.applicant || { ...selectedApplicant, status: newStatus as ApplicantStatus };
+      setApplicants(prev => prev.map(a => a.id === selectedApplicant.id ? { ...a, ...updatedApplicant } : a));
+      setSelectedApplicant(prev => prev ? { ...prev, ...updatedApplicant } : null);
       triggerSuccess(`Startup '${selectedApplicant.startup_name}' status set to '${newStatus}'.`);
     } catch (err: any) {
       triggerError(err.message);
@@ -716,14 +695,42 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   };
 
   // Computed arrays for selected cohort
-  const confirmedCohortStartups = applicants.filter(a => a.cohort_id === selectedCohort?.id && a.status === 'CONFIRMED');
+  const confirmedCohortStartups = applicants.filter(a => {
+    const cId = selectedCohort?.id;
+    const matchesCohort = !cId || String(a.cohort_id) === String(cId) || (!a.cohort_id && String(cId) === '1');
+    const ps = typeof a.program_status === 'string' && a.program_status !== '{}' ? a.program_status : '';
+    const matchesStatus = a.status === 'CONFIRMED' || 
+                          a.status === 'ACCEPTED' || 
+                          a.status === 'ENROLLED' || 
+                          a.status === 'ORIENTATION_CONDUCTED' || 
+                          ['ACTIVE', 'PAUSED', 'GRADUATED'].includes(ps) ||
+                          (a.cohort_id && !['REJECTED', 'APPLIED', 'SUBMITTED', 'IN_REVIEW', 'UNDER_REVIEW', 'SHORTLISTED_FOR_PRESENTATION'].includes(a.status));
+    return matchesCohort && matchesStatus;
+  });
 
   // Filter intake list
+  const getIntakeStepIndex = (status: any) => {
+    const s = typeof status === 'string' ? status : String(status || '');
+    if (s === 'APPLIED' || s === 'SUBMITTED') return 0;
+    if (s === 'UNDER_REVIEW' || s === 'IN_REVIEW') return 1;
+    if (s === 'SHORTLISTED_FOR_PRESENTATION' || s === 'SHORTLISTED') return 2;
+    if (s === 'PRESENTATION_CONDUCTED') return 3;
+    if (['ACCEPTED', 'CONDITIONAL_ACCEPTED', 'REJECTED', 'WAITLISTED', 'BACKUP_CANDIDATE'].includes(s)) return 4;
+    if (s === 'CONFIRMED') return 5;
+    if (s === 'ORIENTATION_CONDUCTED') return 6;
+    if (s === 'ENROLLED') return 7;
+    return 0;
+  };
+
   const filteredApplicants = applicants.filter(app => {
     const matchesSearch = app.startup_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           app.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           app.tracking_token.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'ALL' || app.status === statusFilter;
+    const matchesStatus = statusFilter === 'ALL' || 
+      app.status === statusFilter ||
+      (statusFilter === 'APPLIED' && app.status === 'SUBMITTED') ||
+      (statusFilter === 'UNDER_REVIEW' && app.status === 'IN_REVIEW') ||
+      (statusFilter === 'SHORTLISTED_FOR_PRESENTATION' && (app.status as string) === 'SHORTLISTED');
     return matchesSearch && matchesStatus;
   });
 
@@ -1040,12 +1047,18 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                     className="bg-gray-50 border border-gray-150 text-xs text-gray-800 rounded-xl px-3 py-2 cursor-pointer focus:outline-none font-bold"
                   >
                     <option value="ALL">All Statuses</option>
-                    <option value="SUBMITTED">Submitted</option>
-                    <option value="IN_REVIEW">Under Screening</option>
-                    <option value="BACKUP_CANDIDATE">Backup Candidates</option>
-                    <option value="ACCEPTED">Admitted Offer</option>
-                    <option value="CONFIRMED">Seat Confirmed</option>
-                    <option value="REJECTED">Not Selected</option>
+                    <option value="APPLIED">1. Applied</option>
+                    <option value="UNDER_REVIEW">2. Under Review</option>
+                    <option value="SHORTLISTED_FOR_PRESENTATION">3. Shortlisted for Pitch</option>
+                    <option value="PRESENTATION_CONDUCTED">4. Pitch Conducted</option>
+                    <option value="CONDITIONAL_ACCEPTED">5. Conditional Accept</option>
+                    <option value="ACCEPTED">6. Accepted / Offer Issued</option>
+                    <option value="CONFIRMED">7. Seat Confirmed</option>
+                    <option value="ORIENTATION_CONDUCTED">8. Orientation Conducted</option>
+                    <option value="ENROLLED">9. Enrolled</option>
+                    <option value="WAITLISTED">10. Waitlisted</option>
+                    <option value="BACKUP_CANDIDATE">11. Backup List</option>
+                    <option value="REJECTED">12. Rejected</option>
                   </select>
                 </div>
               </div>
@@ -1057,8 +1070,8 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                     <tr className="bg-gray-50 border-b border-gray-100 text-[10px] font-black uppercase tracking-wider text-gray-400">
                       <th className="py-3 px-4">Startup / Founder</th>
                       <th className="py-3 px-4">CNIC Number</th>
-                      <th className="py-3 px-4">Avg Score</th>
-                      <th className="py-3 px-4">Status Log</th>
+                      <th className="py-3 px-4">Program Status</th>
+                      <th className="py-3 px-4">Intake Status</th>
                       <th className="py-3 px-4 text-right">Profile review</th>
                     </tr>
                   </thead>
@@ -1084,29 +1097,37 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                             {app.cnic}
                           </td>
                           <td className="py-3.5 px-4">
-                            {app.panel_scores ? (
-                              <span className="text-xs font-black font-mono text-[#8B1A1A] bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
-                                {app.panel_scores.average}/10
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-gray-300 font-extrabold">Unrated</span>
-                            )}
+                            {(() => {
+                              const ps = typeof app.program_status === 'string' && app.program_status !== '{}' ? app.program_status : (app.status === 'CONFIRMED' || app.cohort_id ? 'ACTIVE' : 'NOT_ENROLLED');
+                              const badgeStyle = 
+                                ps === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                ps === 'GRADUATED' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                ps === 'PAUSED' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                ps === 'KICKED_OUT' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                'bg-gray-100 text-gray-600 border-gray-200';
+                              return (
+                                <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md border ${badgeStyle}`}>
+                                  {ps.replace(/_/g, ' ')}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="py-3.5 px-4">
                             <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md border ${
-                              app.status === 'SUBMITTED' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                              app.status === 'IN_REVIEW' ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                              app.status === 'BACKUP_CANDIDATE' ? 'bg-purple-50 text-purple-700 border-purple-100' :
+                              (app.status === 'APPLIED' || app.status === 'SUBMITTED') ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                              (app.status === 'UNDER_REVIEW' || app.status === 'IN_REVIEW') ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                              (app.status === 'SHORTLISTED_FOR_PRESENTATION' || (app.status as string) === 'SHORTLISTED') ? 'bg-purple-50 text-purple-700 border-purple-100' :
+                              app.status === 'PRESENTATION_CONDUCTED' ? 'bg-cyan-50 text-cyan-700 border-cyan-100' :
+                              app.status === 'CONDITIONAL_ACCEPTED' ? 'bg-teal-50 text-teal-700 border-teal-100' :
                               app.status === 'ACCEPTED' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
                               app.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                              app.status === 'ORIENTATION_CONDUCTED' ? 'bg-lime-50 text-lime-700 border-lime-100' :
+                              app.status === 'ENROLLED' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                              app.status === 'WAITLISTED' ? 'bg-orange-50 text-orange-700 border-orange-100' :
+                              app.status === 'BACKUP_CANDIDATE' ? 'bg-violet-50 text-violet-700 border-violet-100' :
                               'bg-rose-50 text-rose-700 border-rose-100'
                             }`}>
-                              {app.status === 'SUBMITTED' && 'Submitted'}
-                              {app.status === 'IN_REVIEW' && 'Screening'}
-                              {app.status === 'BACKUP_CANDIDATE' && 'Backup List'}
-                              {app.status === 'ACCEPTED' && 'Admitted'}
-                              {app.status === 'CONFIRMED' && 'Seat Confirmed'}
-                              {app.status === 'REJECTED' && 'Not Selected'}
+                              {typeof app.status === 'string' ? app.status.replace(/_/g, ' ') : (app.status ? String(app.status) : 'SUBMITTED')}
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-right">
@@ -1225,102 +1246,147 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
                   <div className="h-px bg-gray-100" />
 
-                  {/* Section: Evaluation Panel scoring */}
-                  <div className="space-y-4">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block font-mono">Evaluation panel rating (1 - 10)</span>
-                    
-                    <div className="space-y-3.5 text-xs font-black uppercase tracking-wider text-gray-500 font-mono">
-                      <div className="space-y-1">
-                        <div className="flex justify-between font-bold">
-                          <span>Business Viability</span>
-                          <span className="text-primary font-black font-mono">{viabilityScore}/10</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={1}
-                          max={10}
-                          step={0.5}
-                          value={viabilityScore}
-                          onChange={(e) => setViabilityScore(parseFloat(e.target.value))}
-                          className="w-full accent-primary h-1 bg-gray-100 rounded-lg appearance-none cursor-pointer"
-                        />
-                      </div>
+                  {/* Vertical Stage Progress Tracker UI */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest font-mono">Stage Progress Tracker</span>
+                      <span className="text-[10px] font-mono font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
+                        Step {getIntakeStepIndex(selectedApplicant.status) + 1} of 8
+                      </span>
+                    </div>
 
-                      <div className="space-y-1">
-                        <div className="flex justify-between font-bold">
-                          <span>Team Competency</span>
-                          <span className="text-primary font-black font-mono">{teamScore}/10</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={1}
-                          max={10}
-                          step={0.5}
-                          value={teamScore}
-                          onChange={(e) => setTeamScore(parseFloat(e.target.value))}
-                          className="w-full accent-primary h-1 bg-gray-100 rounded-lg appearance-none cursor-pointer"
-                        />
-                      </div>
+                    <div className="bg-gray-50 border border-gray-150 rounded-2xl p-4 space-y-0.5">
+                      {(() => {
+                        const currentIdx = getIntakeStepIndex(selectedApplicant.status);
+                        const steps = [
+                          { key: 'APPLIED', label: '1. APPLIED', desc: 'Application Form Submitted' },
+                          { key: 'UNDER_REVIEW', label: '2. UNDER REVIEW', desc: 'Desk Screening & Review' },
+                          { key: 'SHORTLISTED_FOR_PRESENTATION', label: '3. SHORTLISTED FOR PITCH', desc: 'Invited to Panel Presentation' },
+                          { key: 'PRESENTATION_CONDUCTED', label: '4. PITCH CONDUCTED', desc: 'Panel Evaluation Completed' },
+                          { 
+                            key: 'DECISION', 
+                            label: `5. ${['ACCEPTED', 'CONDITIONAL_ACCEPTED', 'REJECTED', 'WAITLISTED', 'BACKUP_CANDIDATE'].includes(selectedApplicant.status) ? (typeof selectedApplicant.status === 'string' ? selectedApplicant.status.replace(/_/g, ' ') : String(selectedApplicant.status)) : 'DECISION PENDING'}`, 
+                            desc: 'Admissions Decision Outcome' 
+                          },
+                          { key: 'CONFIRMED', label: '6. SEAT CONFIRMED', desc: 'Founder Accepted & Seat Reserved' },
+                          { key: 'ORIENTATION_CONDUCTED', label: '7. ORIENTATION CONDUCTED', desc: 'Induction & Onboarding' },
+                          { key: 'ENROLLED', label: '8. ENROLLED', desc: 'Active Cohort Venture' },
+                        ];
 
-                      <div className="space-y-1">
-                        <div className="flex justify-between font-bold">
-                          <span>Scaling Potential</span>
-                          <span className="text-primary font-black font-mono">{scalabilityScore}/10</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={1}
-                          max={10}
-                          step={0.5}
-                          value={scalabilityScore}
-                          onChange={(e) => setScalabilityScore(parseFloat(e.target.value))}
-                          className="w-full accent-primary h-1 bg-gray-100 rounded-lg appearance-none cursor-pointer"
-                        />
-                      </div>
+                        return steps.map((step, idx) => {
+                          const isCompleted = idx < currentIdx;
+                          const isCurrent = idx === currentIdx;
+                          const isLast = idx === steps.length - 1;
 
-                      <div className="pt-2 flex justify-between items-center text-xs">
-                        <span className="normal-case font-extrabold text-gray-800">
-                          Average Rating: <strong className="text-primary font-mono text-sm">{((viabilityScore + teamScore + scalabilityScore) / 3).toFixed(2)}</strong>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleSaveEvaluationScores}
-                          className="bg-primary hover:bg-[#5A0F0F] text-white py-1.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-3xs shrink-0"
-                        >
-                          Save Scores
-                        </button>
-                      </div>
+                          return (
+                            <div key={step.key} className="flex items-start gap-3 relative pb-3.5 last:pb-0">
+                              {!isLast && (
+                                <div 
+                                  className={`absolute left-[11px] top-[22px] bottom-0 w-[2px] ${
+                                    isCompleted ? 'bg-emerald-500' : 'bg-gray-200'
+                                  }`} 
+                                />
+                              )}
+
+                              <div className="shrink-0 z-10">
+                                {isCompleted ? (
+                                  <div className="h-6 w-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-3xs">
+                                    <Check className="h-3.5 w-3.5 stroke-[3]" />
+                                  </div>
+                                ) : isCurrent ? (
+                                  <div className="h-6 w-6 rounded-full bg-primary text-white flex items-center justify-center shadow-3xs ring-4 ring-primary/20">
+                                    <span className="h-2 w-2 rounded-full bg-white animate-ping" />
+                                  </div>
+                                ) : (
+                                  <div className="h-6 w-6 rounded-full bg-gray-100 border border-gray-300 text-gray-400 flex items-center justify-center text-[10px] font-mono font-bold">
+                                    {idx + 1}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex-1 pt-0.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={`text-xs font-black tracking-tight ${
+                                    isCurrent ? 'text-gray-900 font-extrabold' : isCompleted ? 'text-emerald-950 font-bold' : 'text-gray-400'
+                                  }`}>
+                                    {step.label}
+                                  </span>
+
+                                  {isCurrent && (
+                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${
+                                      selectedApplicant.status === 'REJECTED' ? 'bg-rose-100 text-rose-800 border-rose-200' :
+                                      selectedApplicant.status === 'CONFIRMED' || selectedApplicant.status === 'ENROLLED' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                                      'bg-primary/10 text-primary border-primary/20'
+                                    }`}>
+                                      Current Stage
+                                    </span>
+                                  )}
+                                </div>
+                                <p className={`text-[10px] leading-tight mt-0.5 ${
+                                  isCurrent ? 'text-gray-600 font-medium' : isCompleted ? 'text-emerald-700/80' : 'text-gray-400'
+                                }`}>
+                                  {step.desc}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
 
                   <div className="h-px bg-gray-100" />
 
-                  {/* Section: Status Decider & Actions */}
+                  {/* Section: Status Decider & Operations */}
                   <div className="space-y-4">
                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block font-mono">Decisions & Operations</span>
                     
-                    <div className="grid grid-cols-2 gap-3.5 text-xs font-bold uppercase tracking-wider font-mono">
-                      <button
-                        onClick={() => handleUpdateApplicantStatus('IN_REVIEW')}
-                        className={`py-2 px-3 border rounded-xl text-[10px] cursor-pointer transition-all ${selectedApplicant.status === 'IN_REVIEW' ? 'bg-amber-50 border-amber-300 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                    <div className="space-y-2">
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-wider block font-mono">
+                        Intake Stage Status
+                      </label>
+                      <select
+                        value={selectedApplicant.status}
+                        onChange={(e) => handleUpdateApplicantStatus(e.target.value as ApplicantStatus)}
+                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 focus:outline-none focus:border-primary font-mono cursor-pointer"
                       >
-                        Screening
+                        <option value="APPLIED">1. APPLIED (Submitted)</option>
+                        <option value="UNDER_REVIEW">2. UNDER REVIEW (Screening)</option>
+                        <option value="SHORTLISTED_FOR_PRESENTATION">3. SHORTLISTED FOR PRESENTATION</option>
+                        <option value="PRESENTATION_CONDUCTED">4. PRESENTATION CONDUCTED</option>
+                        <option value="CONDITIONAL_ACCEPTED">5. CONDITIONAL ACCEPTED</option>
+                        <option value="ACCEPTED">6. ACCEPTED (Offer Seat)</option>
+                        <option value="CONFIRMED">7. CONFIRMED (Seat Confirmed)</option>
+                        <option value="ORIENTATION_CONDUCTED">8. ORIENTATION CONDUCTED</option>
+                        <option value="ENROLLED">9. ENROLLED (In Program)</option>
+                        <option value="WAITLISTED">10. WAITLISTED</option>
+                        <option value="BACKUP_CANDIDATE">11. BACKUP CANDIDATE</option>
+                        <option value="REJECTED">12. REJECTED (Not Selected)</option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs font-bold uppercase tracking-wider font-mono pt-1">
+                      <button
+                        onClick={() => handleUpdateApplicantStatus('UNDER_REVIEW')}
+                        className={`py-1.5 px-2 border rounded-xl text-[10px] cursor-pointer transition-all ${selectedApplicant.status === 'UNDER_REVIEW' || selectedApplicant.status === 'IN_REVIEW' ? 'bg-amber-50 border-amber-300 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                      >
+                        Under Review
                       </button>
                       <button
-                        onClick={() => handleUpdateApplicantStatus('BACKUP_CANDIDATE')}
-                        className={`py-2 px-3 border rounded-xl text-[10px] cursor-pointer transition-all ${selectedApplicant.status === 'BACKUP_CANDIDATE' ? 'bg-purple-50 border-purple-300 text-purple-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                        onClick={() => handleUpdateApplicantStatus('SHORTLISTED_FOR_PRESENTATION')}
+                        className={`py-1.5 px-2 border rounded-xl text-[10px] cursor-pointer transition-all ${selectedApplicant.status === 'SHORTLISTED_FOR_PRESENTATION' ? 'bg-purple-50 border-purple-300 text-purple-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
                       >
-                        Backup List
+                        Shortlisted
                       </button>
                       <button
                         onClick={() => handleUpdateApplicantStatus('ACCEPTED')}
-                        className={`py-2 px-3 border rounded-xl text-[10px] cursor-pointer transition-all ${selectedApplicant.status === 'ACCEPTED' ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-black' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                        className={`py-1.5 px-2 border rounded-xl text-[10px] cursor-pointer transition-all ${selectedApplicant.status === 'ACCEPTED' ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-black' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
                       >
                         Offer Seat
                       </button>
                       <button
                         onClick={() => handleUpdateApplicantStatus('REJECTED')}
-                        className={`py-2 px-3 border rounded-xl text-[10px] cursor-pointer transition-all ${selectedApplicant.status === 'REJECTED' ? 'bg-rose-50 border-rose-300 text-rose-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                        className={`py-1.5 px-2 border rounded-xl text-[10px] cursor-pointer transition-all ${selectedApplicant.status === 'REJECTED' ? 'bg-rose-50 border-rose-300 text-rose-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
                       >
                         Not Selected
                       </button>

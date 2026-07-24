@@ -56,17 +56,26 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
 }) => {
   // Scope data to selected cohort
   const cohortId = selectedCohort?.id || null;
-  const cohortApplicants = applicants.filter(a => a.cohort_id === cohortId || (!a.cohort_id && cohortId === 1));
-  const cohortSessions = sessions.filter(s => s.cohort_id === cohortId || (!s.cohort_id && cohortId === 1));
-  const cohortWarnings = warnings.filter(w => w.cohort_id === cohortId || (!w.cohort_id && cohortId === 1));
-  const cohortAssignments = assignments.filter(a => a.cohort_id === cohortId || (!a.cohort_id && cohortId === 1));
+  const matchesCohort = (itemCohortId: any) => {
+    if (!cohortId) return true;
+    if (itemCohortId === null || itemCohortId === undefined) return String(cohortId) === '1';
+    return String(itemCohortId) === String(cohortId);
+  };
+
+  const cohortApplicants = applicants.filter(a => matchesCohort(a.cohort_id));
+  const cohortSessions = sessions.filter(s => matchesCohort(s.cohort_id));
+  const cohortWarnings = warnings.filter(w => matchesCohort(w.cohort_id));
+  const cohortAssignments = assignments.filter(a => matchesCohort(a.cohort_id));
 
   // Confirmed / Active startups in cohort
-  const enrolledStartups = cohortApplicants.filter(a => 
-    a.cohort_id === cohortId && 
-    ['CONFIRMED', 'ACCEPTED', 'PAUSED', 'ACTIVE', 'GRADUATED'].includes(a.status)
-  );
-  const activeStartups = cohortApplicants.filter(a => a.status === 'CONFIRMED' || a.status === 'ACCEPTED' || a.status === 'ACTIVE');
+  const enrolledStartups = cohortApplicants.filter(a => {
+    const ps = typeof a.program_status === 'string' && a.program_status !== '{}' ? a.program_status : '';
+    return ['ACTIVE', 'PAUSED', 'GRADUATED'].includes(ps) || a.status === 'CONFIRMED' || a.status === 'ACCEPTED' || a.status === 'ENROLLED';
+  });
+  const activeStartups = cohortApplicants.filter(a => {
+    const ps = typeof a.program_status === 'string' && a.program_status !== '{}' ? a.program_status : '';
+    return ps === 'ACTIVE' || a.status === 'CONFIRMED' || a.status === 'ACCEPTED' || a.status === 'ENROLLED';
+  });
 
   // --- SECTION 1: Cohort Summary Metrics ---
   const maxCapacity = 20;
@@ -78,11 +87,11 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
 
   // --- SECTION 2: Pipeline Funnel Counts ---
   const pipelineCounts = {
-    applied: cohortApplicants.filter(a => a.status === 'SUBMITTED').length || 14,
-    underReview: cohortApplicants.filter(a => a.status === 'IN_REVIEW').length || 8,
-    shortlisted: cohortApplicants.filter(a => a.status === 'SHORTLISTED').length || 5,
+    applied: cohortApplicants.filter(a => a.status === 'APPLIED' || a.status === 'SUBMITTED').length || 14,
+    underReview: cohortApplicants.filter(a => a.status === 'UNDER_REVIEW' || a.status === 'IN_REVIEW').length || 8,
+    shortlisted: cohortApplicants.filter(a => a.status === 'SHORTLISTED_FOR_PRESENTATION' || (a.status as string) === 'SHORTLISTED').length || 5,
     presentationConducted: cohortApplicants.filter(a => a.status === 'PRESENTATION_CONDUCTED').length || 6,
-    accepted: cohortApplicants.filter(a => a.status === 'ACCEPTED' || a.status === 'CONFIRMED').length || 4,
+    accepted: cohortApplicants.filter(a => a.status === 'ACCEPTED' || a.status === 'CONFIRMED' || a.status === 'ENROLLED').length || 4,
     rejected: cohortApplicants.filter(a => a.status === 'REJECTED').length || 7
   };
 
@@ -287,7 +296,7 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           
           <button
-            onClick={() => onNavigateSubTab('cohort_applications', 'SUBMITTED')}
+            onClick={() => onNavigateSubTab('cohort_applications', 'APPLIED')}
             className="p-3.5 bg-gray-50/70 hover:bg-gray-100/80 border border-gray-150 rounded-xl transition-all cursor-pointer text-left space-y-1 hover:border-primary/40 group"
           >
             <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block font-mono">1. Applied</span>
@@ -299,7 +308,7 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
           </button>
 
           <button
-            onClick={() => onNavigateSubTab('cohort_applications', 'IN_REVIEW')}
+            onClick={() => onNavigateSubTab('cohort_applications', 'UNDER_REVIEW')}
             className="p-3.5 bg-amber-50/30 hover:bg-amber-50/80 border border-amber-200/60 rounded-xl transition-all cursor-pointer text-left space-y-1 hover:border-amber-400 group"
           >
             <span className="text-[9px] font-black text-amber-700 uppercase tracking-wider block font-mono">2. Under Review</span>
@@ -311,7 +320,7 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
           </button>
 
           <button
-            onClick={() => onNavigateSubTab('cohort_applications', 'SHORTLISTED')}
+            onClick={() => onNavigateSubTab('cohort_applications', 'SHORTLISTED_FOR_PRESENTATION')}
             className="p-3.5 bg-purple-50/30 hover:bg-purple-50/80 border border-purple-200/60 rounded-xl transition-all cursor-pointer text-left space-y-1 hover:border-purple-400 group"
           >
             <span className="text-[9px] font-black text-purple-700 uppercase tracking-wider block font-mono">3. Shortlisted</span>
