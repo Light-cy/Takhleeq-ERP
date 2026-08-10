@@ -32,6 +32,19 @@ export function BookingOverrideModal({
     setProcessing(true);
     setErrorMsg(null);
 
+    if (overrideDate) {
+      const parts = overrideDate.split('-').map(Number);
+      if (parts.length === 3) {
+        const selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
+        const dayOfWeek = selectedDate.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          setErrorMsg("Bookings are only allowed on working days (Monday to Friday). Saturdays and Sundays are closed.");
+          setProcessing(false);
+          return;
+        }
+      }
+    }
+
     try {
       await onOverride(editingBooking.id, {
         room: overrideRoom,

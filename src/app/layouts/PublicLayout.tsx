@@ -4,7 +4,7 @@ import { User as ERPUser } from '../../types';
 
 interface PublicLayoutProps {
   currentPath: string;
-  activeUser: ERPUser;
+  activeUser: ERPUser | null;
   onNavigate: (path: string) => void;
   onLogout: () => void;
   children: React.ReactNode;
@@ -65,14 +65,10 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
                   </button>
                 </>
               )}
-              {activeUser && (activeUser.role === 'Cohort Founder' || activeUser.role === 'Administrator') && (
+              {currentPath === '/founder-dashboard' && (
                 <button
                   onClick={() => onNavigate('/founder-dashboard')}
-                  className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
-                    currentPath === '/founder-dashboard'
-                      ? 'bg-primary text-white shadow-3xs'
-                      : 'text-gray-600 hover:text-gray-950'
-                  }`}
+                  className="px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer bg-primary text-white shadow-3xs"
                 >
                   Founder Portal
                 </button>
@@ -100,22 +96,44 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
               >
                 Track booking
               </button>
+              <button
+                onClick={() => onNavigate('/room-display')}
+                className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
+                  currentPath === '/room-display' || currentPath === '/display'
+                    ? 'bg-primary text-white shadow-3xs'
+                    : 'text-gray-600 hover:text-gray-950'
+                }`}
+              >
+                Room TV Signage
+              </button>
             </>
           )}
         </div>
 
         <div className="flex items-center gap-2 text-xs">
-          <div className="bg-primary/5 text-primary border border-primary/10 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5">
-            <User className="h-3.5 w-3.5" />
-            <span>{activeUser.name.split(' (')[0]}</span>
-          </div>
-          <button 
-            onClick={onLogout}
-            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-lg cursor-pointer transition-all"
-            title="Sign out profile"
-          >
-            <LogOut className="h-4.5 w-4.5" />
-          </button>
+          {activeUser ? (
+            <>
+              <div className="bg-primary/5 text-primary border border-primary/10 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5" />
+                <span>{activeUser.name ? activeUser.name.split(' (')[0] : activeUser.email}</span>
+              </div>
+              <button 
+                onClick={onLogout}
+                className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-lg cursor-pointer transition-all"
+                title="Sign out profile"
+              >
+                <LogOut className="h-4.5 w-4.5" />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => onNavigate('/login')}
+              className="bg-primary text-white font-bold px-4 py-1.5 rounded-lg text-xs uppercase tracking-wider hover:bg-primary/90 transition-all cursor-pointer shadow-3xs flex items-center gap-1.5"
+            >
+              <User className="h-3.5 w-3.5" />
+              <span>Sign In</span>
+            </button>
+          )}
         </div>
       </header>
 

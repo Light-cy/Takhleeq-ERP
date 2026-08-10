@@ -34,7 +34,7 @@ import { User as ERPUser } from '../../types';
 interface StaffLayoutProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  activeUser: ERPUser;
+  activeUser: ERPUser | null;
   hasPermission: (permission: string) => boolean;
   onNavigate: (path: string) => void;
   onLogout: () => void;
@@ -43,6 +43,7 @@ interface StaffLayoutProps {
   cohortsList?: any[];
   selectedCohortId?: number | null;
   setSelectedCohortId?: (id: number) => void;
+  currentPath?: string;
 }
 
 export const StaffLayout: React.FC<StaffLayoutProps> = ({
@@ -55,7 +56,8 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
   children,
   cohortsList = [],
   selectedCohortId = null,
-  setSelectedCohortId
+  setSelectedCohortId,
+  currentPath
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
@@ -84,8 +86,8 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
               <Shield className="h-4.5 w-4.5 text-primary" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-xs font-black text-gray-800 truncate leading-tight">{activeUser.name.split(' (')[0]}</h3>
-              <p className="text-[10px] text-primary font-bold mt-0.5">{activeUser.role}</p>
+              <h3 className="text-xs font-black text-gray-800 truncate leading-tight">{activeUser?.name ? activeUser.name.split(' (')[0] : (activeUser?.email || 'Staff Member')}</h3>
+              <p className="text-[10px] text-primary font-bold mt-0.5">{activeUser?.role || 'Staff'}</p>
             </div>
           </div>
         </div>
@@ -290,9 +292,14 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
 
                     {/* Sessions */}
                     <button
-                      onClick={() => setActiveTab('cohort_sessions')}
+                      onClick={() => {
+                        setActiveTab('cohort_sessions');
+                        if (currentPath && currentPath.startsWith('/admin/sessions')) {
+                          onNavigate('/staff/dashboard');
+                        }
+                      }}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        activeTab === 'cohort_sessions' 
+                        activeTab === 'cohort_sessions' || (currentPath && currentPath.startsWith('/admin/sessions'))
                           ? 'bg-primary text-white shadow-3xs' 
                           : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                       }`}
@@ -315,21 +322,6 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                       <span className="flex items-center gap-2">
                         <CheckSquare className="h-3.5 w-3.5" />
                         Assignments
-                      </span>
-                    </button>
-
-                    {/* Attendance */}
-                    <button
-                      onClick={() => setActiveTab('cohort_attendance')}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        activeTab === 'cohort_attendance' 
-                          ? 'bg-primary text-white shadow-3xs' 
-                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <Clock className="h-3.5 w-3.5" />
-                        Attendance
                       </span>
                     </button>
 

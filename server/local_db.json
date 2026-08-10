@@ -2,66 +2,53 @@
   "users": [
     {
       "id": 1,
-      "microsoft_id": null,
-      "email": "director@takhleeq.pk",
-      "full_name": "Dr. Qaseeb (Director)",
+      "microsoft_id": "abbd6c927fe2a7fa",
+      "email": "qaseebahmed@gmail.com",
+      "full_name": "Qaseeb Ahmed",
+      "password": "Tk#304544",
       "is_active": true,
-      "last_login": "2026-07-23T11:58:47.363Z",
-      "created_at": "2026-07-23T11:58:47.363Z"
+      "last_login": "2026-08-09T16:25:25.140Z",
+      "created_at": "2026-08-09T13:44:11.773Z"
     },
     {
       "id": 2,
-      "microsoft_id": null,
-      "email": "manager@takhleeq.pk",
-      "full_name": "Syed Usman (Booking Manager)",
+      "microsoft_id": "2cbac3e25eba7eb4",
+      "email": "l8ght789@gmail.com",
+      "full_name": "manager",
+      "password": null,
       "is_active": true,
-      "last_login": "2026-07-23T11:58:47.363Z",
-      "created_at": "2026-07-23T11:58:47.363Z"
+      "last_login": "2026-08-09T14:02:57.805Z",
+      "created_at": "2026-08-09T14:00:26.762Z"
     },
     {
       "id": 3,
-      "microsoft_id": null,
-      "email": "coordinator@takhleeq.pk",
-      "full_name": "Sara Khan (Coordinator)",
+      "microsoft_id": "FounderPass123!",
+      "email": "ayesha@techstartup.pk",
+      "full_name": "Ayesha Malik",
+      "password": "Tk#912843",
       "is_active": true,
-      "last_login": "2026-07-23T11:58:47.363Z",
-      "created_at": "2026-07-23T11:58:47.363Z"
+      "last_login": "2026-08-09T14:24:36.814Z",
+      "created_at": "2026-08-09T14:23:02.455Z"
     },
     {
       "id": 4,
       "microsoft_id": null,
-      "email": "usman@society.pk",
-      "full_name": "Usman Ghani (Society Rep)",
+      "email": "director@takhleeq.pk",
+      "full_name": "Director",
+      "password": "admin",
       "is_active": true,
-      "last_login": "2026-07-23T11:58:47.363Z",
-      "created_at": "2026-07-23T11:58:47.363Z"
+      "last_login": "2026-08-09T14:27:37.005Z",
+      "created_at": "2026-08-09T14:27:37.005Z"
     },
     {
       "id": 5,
       "microsoft_id": null,
-      "email": "faisal@ucp.edu.pk",
-      "full_name": "Faisal Mehmood (Coordinator)",
+      "email": "tariq@healthtech.pk",
+      "full_name": "Tariq Mahmood",
+      "password": "MySecurePassword2026!",
       "is_active": true,
-      "last_login": "2026-07-23T11:58:47.363Z",
-      "created_at": "2026-07-23T11:58:47.363Z"
-    },
-    {
-      "id": 6,
-      "microsoft_id": null,
-      "email": "maheen@ucp.edu.pk",
-      "full_name": "Maheen Malik (Manager)",
-      "is_active": true,
-      "last_login": "2026-07-23T11:58:47.363Z",
-      "created_at": "2026-07-23T11:58:47.363Z"
-    },
-    {
-      "id": 7,
-      "microsoft_id": null,
-      "email": "banned-test@ucp.edu.pk",
-      "full_name": "Banned Student (Testing)",
-      "is_active": false,
-      "last_login": "2026-07-23T11:58:47.363Z",
-      "created_at": "2026-07-23T11:58:47.363Z"
+      "last_login": "2026-08-09T14:27:37.026Z",
+      "created_at": "2026-08-09T14:27:37.026Z"
     }
   ],
   "roles": [
@@ -148,6 +135,19 @@
       "ban_duration_ceiling": "0",
       "created_by": null,
       "created_at": "2026-07-23T11:58:47.363Z"
+    },
+    {
+      "id": 6,
+      "name": "Cohort Founder",
+      "description": "Enrolled startup founder with access to Cohort Self-Service dashboard",
+      "permissions": [
+        "cohort:profile_write",
+        "cohort:feedback_submit",
+        "cohort:assignment_upload"
+      ],
+      "ban_duration_ceiling": null,
+      "created_by": null,
+      "created_at": "2026-08-09T14:25:05.759Z"
     }
   ],
   "user_roles": [
@@ -160,24 +160,559 @@
       "role_id": 2
     },
     {
-      "user_id": 3,
-      "role_id": 3
-    },
-    {
       "user_id": 4,
-      "role_id": 4
+      "role_id": 1
+    }
+  ],
+  "cohorts": [
+    {
+      "id": 1,
+      "name": "Cohort 1",
+      "status": "ACTIVE",
+      "created_at": "2026-08-09T14:15:19.814Z"
+    }
+  ],
+  "applicants": [
+    {
+      "id": 1,
+      "tracking_token": "TK-STR-4397",
+      "name": "new",
+      "email": "qaseebahmed@gmail.com",
+      "phone": "1111-1111111",
+      "cnic": "11111-1111111-1",
+      "startup_name": "new",
+      "startup_description": "new",
+      "status": "ENROLLED",
+      "program_status": "ACTIVE",
+      "panel_scores": null,
+      "parent_applicant_id": null,
+      "form_data": {
+        "field_q2_venture_type": "Product-based",
+        "field_q4_services": "new",
+        "field_q5_business_model": "new",
+        "field_q6_discovery": "Email",
+        "field_q7_stage": "Idea stage",
+        "field_q8_team_size": "2",
+        "field_q10_father_name": "new",
+        "field_q11_gender": "Male",
+        "field_q14_roll_number": "new",
+        "field_q16_location": "new",
+        "field_q17_postal_address": "new",
+        "field_q18_team_role": "new",
+        "field_q19_skillset": "new",
+        "field_q20_linkedin": "new",
+        "field_q21_past_projects": "new",
+        "field_q22_status": "Current Student/Faculty/Staff",
+        "field_q23_batch_year": "2022",
+        "field_q24_department": "new",
+        "field_q25_degree": "new",
+        "field_q26_working": "No",
+        "field_q27_work_details": "new"
+      },
+      "orientation_conducted": false,
+      "cohort_id": 1,
+      "created_at": "2026-08-09T14:09:03.956Z",
+      "founder_password": "Tk#304544"
+    }
+  ],
+  "cohort_sessions": [],
+  "session_attendance": [],
+  "team_checkins": [],
+  "performance_warnings": [],
+  "assignments": [],
+  "assignment_submissions": [],
+  "session_feedback": [],
+  "bookings": [],
+  "ban_records": [],
+  "audit_logs": [
+    {
+      "id": 1,
+      "actor_email": "director@takhleeq.pk",
+      "action": "APPROVED_BOOKING",
+      "target_type": "BOOKING",
+      "target_id": "BK-2026-003",
+      "details": "Approved booking request for Cohort 1 Orientation Briefing in Board Room",
+      "created_at": "2026-07-20T09:00:00.000Z"
     },
     {
-      "user_id": 5,
-      "role_id": 3
+      "id": 2,
+      "actor_email": "manager@takhleeq.pk",
+      "action": "APPROVED_BOOKING",
+      "target_type": "BOOKING",
+      "target_id": "BK-2026-004",
+      "details": "Approved Mentor Advisory Session booking in Cube 1",
+      "created_at": "2026-07-21T09:00:00.000Z"
     },
     {
-      "user_id": 6,
-      "role_id": 2
+      "id": 3,
+      "actor_email": "director@takhleeq.pk",
+      "action": "UPDATE_POLICY",
+      "target_type": "SETTINGS",
+      "target_id": "1",
+      "details": "Updated local database configuration to offline JSON storage mode",
+      "created_at": "2026-07-22T05:00:00.000Z"
     },
     {
-      "user_id": 7,
-      "role_id": 4
+      "id": 4,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T13:58:07.515Z"
+    },
+    {
+      "id": 5,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T13:58:07.685Z"
+    },
+    {
+      "id": 6,
+      "action": "Created User Account: manager (l8ght789@gmail.com) with role Booking Manager",
+      "entity_type": "user",
+      "entity_id": "2",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": {
+        "email": "l8ght789@gmail.com",
+        "name": "manager",
+        "role": "Booking Manager",
+        "status": "Active"
+      },
+      "timestamp": "2026-08-09T14:00:26.763Z"
+    },
+    {
+      "id": 7,
+      "action": "User signed in via Microsoft SSO: Light Yagami (l8ght789@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "2",
+      "actor_email": "l8ght789@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:02:57.735Z"
+    },
+    {
+      "id": 8,
+      "action": "User signed in via Microsoft SSO: Light Yagami (l8ght789@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "2",
+      "actor_email": "l8ght789@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:02:57.806Z"
+    },
+    {
+      "id": 9,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:04:06.450Z"
+    },
+    {
+      "id": 10,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:04:31.707Z"
+    },
+    {
+      "id": 11,
+      "action": "New startup application submitted: 'new' by founder new. Token: TK-STR-4397",
+      "entity_type": "applicant",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": {
+        "tracking_token": "TK-STR-4397",
+        "startup_name": "new",
+        "parent_linked": false
+      },
+      "timestamp": "2026-08-09T14:09:03.958Z"
+    },
+    {
+      "id": 12,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:09:34.566Z"
+    },
+    {
+      "id": 13,
+      "action": "Status updated for startup 'new': Changed status from 'SUBMITTED' to 'UNDER_REVIEW' (program_status: 'NOT_ENROLLED').",
+      "entity_type": "applicant_status",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "previousStatus": "SUBMITTED",
+        "previousProgramStatus": "NOT_ENROLLED",
+        "previousCohort": null
+      },
+      "new_value": {
+        "newStatus": "UNDER_REVIEW",
+        "newProgramStatus": "NOT_ENROLLED",
+        "cohort_id": null,
+        "remarks": null,
+        "include_in_email": true
+      },
+      "timestamp": "2026-08-09T14:09:51.814Z"
+    },
+    {
+      "id": 14,
+      "action": "Status updated for startup 'new': Changed status from 'UNDER_REVIEW' to 'SHORTLISTED_FOR_PRESENTATION' (program_status: 'NOT_ENROLLED').",
+      "entity_type": "applicant_status",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "previousStatus": "UNDER_REVIEW",
+        "previousProgramStatus": "NOT_ENROLLED",
+        "previousCohort": null
+      },
+      "new_value": {
+        "newStatus": "SHORTLISTED_FOR_PRESENTATION",
+        "newProgramStatus": "NOT_ENROLLED",
+        "cohort_id": null,
+        "remarks": null,
+        "include_in_email": true
+      },
+      "timestamp": "2026-08-09T14:09:54.517Z"
+    },
+    {
+      "id": 15,
+      "action": "Status updated for startup 'new': Changed status from 'SHORTLISTED_FOR_PRESENTATION' to 'PRESENTATION_CONDUCTED' (program_status: 'NOT_ENROLLED').",
+      "entity_type": "applicant_status",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "previousStatus": "SHORTLISTED_FOR_PRESENTATION",
+        "previousProgramStatus": "NOT_ENROLLED",
+        "previousCohort": null
+      },
+      "new_value": {
+        "newStatus": "PRESENTATION_CONDUCTED",
+        "newProgramStatus": "NOT_ENROLLED",
+        "cohort_id": null,
+        "remarks": null,
+        "include_in_email": true
+      },
+      "timestamp": "2026-08-09T14:09:56.666Z"
+    },
+    {
+      "id": 16,
+      "action": "Status updated for startup 'new': Changed status from 'PRESENTATION_CONDUCTED' to 'CONDITIONAL_ACCEPTED' (program_status: 'NOT_ENROLLED').",
+      "entity_type": "applicant_status",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "previousStatus": "PRESENTATION_CONDUCTED",
+        "previousProgramStatus": "NOT_ENROLLED",
+        "previousCohort": null
+      },
+      "new_value": {
+        "newStatus": "CONDITIONAL_ACCEPTED",
+        "newProgramStatus": "NOT_ENROLLED",
+        "cohort_id": null,
+        "remarks": null,
+        "include_in_email": true
+      },
+      "timestamp": "2026-08-09T14:09:58.912Z"
+    },
+    {
+      "id": 17,
+      "action": "Status updated for startup 'new': Changed status from 'CONDITIONAL_ACCEPTED' to 'ACCEPTED' (program_status: 'NOT_ENROLLED').",
+      "entity_type": "applicant_status",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "previousStatus": "CONDITIONAL_ACCEPTED",
+        "previousProgramStatus": "NOT_ENROLLED",
+        "previousCohort": null
+      },
+      "new_value": {
+        "newStatus": "ACCEPTED",
+        "newProgramStatus": "NOT_ENROLLED",
+        "cohort_id": null,
+        "remarks": null,
+        "include_in_email": true
+      },
+      "timestamp": "2026-08-09T14:10:01.299Z"
+    },
+    {
+      "id": 18,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:14:59.428Z"
+    },
+    {
+      "id": 19,
+      "action": "Created new incubation cohort: 'Cohort 1' with status 'ACTIVE'",
+      "entity_type": "cohort",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": {
+        "id": 1,
+        "name": "Cohort 1",
+        "status": "ACTIVE",
+        "created_at": "2026-08-09T14:15:19.814Z"
+      },
+      "timestamp": "2026-08-09T14:15:19.815Z"
+    },
+    {
+      "id": 20,
+      "action": "Status updated for startup 'new': Changed status from 'ACCEPTED' to 'CONFIRMED' (program_status: 'ACTIVE').",
+      "entity_type": "applicant_status",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "previousStatus": "ACCEPTED",
+        "previousProgramStatus": "NOT_ENROLLED",
+        "previousCohort": null
+      },
+      "new_value": {
+        "newStatus": "CONFIRMED",
+        "newProgramStatus": "ACTIVE",
+        "cohort_id": 1,
+        "remarks": null,
+        "include_in_email": true
+      },
+      "timestamp": "2026-08-09T14:15:49.391Z"
+    },
+    {
+      "id": 21,
+      "action": "Status updated for startup 'new': Changed status from 'CONFIRMED' to 'ORIENTATION_CONDUCTED' (program_status: 'ACTIVE').",
+      "entity_type": "applicant_status",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "previousStatus": "CONFIRMED",
+        "previousProgramStatus": "ACTIVE",
+        "previousCohort": 1
+      },
+      "new_value": {
+        "newStatus": "ORIENTATION_CONDUCTED",
+        "newProgramStatus": "ACTIVE",
+        "cohort_id": 1,
+        "remarks": null,
+        "include_in_email": true
+      },
+      "timestamp": "2026-08-09T14:15:53.369Z"
+    },
+    {
+      "id": 22,
+      "action": "Status updated for startup 'new': Changed status from 'ORIENTATION_CONDUCTED' to 'ENROLLED' (program_status: 'ACTIVE').",
+      "entity_type": "applicant_status",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "previousStatus": "ORIENTATION_CONDUCTED",
+        "previousProgramStatus": "ACTIVE",
+        "previousCohort": 1
+      },
+      "new_value": {
+        "newStatus": "ENROLLED",
+        "newProgramStatus": "ACTIVE",
+        "cohort_id": 1,
+        "remarks": null,
+        "include_in_email": true
+      },
+      "timestamp": "2026-08-09T14:15:56.352Z"
+    },
+    {
+      "id": 23,
+      "action": "Founder credentials updated/sent for startup 'new' (qaseebahmed@gmail.com).",
+      "entity_type": "applicant_credentials",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:16:10.272Z"
+    },
+    {
+      "id": 24,
+      "action": "New startup application submitted: 'EduAI Systems' by founder Ayesha Malik. Token: TK-STR-6783",
+      "entity_type": "applicant",
+      "entity_id": "2",
+      "actor_email": "ayesha@techstartup.pk",
+      "previous_value": null,
+      "new_value": {
+        "tracking_token": "TK-STR-6783",
+        "startup_name": "EduAI Systems",
+        "parent_linked": false
+      },
+      "timestamp": "2026-08-09T14:23:02.428Z"
+    },
+    {
+      "id": 25,
+      "action": "Founder credentials updated/sent for startup 'EduAI Systems' (ayesha@techstartup.pk).",
+      "entity_type": "applicant_credentials",
+      "entity_id": "2",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:23:05.359Z"
+    },
+    {
+      "id": 26,
+      "action": "Founder credentials updated/sent for startup 'EduAI Systems' (ayesha@techstartup.pk).",
+      "entity_type": "applicant_credentials",
+      "entity_id": "2",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:23:41.348Z"
+    },
+    {
+      "id": 27,
+      "action": "Founder credentials updated/sent for startup 'EduAI Systems' (ayesha@techstartup.pk).",
+      "entity_type": "applicant_credentials",
+      "entity_id": "2",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:24:39.795Z"
+    },
+    {
+      "id": 28,
+      "action": "New startup application submitted: 'HealthAI Clinic' by founder Tariq Mahmood. Token: TK-STR-5963",
+      "entity_type": "applicant",
+      "entity_id": "3",
+      "actor_email": "tariq@healthtech.pk",
+      "previous_value": null,
+      "new_value": {
+        "tracking_token": "TK-STR-5963",
+        "startup_name": "HealthAI Clinic",
+        "parent_linked": false
+      },
+      "timestamp": "2026-08-09T14:27:36.986Z"
+    },
+    {
+      "id": 29,
+      "action": "Founder credentials updated/sent for startup 'HealthAI Clinic' (tariq@healthtech.pk).",
+      "entity_type": "applicant_credentials",
+      "entity_id": "3",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:27:40.381Z"
+    },
+    {
+      "id": 30,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:31:18.486Z"
+    },
+    {
+      "id": 31,
+      "action": "Status updated for startup 'EduAI Systems': Changed status from 'SUBMITTED' to 'REJECTED' (program_status: 'NOT_ENROLLED').",
+      "entity_type": "applicant_status",
+      "entity_id": "2",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "previousStatus": "SUBMITTED",
+        "previousProgramStatus": "NOT_ENROLLED",
+        "previousCohort": null
+      },
+      "new_value": {
+        "newStatus": "REJECTED",
+        "newProgramStatus": "NOT_ENROLLED",
+        "cohort_id": 1,
+        "remarks": null,
+        "include_in_email": true
+      },
+      "timestamp": "2026-08-09T14:31:48.076Z"
+    },
+    {
+      "id": 32,
+      "action": "Status updated for startup 'HealthAI Clinic': Changed status from 'SUBMITTED' to 'REJECTED' (program_status: 'NOT_ENROLLED').",
+      "entity_type": "applicant_status",
+      "entity_id": "3",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "previousStatus": "SUBMITTED",
+        "previousProgramStatus": "NOT_ENROLLED",
+        "previousCohort": null
+      },
+      "new_value": {
+        "newStatus": "REJECTED",
+        "newProgramStatus": "NOT_ENROLLED",
+        "cohort_id": 1,
+        "remarks": null,
+        "include_in_email": true
+      },
+      "timestamp": "2026-08-09T14:32:02.363Z"
+    },
+    {
+      "id": 33,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:33:18.765Z"
+    },
+    {
+      "id": 34,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T14:40:51.752Z"
+    },
+    {
+      "id": 35,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T15:21:48.995Z"
+    },
+    {
+      "id": 36,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T16:17:51.944Z"
+    },
+    {
+      "id": 37,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-09T16:25:25.144Z"
     }
   ],
   "rooms": [
@@ -192,7 +727,8 @@
       "purpose": "Formal executive meetings and syndicate sessions",
       "policies": "Authorized UCP societies and startups only. Strictly no external foods allowed. Leave room clean.",
       "is_active": true,
-      "created_at": "2026-07-23T11:58:47.363Z"
+      "created_at": "2026-07-23T11:58:47.363Z",
+      "allowed_booking_types": "[\"Startup teams\",\"Faculty members\",\"Department representatives\",\"Cohort members\",\"Entrepreneurs in residence\",\"Professionals in residence\",\"Cohort Startup\",\"Department\"]"
     },
     {
       "id": 2,
@@ -205,7 +741,8 @@
       "purpose": "Large cohort presentations, talks, and community panels",
       "policies": "Pre-approval from Faculty advisor required. Keep setup reset after use.",
       "is_active": true,
-      "created_at": "2026-07-23T11:58:47.363Z"
+      "created_at": "2026-07-23T11:58:47.363Z",
+      "allowed_booking_types": "[\"Student societies\",\"Startup teams\",\"Faculty members\",\"Department representatives\",\"Cohort members\",\"Entrepreneurs in residence\",\"Professionals in residence\",\"Meeting / Event\",\"Cohort Startup\",\"Department\"]"
     },
     {
       "id": 3,
@@ -218,7 +755,8 @@
       "purpose": "Small meetings and focused discussions",
       "policies": "Leave room clean. No loud noise.",
       "is_active": true,
-      "created_at": "2026-07-23T11:58:47.364Z"
+      "created_at": "2026-07-23T11:58:47.364Z",
+      "allowed_booking_types": "[\"Student societies\",\"Startup teams\",\"Faculty members\",\"Department representatives\",\"Cohort members\",\"Entrepreneurs in residence\",\"Professionals in residence\",\"Meeting / Event\",\"Cohort Startup\",\"Department\"]"
     },
     {
       "id": 4,
@@ -231,7 +769,8 @@
       "purpose": "Small meetings and focused discussions",
       "policies": "Leave room clean. No loud noise.",
       "is_active": true,
-      "created_at": "2026-07-23T11:58:47.364Z"
+      "created_at": "2026-07-23T11:58:47.364Z",
+      "allowed_booking_types": "[\"Student societies\",\"Startup teams\",\"Faculty members\",\"Department representatives\",\"Cohort members\",\"Entrepreneurs in residence\",\"Professionals in residence\",\"Meeting / Event\",\"Cohort Startup\",\"Department\"]"
     },
     {
       "id": 5,
@@ -244,7 +783,8 @@
       "purpose": "Podcast recording and audio sessions",
       "policies": "Technical staff assistance must be booked separately.",
       "is_active": true,
-      "created_at": "2026-07-23T11:58:47.364Z"
+      "created_at": "2026-07-23T11:58:47.364Z",
+      "allowed_booking_types": "[\"Student societies\",\"Startup teams\",\"Faculty members\",\"Department representatives\",\"Cohort members\",\"Entrepreneurs in residence\",\"Professionals in residence\",\"Meeting / Event\",\"Cohort Startup\",\"Department\"]"
     }
   ],
   "booking_types": [
@@ -309,667 +849,451 @@
       "is_active": true
     }
   ],
-  "bookings": [
-    {
-      "id": 1,
-      "booking_id": "BK-2026-001",
-      "requester_name": "Usman Ghani",
-      "requester_email": "usman@society.pk",
-      "requester_phone": "0300-1112223",
-      "organization_name": "ACM Student Chapter",
-      "room_id": 1,
-      "booking_type": "Student societies",
-      "event_title": "ACM Executive Council Sync",
-      "event_description": "Planning upcoming Hackathon 2026 and assigning operational committees.",
-      "date": "2026-07-25",
-      "start_time": "10:00:00",
-      "end_time": "11:30:00",
-      "expected_attendance": 12,
-      "status": "PENDING_REVIEW",
-      "conflict_status": "CLEAR",
-      "conflicting_booking_id": null,
-      "rejection_reason": null,
-      "approved_by": null,
-      "decision_reason": null,
-      "reviewed_at": null,
-      "created_at": "2026-07-21T10:00:00.000Z"
-    },
-    {
-      "id": 2,
-      "booking_id": "BK-2026-002",
-      "requester_name": "Ayesha Malik",
-      "requester_email": "ayesha@fintech.pk",
-      "requester_phone": "0321-7654321",
-      "organization_name": "PaisaFlow Startup",
-      "room_id": 2,
-      "booking_type": "Startup teams",
-      "event_title": "PaisaFlow Pitch Rehearsal",
-      "event_description": "Dry run presentation ahead of investor demo day.",
-      "date": "2026-07-26",
-      "start_time": "14:00:00",
-      "end_time": "16:00:00",
-      "expected_attendance": 25,
-      "status": "PENDING_REVIEW",
-      "conflict_status": "CLEAR",
-      "conflicting_booking_id": null,
-      "rejection_reason": null,
-      "approved_by": null,
-      "decision_reason": null,
-      "reviewed_at": null,
-      "created_at": "2026-07-21T11:15:00.000Z"
-    },
-    {
-      "id": 3,
-      "booking_id": "BK-2026-003",
-      "requester_name": "Dr. Qaseeb Ahmed",
-      "requester_email": "director@takhleeq.pk",
-      "requester_phone": "0300-9998887",
-      "organization_name": "Takhleeq Incubation Center",
-      "room_id": 1,
-      "booking_type": "Cohort Startup",
-      "event_title": "Cohort 1 Orientation Briefing",
-      "event_description": "Official welcome session and milestone review with inducted startups.",
-      "date": "2026-07-22",
-      "start_time": "10:00:00",
-      "end_time": "12:00:00",
-      "expected_attendance": 15,
-      "status": "APPROVED",
-      "conflict_status": "CLEAR",
-      "conflicting_booking_id": null,
-      "rejection_reason": null,
-      "approved_by": 1,
-      "decision_reason": "Approved for incubator operations",
-      "reviewed_at": "2026-07-20T09:00:00.000Z",
-      "created_at": "2026-07-20T08:00:00.000Z"
-    },
-    {
-      "id": 4,
-      "booking_id": "BK-2026-004",
-      "requester_name": "Syed Usman",
-      "requester_email": "manager@takhleeq.pk",
-      "requester_phone": "0333-4445556",
-      "organization_name": "Takhleeq Operations",
-      "room_id": 3,
-      "booking_type": "Faculty members",
-      "event_title": "Mentor Advisory Session",
-      "event_description": "One-on-one mentorship clinic with resident industry experts.",
-      "date": "2026-07-23",
-      "start_time": "11:00:00",
-      "end_time": "12:00:00",
-      "expected_attendance": 4,
-      "status": "APPROVED",
-      "conflict_status": "CLEAR",
-      "conflicting_booking_id": null,
-      "rejection_reason": null,
-      "approved_by": 1,
-      "decision_reason": "Regular mentor clinic session",
-      "reviewed_at": "2026-07-21T09:00:00.000Z",
-      "created_at": "2026-07-21T08:00:00.000Z"
-    }
-  ],
-  "ban_records": [],
-  "audit_logs": [
-    {
-      "id": 1,
-      "actor_email": "director@takhleeq.pk",
-      "action": "APPROVED_BOOKING",
-      "target_type": "BOOKING",
-      "target_id": "BK-2026-003",
-      "details": "Approved booking request for Cohort 1 Orientation Briefing in Board Room",
-      "created_at": "2026-07-20T09:00:00.000Z"
-    },
-    {
-      "id": 2,
-      "actor_email": "manager@takhleeq.pk",
-      "action": "APPROVED_BOOKING",
-      "target_type": "BOOKING",
-      "target_id": "BK-2026-004",
-      "details": "Approved Mentor Advisory Session booking in Cube 1",
-      "created_at": "2026-07-21T09:00:00.000Z"
-    },
-    {
-      "id": 3,
-      "actor_email": "director@takhleeq.pk",
-      "action": "UPDATE_POLICY",
-      "target_type": "SETTINGS",
-      "target_id": "1",
-      "details": "Updated local database configuration to offline JSON storage mode",
-      "created_at": "2026-07-22T05:00:00.000Z"
-    },
-    {
-      "id": 4,
-      "action": "New startup application submitted: 'VisionAP' by founder Meerab Tahir. Token: TK-STR-8432",
-      "entity_type": "applicant",
-      "entity_id": "6",
-      "actor_email": "meerabtahir18@gmail.com",
-      "previous_value": null,
-      "new_value": {
-        "tracking_token": "TK-STR-8432",
-        "startup_name": "VisionAP",
-        "parent_linked": false
-      },
-      "timestamp": "2026-07-23T12:13:52.899Z"
-    },
-    {
-      "id": 5,
-      "action": "Updated dynamic application form settings: form is now OFFLINE with 6 dynamic fields.",
-      "entity_type": "cohort_form",
-      "entity_id": "settings",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": null,
-      "new_value": {
-        "is_active": false,
-        "fieldsCount": 6
-      },
-      "timestamp": "2026-07-23T12:19:25.428Z"
-    },
-    {
-      "id": 6,
-      "action": "Updated dynamic application form settings: form is now ONLINE with 6 dynamic fields.",
-      "entity_type": "cohort_form",
-      "entity_id": "settings",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": null,
-      "new_value": {
-        "is_active": true,
-        "fieldsCount": 6
-      },
-      "timestamp": "2026-07-23T12:19:28.471Z"
-    },
-    {
-      "id": 7,
-      "action": "Logged admission panel scores for 'VisionAP': Avg Score = 8.5",
-      "entity_type": "applicant_scores",
-      "entity_id": "6",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": null,
-      "new_value": {
-        "viability": 9,
-        "team": 10,
-        "scalability": 6.5,
-        "average": 8.5
-      },
-      "timestamp": "2026-07-23T12:21:33.045Z"
-    },
-    {
-      "id": 8,
-      "action": "Orientation attendance updated for 'VisionAP': Marked as CONDUCTED.",
-      "entity_type": "applicant_orientation",
-      "entity_id": "6",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": null,
-      "new_value": {
-        "orientation_conducted": true
-      },
-      "timestamp": "2026-07-23T12:21:45.694Z"
-    },
-    {
-      "id": 9,
-      "action": "Logged admission panel scores for 'VisionAP': Avg Score = 8.5",
-      "entity_type": "applicant_scores",
-      "entity_id": "6",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": null,
-      "new_value": {
-        "viability": 9,
-        "team": 10,
-        "scalability": 6.5,
-        "average": 8.5
-      },
-      "timestamp": "2026-07-23T12:22:35.699Z"
-    },
-    {
-      "id": 10,
-      "action": "Created new incubation cohort: 'Cohort 2 (2027)' with status 'ACTIVE'",
-      "entity_type": "cohort",
-      "entity_id": "2",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": null,
-      "new_value": {
-        "id": 2,
-        "name": "Cohort 2 (2027)",
-        "status": "ACTIVE",
-        "created_at": "2026-07-23T12:24:48.437Z"
-      },
-      "timestamp": "2026-07-23T12:24:48.437Z"
-    },
-    {
-      "id": 11,
-      "action": "Orientation attendance updated for 'VisionAP': Marked as NOT CONDUCTED.",
-      "entity_type": "applicant_orientation",
-      "entity_id": "6",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": null,
-      "new_value": {
-        "orientation_conducted": false
-      },
-      "timestamp": "2026-07-23T12:41:36.880Z"
-    },
-    {
-      "id": 12,
-      "action": "Orientation attendance updated for 'VisionAP': Marked as CONDUCTED.",
-      "entity_type": "applicant_orientation",
-      "entity_id": "6",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": null,
-      "new_value": {
-        "orientation_conducted": true
-      },
-      "timestamp": "2026-07-23T12:42:11.015Z"
-    },
-    {
-      "id": 13,
-      "action": "Logged admission panel scores for 'Dars-e-Nau': Avg Score = 5",
-      "entity_type": "applicant_scores",
-      "entity_id": "3",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": null,
-      "new_value": {
-        "viability": 5,
-        "team": 5,
-        "scalability": 5,
-        "average": 5
-      },
-      "timestamp": "2026-07-23T12:45:00.795Z"
-    },
-    {
-      "id": 14,
-      "action": "Logged admission panel scores for 'Dars-e-Nau': Avg Score = 5.17",
-      "entity_type": "applicant_scores",
-      "entity_id": "3",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": null,
-      "new_value": {
-        "viability": 5.5,
-        "team": 5,
-        "scalability": 5,
-        "average": 5.17
-      },
-      "timestamp": "2026-07-23T13:13:55.927Z"
-    },
-    {
-      "id": 15,
-      "action": "Status updated for startup 'Dars-e-Nau': Changed status from 'IN_REVIEW' to 'BACKUP_CANDIDATE' (program_status: 'NOT_ENROLLED').",
-      "entity_type": "applicant_status",
-      "entity_id": "3",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": {
-        "previousStatus": "IN_REVIEW",
-        "previousProgramStatus": "NOT_ENROLLED",
-        "previousCohort": null
-      },
-      "new_value": {
-        "newStatus": "BACKUP_CANDIDATE",
-        "newProgramStatus": "NOT_ENROLLED",
-        "cohort_id": 1
-      },
-      "timestamp": "2026-07-23T13:14:32.454Z"
-    },
-    {
-      "id": 16,
-      "action": "Status updated for startup 'Dars-e-Nau': Changed status from 'BACKUP_CANDIDATE' to 'BACKUP_CANDIDATE' (program_status: 'NOT_ENROLLED').",
-      "entity_type": "applicant_status",
-      "entity_id": "3",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": {
-        "previousStatus": "BACKUP_CANDIDATE",
-        "previousProgramStatus": "NOT_ENROLLED",
-        "previousCohort": 1
-      },
-      "new_value": {
-        "newStatus": "BACKUP_CANDIDATE",
-        "newProgramStatus": "NOT_ENROLLED",
-        "cohort_id": 1
-      },
-      "timestamp": "2026-07-23T13:14:32.644Z"
-    },
-    {
-      "id": 17,
-      "action": "Status updated for startup 'Dars-e-Nau': Changed status from 'BACKUP_CANDIDATE' to 'ACCEPTED' (program_status: 'NOT_ENROLLED').",
-      "entity_type": "applicant_status",
-      "entity_id": "3",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": {
-        "previousStatus": "BACKUP_CANDIDATE",
-        "previousProgramStatus": "NOT_ENROLLED",
-        "previousCohort": 1
-      },
-      "new_value": {
-        "newStatus": "ACCEPTED",
-        "newProgramStatus": "NOT_ENROLLED",
-        "cohort_id": 1
-      },
-      "timestamp": "2026-07-23T13:14:36.461Z"
-    },
-    {
-      "id": 18,
-      "action": "Status updated for startup 'Dars-e-Nau': Changed status from 'ACCEPTED' to 'ACCEPTED' (program_status: 'NOT_ENROLLED').",
-      "entity_type": "applicant_status",
-      "entity_id": "3",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": {
-        "previousStatus": "ACCEPTED",
-        "previousProgramStatus": "NOT_ENROLLED",
-        "previousCohort": 1
-      },
-      "new_value": {
-        "newStatus": "ACCEPTED",
-        "newProgramStatus": "NOT_ENROLLED",
-        "cohort_id": 1
-      },
-      "timestamp": "2026-07-23T13:14:36.573Z"
-    },
-    {
-      "id": 19,
-      "action": "New startup application submitted: 'Astor' by founder Ali Raza. Token: TK-STR-9762",
-      "entity_type": "applicant",
-      "entity_id": "7",
-      "actor_email": "meerabtahir18@gmail.com",
-      "previous_value": null,
-      "new_value": {
-        "tracking_token": "TK-STR-9762",
-        "startup_name": "Astor",
-        "parent_linked": true
-      },
-      "timestamp": "2026-07-23T13:35:50.463Z"
-    },
-    {
-      "id": 20,
-      "action": "Status updated for startup 'VisionAP': Changed status from 'IN_REVIEW' to 'CONFIRMED' (program_status: 'ACTIVE').",
-      "entity_type": "applicant_status",
-      "entity_id": "6",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": {
-        "previousStatus": "IN_REVIEW",
-        "previousProgramStatus": "NOT_ENROLLED",
-        "previousCohort": null
-      },
-      "new_value": {
-        "newStatus": "CONFIRMED",
-        "newProgramStatus": "ACTIVE",
-        "cohort_id": 1
-      },
-      "timestamp": "2026-07-23T14:23:00.494Z"
-    },
-    {
-      "id": 21,
-      "action": "Status updated for startup 'Astor': Changed status from '6' to 'UNDER_REVIEW' (program_status: '{}').",
-      "entity_type": "applicant_status",
-      "entity_id": "7",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": {
-        "previousStatus": 6,
-        "previousProgramStatus": "{}",
-        "previousCohort": null
-      },
-      "new_value": {
-        "newStatus": "UNDER_REVIEW",
-        "newProgramStatus": "{}",
-        "cohort_id": 1
-      },
-      "timestamp": "2026-07-23T14:26:52.583Z"
-    },
-    {
-      "id": 22,
-      "action": "Status updated for startup 'Astor': Changed status from 'UNDER_REVIEW' to 'APPLIED' (program_status: '{}').",
-      "entity_type": "applicant_status",
-      "entity_id": "7",
-      "actor_email": "director@takhleeq.pk",
-      "previous_value": {
-        "previousStatus": "UNDER_REVIEW",
-        "previousProgramStatus": "{}",
-        "previousCohort": 1
-      },
-      "new_value": {
-        "newStatus": "APPLIED",
-        "newProgramStatus": "{}",
-        "cohort_id": 1
-      },
-      "timestamp": "2026-07-23T14:26:59.992Z"
-    }
-  ],
-  "cohorts": [
-    {
-      "id": 1,
-      "name": "Takhleeq Cohort 1",
-      "status": "ACTIVE",
-      "created_at": "2026-07-23T11:59:20.004Z"
-    },
-    {
-      "id": 2,
-      "name": "Cohort 2 (2027)",
-      "status": "ACTIVE",
-      "created_at": "2026-07-23T12:24:48.437Z"
-    }
-  ],
   "cohort_form_settings": {
     "is_active": true,
     "fields": [
       {
         "id": "field_startup_name",
-        "label": "Startup Name",
+        "label": "Q1. What is the name of your startup?",
         "type": "text",
         "required": true,
-        "placeholder": "Enter your startup name"
+        "placeholder": "Enter startup name"
+      },
+      {
+        "id": "field_q2_venture_type",
+        "label": "Q2. Is this a product-based or service-based venture?",
+        "type": "select",
+        "required": true,
+        "options": [
+          "Product-based",
+          "Service-based",
+          "Hybrid / Both"
+        ]
       },
       {
         "id": "field_startup_desc",
-        "label": "Idea Description",
+        "label": "Q3. Describe your idea/startup. What does it do, and how does it work?",
+        "type": "textarea",
+        "required": true,
+        "placeholder": "Be concise but clear about your concept or business model"
+      },
+      {
+        "id": "field_q4_services",
+        "label": "Q4. If you’re providing services, describe your offerings and any clients you’ve worked with",
+        "type": "textarea",
+        "required": false,
+        "placeholder": "Describe service offerings and client history if applicable"
+      },
+      {
+        "id": "field_q5_business_model",
+        "label": "Q5. What is your business model? (e.g., B2B, B2C, subscription-based, etc.)",
         "type": "text",
         "required": true,
-        "placeholder": "Explain your business idea in 2-3 sentences"
+        "placeholder": "e.g. B2B SaaS, B2C Subscription, Marketplace commission"
+      },
+      {
+        "id": "field_q6_discovery",
+        "label": "Q6. How did you get to know about Takhleeq Cohort 11 Incubation Program?",
+        "type": "select",
+        "required": true,
+        "options": [
+          "Email",
+          "Takhleeq Socials",
+          "UCP Socials",
+          "Dean/hod/faculty email or word",
+          "Digital display across ucp (tv screens etc)"
+        ]
+      },
+      {
+        "id": "field_q7_stage",
+        "label": "Q7. What stage is your startup currently at?",
+        "type": "select",
+        "required": true,
+        "options": [
+          "Idea stage",
+          "Problem Discovery / validation",
+          "Proof of Concept / MVP",
+          "Post Revenue",
+          "Scale"
+        ]
+      },
+      {
+        "id": "field_q8_team_size",
+        "label": "Q8. Number of members in Team",
+        "type": "select",
+        "required": true,
+        "options": [
+          "Solo",
+          "2",
+          "3",
+          "4"
+        ]
       },
       {
         "id": "field_founder_name",
-        "label": "Team Lead Name",
+        "label": "Q9. Team lead name",
         "type": "text",
         "required": true,
         "placeholder": "Enter full name of the team lead"
       },
       {
+        "id": "field_q10_father_name",
+        "label": "Q10. Team Lead Father's Name",
+        "type": "text",
+        "required": true,
+        "placeholder": "Enter father's name"
+      },
+      {
+        "id": "field_q11_gender",
+        "label": "Q11. Team Lead's Gender",
+        "type": "select",
+        "required": true,
+        "options": [
+          "Male",
+          "Female"
+        ]
+      },
+      {
         "id": "field_founder_email",
-        "label": "Email Address",
+        "label": "Q12. Team Lead's Email",
         "type": "email",
         "required": true,
-        "placeholder": "Enter team lead email"
+        "placeholder": "Enter email address"
       },
       {
         "id": "field_founder_phone",
-        "label": "Phone Number",
+        "label": "Q13. Team Lead's Contact Number",
         "type": "phone",
         "required": true,
-        "placeholder": "e.g. 03xx-xxxxxxx"
+        "placeholder": "e.g. 0300-1234567"
+      },
+      {
+        "id": "field_q14_roll_number",
+        "label": "Q14. Team Lead's Roll Number",
+        "type": "text",
+        "required": false,
+        "placeholder": "Enter student roll number if applicable"
       },
       {
         "id": "field_founder_cnic",
-        "label": "CNIC Number",
+        "label": "Q15. Team Lead's CNIC/Passport Number",
         "type": "cnic",
         "required": true,
-        "placeholder": "e.g. 35201-xxxxxxx-x"
+        "placeholder": "e.g. 35201-1234567-1"
+      },
+      {
+        "id": "field_q16_location",
+        "label": "Q16. Team Lead's Location",
+        "type": "text",
+        "required": true,
+        "placeholder": "e.g. Lahore, Pakistan"
+      },
+      {
+        "id": "field_q17_postal_address",
+        "label": "Q17. Team Lead's Postal Address",
+        "type": "text",
+        "required": true,
+        "placeholder": "Enter full home/postal address"
+      },
+      {
+        "id": "field_q18_team_role",
+        "label": "Q18. Team Lead: Role in the Team",
+        "type": "text",
+        "required": true,
+        "placeholder": "e.g. Founder & CEO, Chief Technology Officer"
+      },
+      {
+        "id": "field_q19_skillset",
+        "label": "Q19. Team Lead: How does your skillset contribute to this venture?",
+        "type": "textarea",
+        "required": true,
+        "placeholder": "Explain technical, business or domain expertise"
+      },
+      {
+        "id": "field_q20_linkedin",
+        "label": "Q20. Team Lead: LinkedIn Profile (optional)",
+        "type": "text",
+        "required": false,
+        "placeholder": "https://linkedin.com/in/username"
+      },
+      {
+        "id": "field_q21_past_projects",
+        "label": "Q21. Team Lead: Have you worked on a project before? If yes, describe briefly.",
+        "type": "textarea",
+        "required": false,
+        "placeholder": "Describe previous projects, hackathons or research"
+      },
+      {
+        "id": "field_q22_status",
+        "label": "Q22. Team Lead: What's your current status?",
+        "type": "select",
+        "required": true,
+        "options": [
+          "Current Student/Faculty/Staff",
+          "Alumni Student"
+        ]
+      },
+      {
+        "id": "field_q23_batch_year",
+        "label": "Q23. What is your batch's starting year",
+        "type": "text",
+        "required": true,
+        "placeholder": "e.g. 2022"
+      },
+      {
+        "id": "field_q24_department",
+        "label": "Q24. Department",
+        "type": "text",
+        "required": true,
+        "placeholder": "e.g. Computer Science, Business School"
+      },
+      {
+        "id": "field_q25_degree",
+        "label": "Q25. Degree/Position",
+        "type": "text",
+        "required": true,
+        "placeholder": "e.g. BS Computer Science, Assistant Professor"
+      },
+      {
+        "id": "field_q26_working",
+        "label": "Q26. Are you currently working?",
+        "type": "select",
+        "required": true,
+        "options": [
+          "Yes",
+          "No"
+        ]
+      },
+      {
+        "id": "field_q27_work_details",
+        "label": "Q27. If Yes, Where are you working? Provide Company name and designation.",
+        "type": "text",
+        "required": false,
+        "placeholder": "Company name & designation if working"
       }
     ]
   },
-  "applicants": [
+  "applicant_stage_history": [
     {
       "id": 1,
-      "tracking_token": "TK-STR-7821",
-      "name": "Zohaib Niaz",
-      "email": "zohaib@startup.pk",
-      "phone": "0300-1234567",
-      "cnic": "35201-1234567-1",
-      "startup_name": "MedRoute",
-      "startup_description": "An AI-powered pharmaceutical route planner reducing delivery times by 40%.",
-      "cohort_id": 1,
-      "status": "CONFIRMED",
-      "program_status": "ACTIVE",
-      "panel_scores": {
-        "viability": 8,
-        "team": 9,
-        "scalability": 8,
-        "average": 8.3
-      },
-      "parent_applicant_id": null,
-      "form_data": {},
-      "orientation_conducted": true,
-      "created_at": "2026-07-20T00:00:00.000Z"
+      "applicant_id": 1,
+      "previous_stage": "qaseebahmed@gmail.com",
+      "comments": null,
+      "include_in_email": true,
+      "change_date": "2026-08-09T14:09:03.957Z"
     },
     {
       "id": 2,
-      "tracking_token": "TK-STR-5921",
-      "name": "Ayesha Malik",
-      "email": "ayesha@fintech.pk",
-      "phone": "0321-7654321",
-      "cnic": "35201-7654321-2",
-      "startup_name": "PaisaFlow",
-      "startup_description": "Micro-lending platform for small merchants using alternative credit scoring.",
-      "cohort_id": 1,
-      "status": "CONFIRMED",
-      "program_status": "ACTIVE",
-      "panel_scores": {
-        "viability": 9,
-        "team": 8,
-        "scalability": 9,
-        "average": 8.7
-      },
-      "parent_applicant_id": null,
-      "form_data": {},
-      "orientation_conducted": true,
-      "created_at": "2026-07-20T00:00:00.000Z"
+      "applicant_id": 1,
+      "previous_stage": "SUBMITTED",
+      "new_stage": "UNDER_REVIEW",
+      "updated_by_email": "qaseebahmed@gmail.com",
+      "comments": null,
+      "include_in_email": true,
+      "change_date": "2026-08-09T14:09:51.814Z"
     },
     {
       "id": 3,
-      "tracking_token": "TK-STR-4412",
-      "name": "Imran Khan",
-      "email": "imran@edtech.pk",
-      "phone": "0333-5551212",
-      "cnic": "35201-5551212-3",
-      "startup_name": "Dars-e-Nau",
-      "startup_description": "Localized video-based educational app for public school students in Urdu.",
-      "cohort_id": 1,
-      "status": "ACCEPTED",
-      "program_status": "NOT_ENROLLED",
-      "panel_scores": {
-        "viability": 5.5,
-        "team": 5,
-        "scalability": 5,
-        "average": 5.17
-      },
-      "parent_applicant_id": null,
-      "form_data": {},
-      "orientation_conducted": false,
-      "created_at": "2026-07-20T00:00:00.000Z"
+      "applicant_id": 1,
+      "previous_stage": "UNDER_REVIEW",
+      "new_stage": "SHORTLISTED_FOR_PRESENTATION",
+      "updated_by_email": "qaseebahmed@gmail.com",
+      "comments": null,
+      "include_in_email": true,
+      "change_date": "2026-08-09T14:09:54.516Z"
     },
     {
       "id": 4,
-      "tracking_token": "TK-STR-1092",
-      "name": "Qasim Ali",
-      "email": "qasim@agritech.pk",
-      "phone": "0345-9998887",
-      "cnic": "35201-9998887-4",
-      "startup_name": "AgriSense",
-      "startup_description": "IoT-enabled soil nutrient analysis probe for smallholder farmers.",
-      "cohort_id": null,
-      "status": "BACKUP_CANDIDATE",
-      "program_status": "NOT_ENROLLED",
-      "panel_scores": {
-        "viability": 7,
-        "team": 7,
-        "scalability": 7,
-        "average": 7
-      },
-      "parent_applicant_id": null,
-      "form_data": {},
-      "orientation_conducted": false,
-      "created_at": "2026-07-20T00:00:00.000Z"
+      "applicant_id": 1,
+      "previous_stage": "SHORTLISTED_FOR_PRESENTATION",
+      "new_stage": "PRESENTATION_CONDUCTED",
+      "updated_by_email": "qaseebahmed@gmail.com",
+      "comments": null,
+      "include_in_email": true,
+      "change_date": "2026-08-09T14:09:56.666Z"
     },
     {
       "id": 5,
-      "tracking_token": "TK-STR-2291",
-      "name": "Raza Jafar",
-      "email": "raza@delivery.pk",
-      "phone": "0312-3334445",
-      "cnic": "35201-3334445-5",
-      "startup_name": "LogiSwift",
-      "startup_description": "B2B express delivery aggregator connecting local freight vans.",
-      "cohort_id": null,
-      "status": "REJECTED",
-      "program_status": "NOT_ENROLLED",
-      "panel_scores": {
-        "viability": 4,
-        "team": 5,
-        "scalability": 4,
-        "average": 4.3
-      },
-      "parent_applicant_id": null,
-      "form_data": {},
-      "orientation_conducted": false,
-      "created_at": "2026-07-20T00:00:00.000Z"
+      "applicant_id": 1,
+      "previous_stage": "PRESENTATION_CONDUCTED",
+      "new_stage": "CONDITIONAL_ACCEPTED",
+      "updated_by_email": "qaseebahmed@gmail.com",
+      "comments": null,
+      "include_in_email": true,
+      "change_date": "2026-08-09T14:09:58.911Z"
     },
     {
       "id": 6,
-      "tracking_token": "TK-STR-8432",
-      "name": "Meerab Tahir",
-      "email": "meerabtahir18@gmail.com",
-      "phone": "0321-4743431",
-      "cnic": "35202-8654271-2",
-      "startup_name": "VisionAP",
-      "startup_description": "It is used to provide clear vision who cannot see their future ANYWHEREE.",
-      "status": "CONFIRMED",
-      "program_status": "ACTIVE",
-      "panel_scores": {
-        "viability": 9,
-        "team": 10,
-        "scalability": 6.5,
-        "average": 8.5
-      },
-      "parent_applicant_id": null,
-      "form_data": {},
-      "orientation_conducted": true,
-      "cohort_id": 1,
-      "created_at": "2026-07-23T12:13:52.898Z"
+      "applicant_id": 1,
+      "previous_stage": "CONDITIONAL_ACCEPTED",
+      "new_stage": "ACCEPTED",
+      "updated_by_email": "qaseebahmed@gmail.com",
+      "comments": null,
+      "include_in_email": true,
+      "change_date": "2026-08-09T14:10:01.298Z"
     },
     {
       "id": 7,
-      "tracking_token": "TK-STR-9762",
-      "name": "Ali Raza",
-      "email": "meerabtahir18@gmail.com",
-      "phone": "0321-4743431",
-      "cnic": "23423-5435435-4",
-      "startup_name": "Astor",
-      "startup_description": "we bring new ideas",
-      "status": "APPLIED",
-      "program_status": "NOT_ENROLLED",
-      "panel_scores": null,
-      "parent_applicant_id": null,
-      "form_data": {},
-      "orientation_conducted": false,
-      "cohort_id": 1,
-      "created_at": "2026-07-23T13:35:50.462Z"
+      "applicant_id": 1,
+      "previous_stage": "ACCEPTED",
+      "new_stage": "CONFIRMED",
+      "updated_by_email": "qaseebahmed@gmail.com",
+      "comments": null,
+      "include_in_email": true,
+      "change_date": "2026-08-09T14:15:49.391Z"
+    },
+    {
+      "id": 8,
+      "applicant_id": 1,
+      "previous_stage": "CONFIRMED",
+      "new_stage": "ORIENTATION_CONDUCTED",
+      "updated_by_email": "qaseebahmed@gmail.com",
+      "comments": null,
+      "include_in_email": true,
+      "change_date": "2026-08-09T14:15:53.368Z"
+    },
+    {
+      "id": 9,
+      "applicant_id": 1,
+      "previous_stage": "ORIENTATION_CONDUCTED",
+      "new_stage": "ENROLLED",
+      "updated_by_email": "qaseebahmed@gmail.com",
+      "comments": null,
+      "include_in_email": true,
+      "change_date": "2026-08-09T14:15:56.351Z"
+    },
+    {
+      "id": 10,
+      "applicant_id": 2,
+      "previous_stage": "ayesha@techstartup.pk",
+      "comments": null,
+      "include_in_email": true,
+      "change_date": "2026-08-09T14:23:02.427Z"
+    },
+    {
+      "id": 11,
+      "applicant_id": 3,
+      "previous_stage": "tariq@healthtech.pk",
+      "comments": null,
+      "include_in_email": true,
+      "change_date": "2026-08-09T14:27:36.985Z"
+    },
+    {
+      "id": 12,
+      "applicant_id": 2,
+      "previous_stage": "SUBMITTED",
+      "new_stage": "REJECTED",
+      "updated_by_email": "qaseebahmed@gmail.com",
+      "comments": null,
+      "include_in_email": true,
+      "change_date": "2026-08-09T14:31:48.075Z"
+    },
+    {
+      "id": 13,
+      "applicant_id": 3,
+      "previous_stage": "SUBMITTED",
+      "new_stage": "REJECTED",
+      "updated_by_email": "qaseebahmed@gmail.com",
+      "comments": null,
+      "include_in_email": true,
+      "change_date": "2026-08-09T14:32:02.362Z"
     }
   ],
-  "cohort_sessions": [
+  "industries": [
     {
       "id": 1,
-      "cohort_id": 1,
-      "title": "Orientation & Incubation Blueprint",
-      "date": "2026-07-22",
-      "start_time": "10:00:00",
-      "end_time": "12:00:00",
-      "mentor_name": "Dr. Qaseeb Ahmed",
-      "created_at": "2026-07-20T00:00:00.000Z"
+      "name": "EdTech & Learning",
+      "description": "Educational software and tools"
     },
     {
       "id": 2,
-      "cohort_id": 1,
-      "title": "Value Proposition & Customer Discovery",
-      "date": "2026-07-29",
-      "start_time": "14:00:00",
-      "end_time": "16:00:00",
-      "mentor_name": "Syed Usman",
-      "created_at": "2026-07-20T00:00:00.000Z"
+      "name": "HealthTech & Bio",
+      "description": "Healthcare, wellness, medical software"
+    },
+    {
+      "id": 3,
+      "name": "FinTech & Commerce",
+      "description": "Financial tech and e-commerce"
+    },
+    {
+      "id": 4,
+      "name": "CleanTech & Agri",
+      "description": "Green energy and agricultural tech"
+    },
+    {
+      "id": 5,
+      "name": "SaaS & Enterprise",
+      "description": "B2B software and productivity tools"
+    },
+    {
+      "id": 6,
+      "name": "AI & DeepTech",
+      "description": "Artificial Intelligence & Machine Learning"
     }
   ],
-  "session_attendance": [],
-  "team_checkins": [],
-  "performance_warnings": []
+  "startup_profiles": [
+    {
+      "id": 1,
+      "applicant_id": 1,
+      "startup_name": "new",
+      "industry_id": 1,
+      "description": "new",
+      "cohort_id": 1,
+      "enrollment_date": "2026-08-09T16:23:18.835Z",
+      "current_progress_stage": "IDEA_STAGE",
+      "program_status": "ACTIVE",
+      "team_size": 1,
+      "revenue_status": "PRE_REVENUE",
+      "funding_status": "BOOTSTRAPPED",
+      "created_at": "2026-08-09T16:23:18.836Z",
+      "updated_at": "2026-08-09T16:23:18.836Z"
+    }
+  ],
+  "startup_stage_history": [
+    {
+      "id": 1,
+      "startup_profile_id": 1,
+      "change_date": "2026-08-09T16:23:18.837Z",
+      "comments": null
+    },
+    {
+      "id": 2,
+      "startup_profile_id": 2,
+      "change_date": "2026-08-09T16:23:18.841Z",
+      "comments": null
+    },
+    {
+      "id": 3,
+      "startup_profile_id": 3,
+      "change_date": "2026-08-09T16:23:18.847Z",
+      "comments": null
+    }
+  ],
+  "startup_pivots": [],
+  "startup_audit_logs": [
+    {
+      "id": 1,
+      "startup_profile_id": 1,
+      "changed_by_email": "new",
+      "old_value": null,
+      "new_value": null,
+      "created_at": "2026-08-09T16:23:18.838Z"
+    },
+    {
+      "id": 2,
+      "startup_profile_id": 2,
+      "changed_by_email": "Ayesha Malik",
+      "old_value": null,
+      "new_value": null,
+      "created_at": "2026-08-09T16:23:18.844Z"
+    },
+    {
+      "id": 3,
+      "startup_profile_id": 3,
+      "changed_by_email": "Tariq Mahmood",
+      "old_value": null,
+      "new_value": null,
+      "created_at": "2026-08-09T16:23:18.848Z"
+    }
+  ]
 }

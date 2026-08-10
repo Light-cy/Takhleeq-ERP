@@ -8,4 +8,5 @@ export interface Room {
   purpose: string;
   policies: string[];
   isActive: boolean;
+  allowedBookingTypes?: string[];
 }

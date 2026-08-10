@@ -8,27 +8,60 @@ interface LoginPageProps {
   isStaff?: boolean;
   onNavigate: (path: string) => void;
   onLoginSuccess: (token: string, user: User) => void;
-  simulatedUsers: User[];
+  simulatedUsers?: User[];
 }
 
-export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulatedUsers }: LoginPageProps) {
+export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulatedUsers = [] }: LoginPageProps) {
   const [loading, setLoading] = useState(false);
-  const [showAccountSelector, setShowAccountSelector] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // Login tab state: 'founder' or 'microsoft'
+  const [loginMode, setLoginMode] = useState<'founder' | 'microsoft'>('founder');
+  const [founderEmail, setFounderEmail] = useState('');
+  const [founderPassword, setFounderPassword] = useState('');
 
   // Check if real Microsoft SSO is configured in environment
-  const hasClientId = !!(import.meta as any).env?.VITE_MICROSOFT_CLIENT_ID;
+  const hasClientId = !!((import.meta as any).env?.VITE_MICROSOFT_CLIENT_ID || (import.meta as any).env?.AZURE_CLIENT_ID);
 
   // Filter accounts based on page scope
-  // Public login (/login) allows any account, but shows a tip about @ucp.edu.pk
-  // Staff login (/staff/login) only lets staff roles access
   const accountsToDisplay = isStaff 
     ? simulatedUsers.filter(u => u.role !== 'UCP Member')
     : simulatedUsers;
 
+  const handleFounderSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!founderEmail || !founderPassword) {
+      setErrorMessage('Please enter both your email address and enrollment password.');
+      return;
+    }
+    setLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const data = await authApi.loginSimulated(founderEmail.trim(), founderPassword.trim());
+      onLoginSuccess(data.token, data.user);
+
+      if (data.user.role === 'Cohort Founder' || loginMode === 'founder') {
+        onNavigate('/founder-dashboard');
+      } else if (data.user.role === 'UCP Member') {
+        if (isStaff) {
+          setErrorMessage('Access Denied: This UCP Member account does not have Back-office ERP staff clearance.');
+          setLoading(false);
+        } else {
+          onNavigate('/booking');
+        }
+      } else {
+        onNavigate('/staff/dashboard');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Authentication failed: Please check your email and password.');
+      setLoading(false);
+    }
+  };
+
   const handleMicrosoftLoginClick = () => {
     setErrorMessage(null);
-    setShowAccountSelector(true);
+    handleRealMicrosoftLogin();
   };
 
   // Real Microsoft SSO OAuth 2.0 Popup Flow
@@ -36,9 +69,9 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
     setErrorMessage(null);
     setLoading(true);
 
-    const clientId = (import.meta as any).env?.VITE_MICROSOFT_CLIENT_ID;
+    const clientId = (import.meta as any).env?.VITE_MICROSOFT_CLIENT_ID || (import.meta as any).env?.AZURE_CLIENT_ID;
     if (!clientId) {
-      setErrorMessage('Microsoft Client ID is not configured in the environment.');
+      setErrorMessage('Microsoft Azure Client ID is not configured in environment variables. Please sign in with your Admin / Staff Email and Password.');
       setLoading(false);
       return;
     }
@@ -117,36 +150,6 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
     }, 500);
   };
 
-  const handleSelectAccount = async (account: User) => {
-    setShowAccountSelector(false);
-    setLoading(true);
-    setErrorMessage(null);
-
-    try {
-      const data = await authApi.loginSimulated(account.email);
-
-      // Success
-      onLoginSuccess(data.token, data.user);
-      
-      // Redirect based on role context
-      if (data.user.role === 'Cohort Founder') {
-        onNavigate('/founder-dashboard');
-      } else if (data.user.role === 'UCP Member') {
-        if (isStaff) {
-          setErrorMessage('Access Denied: This UCP Member account does not have Back-office ERP staff clearance.');
-          setLoading(false);
-        } else {
-          onNavigate('/booking');
-        }
-      } else {
-        onNavigate('/staff/dashboard');
-      }
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Error executing Microsoft SSO authentication');
-      setLoading(false);
-    }
-  };
-
   const parsedBan = errorMessage && errorMessage.includes('banned') 
     ? (() => {
         const msg = errorMessage;
@@ -200,10 +203,32 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
         </div>
 
         {/* Form area */}
-        <div className="p-8 space-y-6">
-          <div className="text-center space-y-1">
-            <h3 className="text-sm font-bold text-gray-900">Sign in to continue</h3>
-            <p className="text-[11px] text-gray-400">Authenticating securely via Microsoft Azure AD SSO</p>
+        <div className="p-8 space-y-5">
+          
+          {/* Login Type Tabs */}
+          <div className="grid grid-cols-2 p-1 bg-gray-100 rounded-xl gap-1">
+            <button
+              type="button"
+              onClick={() => { setLoginMode('founder'); setErrorMessage(null); }}
+              className={`py-2 px-3 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer ${
+                loginMode === 'founder'
+                  ? 'bg-white text-primary shadow-xs'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Startup Founder
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLoginMode('microsoft'); setErrorMessage(null); }}
+              className={`py-2 px-3 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer ${
+                loginMode === 'microsoft'
+                  ? 'bg-white text-primary shadow-xs'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Microsoft / SSO
+            </button>
           </div>
 
           {errorMessage && !parsedBan && (
@@ -213,53 +238,117 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
             </div>
           )}
 
-          {/* Microsoft branded button */}
-          <button
-            onClick={hasClientId ? handleRealMicrosoftLogin : handleMicrosoftLoginClick}
-            disabled={loading}
-            className="w-full bg-[#2F2F2F] hover:bg-black text-white py-3.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-3 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
-            id="microsoft-sso-btn"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin text-white" />
-                <span>Verifying credentials...</span>
-              </>
-            ) : (
-              <>
-                {/* Standard Microsoft 4-box symbol */}
-                <svg className="h-4 w-4 shrink-0" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M0 0H10.8333V10.8333H0V0Z" fill="#F25022"/>
-                  <path d="M12.1667 0H23V10.8333H12.1667V0Z" fill="#7FBA00"/>
-                  <path d="M0 12.1667H10.8333V23H0V12.1667Z" fill="#00A4EF"/>
-                  <path d="M12.1667 12.1667H23V23H12.1667V12.1667Z" fill="#FFB900"/>
-                </svg>
-                <span>{hasClientId ? 'Sign in with Microsoft' : 'Sign in with Microsoft (Simulated)'}</span>
-              </>
-            )}
-          </button>
-
-          {/* Conditional helpers/simulation bypass options */}
-          {hasClientId ? (
-            <div className="text-center pt-1 animate-fade-in">
-              <button
-                onClick={handleMicrosoftLoginClick}
-                type="button"
-                className="text-primary hover:text-[#5A0F0F] text-[11px] font-bold hover:underline transition-all cursor-pointer inline-flex items-center gap-1"
-              >
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Or bypass via Developer Account Simulator
-              </button>
-            </div>
-          ) : (
-            <div className="p-3 bg-amber-50/50 border border-amber-150 rounded-xl text-left text-[11px] text-amber-800 leading-normal flex gap-2 animate-fade-in">
-              <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold text-[11.5px] mb-0.5 text-amber-900">Developer Simulation Active</p>
-                <p className="text-gray-500 font-normal leading-relaxed text-[10px]">
-                  Configure <code className="font-mono bg-amber-100/50 px-1 py-0.5 rounded text-amber-950">VITE_MICROSOFT_CLIENT_ID</code> in environment to activate real Azure AD logins.
-                </p>
+          {loginMode === 'founder' ? (
+            <form onSubmit={handleFounderSubmit} className="space-y-4 text-left">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block font-mono">
+                  Founder Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="h-4 w-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    required
+                    value={founderEmail}
+                    onChange={(e) => setFounderEmail(e.target.value)}
+                    placeholder="e.g. founder@startup.pk"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-3.5 py-2.5 text-xs font-bold text-gray-900 focus:outline-none focus:border-primary focus:bg-white transition-all"
+                  />
+                </div>
               </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block font-mono">
+                  Generated Portal Password
+                </label>
+                <div className="relative">
+                  <Lock className="h-4 w-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    required
+                    value={founderPassword}
+                    onChange={(e) => setFounderPassword(e.target.value)}
+                    placeholder="e.g. Tk#849201"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-3.5 py-2.5 text-xs font-bold text-gray-900 focus:outline-none focus:border-primary focus:bg-white transition-all font-mono"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-primary hover:bg-primary-hover text-white py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-50 mt-2"
+                id="founder-login-submit-btn"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                    <span>Signing in...</span>
+                  </>
+                ) : (
+                  <span>Sign In to Founder Portal</span>
+                )}
+              </button>
+
+              <p className="text-[10px] text-gray-400 text-center leading-normal pt-1">
+                Your credentials are provided in your seat enrollment email. Contact admissions if you need password recovery.
+              </p>
+            </form>
+          ) : (
+            <div className="space-y-4">
+              <div className="text-center space-y-1">
+                <p className="text-[11px] text-gray-400">Authenticating securely via Microsoft Azure AD SSO</p>
+              </div>
+
+              {/* Microsoft branded button */}
+              <button
+                onClick={hasClientId ? handleRealMicrosoftLogin : handleMicrosoftLoginClick}
+                disabled={loading}
+                className="w-full bg-[#2F2F2F] hover:bg-black text-white py-3.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-3 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+                id="microsoft-sso-btn"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                    <span>Verifying credentials...</span>
+                  </>
+                ) : (
+                  <>
+                    {/* Standard Microsoft 4-box symbol */}
+                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M0 0H10.8333V10.8333H0V0Z" fill="#F25022"/>
+                      <path d="M12.1667 0H23V10.8333H12.1667V0Z" fill="#7FBA00"/>
+                      <path d="M0 12.1667H10.8333V23H0V12.1667Z" fill="#00A4EF"/>
+                      <path d="M12.1667 12.1667H23V23H12.1667V12.1667Z" fill="#FFB900"/>
+                    </svg>
+                    <span>{hasClientId ? 'Sign in with Microsoft' : 'Sign in with Microsoft (Simulated)'}</span>
+                  </>
+                )}
+              </button>
+
+              {/* Conditional helpers/simulation bypass options */}
+              {hasClientId ? (
+                <div className="text-center pt-1 animate-fade-in">
+                  <button
+                    onClick={handleMicrosoftLoginClick}
+                    type="button"
+                    className="text-primary hover:text-[#5A0F0F] text-[11px] font-bold hover:underline transition-all cursor-pointer inline-flex items-center gap-1"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    Or bypass via Developer Account Simulator
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50/50 border border-amber-150 rounded-xl text-left text-[11px] text-amber-800 leading-normal flex gap-2 animate-fade-in">
+                  <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-[11.5px] mb-0.5 text-amber-900">Developer Simulation Active</p>
+                    <p className="text-gray-500 font-normal leading-relaxed text-[10px]">
+                      Configure <code className="font-mono bg-amber-100/50 px-1 py-0.5 rounded text-amber-950">VITE_MICROSOFT_CLIENT_ID</code> in environment to activate real Azure AD logins.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -275,73 +364,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
         </div>
       </div>
 
-      {/* SIMULATED ACCOUNT SELECTOR POPUP (MICROSOFT STYLE) */}
-      <AnimatePresence>
-        {showAccountSelector && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50"
-            id="microsoft-account-selector-modal"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, y: 10 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 10 }}
-              className="bg-white rounded-2xl max-w-sm w-full overflow-hidden shadow-2xl border border-gray-100 flex flex-col"
-            >
-              <div className="bg-[#1F1F23] text-white p-5 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 shrink-0" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M0 0H10.8333V10.8333H0V0Z" fill="#F25022"/>
-                    <path d="M12.1667 0H23V10.8333H12.1667V0Z" fill="#7FBA00"/>
-                    <path d="M0 12.1667H10.8333V23H0V12.1667Z" fill="#00A4EF"/>
-                    <path d="M12.1667 12.1667H23V23H12.1667V12.1667Z" fill="#FFB900"/>
-                  </svg>
-                  <span className="text-xs font-bold font-mono tracking-wider">Microsoft Accounts</span>
-                </div>
-                <button 
-                  onClick={() => setShowAccountSelector(false)} 
-                  className="text-gray-400 hover:text-white font-bold text-xs"
-                >
-                  ✕
-                </button>
-              </div>
 
-              <div className="p-6 space-y-4">
-                <div className="space-y-1 text-left">
-                  <h4 className="text-xs font-bold text-gray-900">Choose an account</h4>
-                  <p className="text-[10px] text-gray-400">Select an identity to simulate Microsoft SSO login</p>
-                </div>
-
-                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                  {accountsToDisplay.map((account) => (
-                    <button
-                      key={account.email}
-                      onClick={() => handleSelectAccount(account)}
-                      className="w-full p-3.5 rounded-xl border border-gray-100 hover:border-primary/20 hover:bg-primary/5 text-left flex items-center justify-between gap-3 transition-all cursor-pointer group"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-gray-800 group-hover:text-primary truncate">{account.name.split(' (')[0]}</p>
-                        <p className="text-[10px] text-gray-400 font-mono truncate">{account.email}</p>
-                      </div>
-                      <span className="bg-primary/5 text-primary text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded shrink-0">
-                        {account.role}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="text-[10px] text-gray-400 text-center border-t pt-3 flex items-center justify-center gap-1">
-                  <Lock className="h-3.5 w-3.5 text-gray-400" />
-                  <span>Secure OAuth 2.0 Simulation</span>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* GORGEOUS ANIMATED BAN POPUP MODAL */}
       <AnimatePresence>

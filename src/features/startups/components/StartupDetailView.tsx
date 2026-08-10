@@ -1,0 +1,842 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  ArrowLeft, Building2, User, Mail, Phone, Lock, Eye, EyeOff, ShieldAlert, 
+  CheckCircle2, AlertTriangle, TrendingUp, Calendar, DollarSign, History, 
+  FileText, Sparkles, RefreshCw, Save, ShieldX, Ban, PlayCircle, Award
+} from 'lucide-react';
+import { Industry } from '../../../types/startup.types';
+import { STARTUP_PROGRESS_STAGES, getStartupStageInfo } from '../../../constants/startupStages';
+import { fetchStartupFullDetails, adminUpdateStartupProfile } from '../api/startupsApi';
+
+interface Props {
+  startupId: number;
+  industries: Industry[];
+  onBack: () => void;
+  onProfileUpdated?: () => void;
+}
+
+export const StartupDetailView: React.FC<Props> = ({
+  startupId,
+  industries,
+  onBack,
+  onProfileUpdated
+}) => {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'management' | 'attendance' | 'financials' | 'stage' | 'pivots' | 'audit'>('overview');
+
+  // Password toggle
+  const [showPassword, setShowPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+
+  // Form Fields
+  const [formData, setFormData] = useState<any>({});
+  const [adminNotes, setAdminNotes] = useState('');
+
+  useEffect(() => {
+    loadFullDetails();
+  }, [startupId]);
+
+  const loadFullDetails = async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetchStartupFullDetails(startupId);
+      setData(res);
+      if (res.profile) {
+        setFormData({
+          startup_name: res.profile.startup_name || '',
+          description: res.profile.description || '',
+          industry_id: res.profile.industry_id || 1,
+          website: res.profile.website || '',
+          team_size: res.profile.team_size || 1,
+          program_status: res.profile.program_status || 'ACTIVE',
+          current_progress_stage: res.profile.current_progress_stage || 'IDEA_STAGE',
+          revenue_status: res.profile.revenue_status || 'PRE_REVENUE',
+          monthly_revenue: res.profile.monthly_revenue || 'PKR 0',
+          annual_recurring_revenue: res.profile.annual_recurring_revenue || 'PKR 0',
+          funding_status: res.profile.funding_status || 'BOOTSTRAPPED',
+          funding_raised: res.profile.funding_raised || '0'
+        });
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to load startup details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdminSave = async (customPayload?: any) => {
+    setSaving(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const payload = customPayload || {
+        ...formData,
+        founder_password: newPassword.trim() || undefined,
+        admin_notes: adminNotes.trim() || undefined
+      };
+
+      const result = await adminUpdateStartupProfile(startupId, payload);
+      setSuccessMsg(result.message || 'Startup updated successfully and notification email sent to founder!');
+      setNewPassword('');
+      setAdminNotes('');
+      if (onProfileUpdated) onProfileUpdated();
+      await loadFullDetails();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to save changes');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-white p-12 border border-gray-200 rounded-3xl text-center space-y-3">
+        <RefreshCw className="h-8 w-8 text-primary animate-spin mx-auto" />
+        <p className="text-sm font-bold text-gray-700">Loading complete startup dossier...</p>
+      </div>
+    );
+  }
+
+  if (!data || !data.profile) {
+    return (
+      <div className="bg-white p-8 border border-gray-200 rounded-3xl text-center space-y-4">
+        <ShieldAlert className="h-10 w-10 text-rose-500 mx-auto" />
+        <p className="text-sm font-bold text-gray-800">Startup Profile Not Found</p>
+        <button onClick={onBack} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-xs font-bold">
+          &larr; Return to Active Startups
+        </button>
+      </div>
+    );
+  }
+
+  const { profile, attendance, financials, stage_history, pivots, audit_logs } = data;
+  const currentStageInfo = getStartupStageInfo(profile.current_progress_stage);
+
+  return (
+    <div className="space-y-6 text-left">
+      
+      {/* Top Breadcrumb Header */}
+      <div className="flex items-center justify-between gap-4">
+        <button
+          onClick={onBack}
+          className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-2xl text-xs font-bold inline-flex items-center gap-2 shadow-2xs transition-all cursor-pointer"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Active Startups Directory
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-mono font-bold text-gray-500">Startup ID: #{profile.id}</span>
+          <span className="text-xs font-mono font-bold text-gray-500">&bull; Token: {profile.founder_tracking_token || 'N/A'}</span>
+        </div>
+      </div>
+
+      {/* Notifications */}
+      {errorMsg && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-bold text-rose-800 flex items-center justify-between">
+          <span>{errorMsg}</span>
+          <button onClick={() => setErrorMsg(null)} className="text-rose-500 hover:text-rose-800 font-black">Dismiss</button>
+        </div>
+      )}
+      {successMsg && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs font-bold text-emerald-800 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span>{successMsg}</span>
+          </div>
+          <button onClick={() => setSuccessMsg(null)} className="text-emerald-500 hover:text-emerald-800 font-black">Dismiss</button>
+        </div>
+      )}
+
+      {/* Main Header Card */}
+      <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-primary p-6 md:p-8 rounded-3xl text-white shadow-xl relative overflow-hidden">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+          
+          <div className="flex items-center gap-4">
+            <div className="h-16 w-16 rounded-2xl bg-white/10 border border-white/20 p-2 flex items-center justify-center shrink-0 shadow-inner">
+              {profile.logo_url ? (
+                <img src={profile.logo_url} alt={profile.startup_name} className="h-full w-full object-contain rounded-xl" />
+              ) : (
+                <Building2 className="h-8 w-8 text-white/80" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl md:text-3xl font-black tracking-tight">{profile.startup_name}</h1>
+                <span className={`px-3 py-1 rounded-full text-xs font-black uppercase font-mono border ${
+                  profile.program_status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' :
+                  profile.program_status === 'PAUSED' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' :
+                  'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                }`}>
+                  {profile.program_status === 'ACTIVE' ? '🟢 Active Startup' : profile.program_status === 'PAUSED' ? '🟡 Temporarily Blocked' : '🔴 Kicked Out / Terminated'}
+                </span>
+              </div>
+              <p className="text-xs text-gray-300 font-medium mt-1 line-clamp-2 max-w-2xl">
+                {profile.description || 'No description provided.'}
+              </p>
+              <div className="flex flex-wrap items-center gap-3 mt-3 text-xs font-bold text-gray-300">
+                <span className="bg-white/10 px-2.5 py-1 rounded-lg border border-white/10">Industry: {profile.industry_name || 'General'}</span>
+                <span className="bg-white/10 px-2.5 py-1 rounded-lg border border-white/10">Cohort: {profile.cohort_name || 'Cohort 1'}</span>
+                <span className="bg-white/10 px-2.5 py-1 rounded-lg border border-white/10 flex items-center gap-1">
+                  <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+                  Stage: {currentStageInfo.name}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch md:items-end gap-2 shrink-0 w-full md:w-auto">
+            <button
+              onClick={() => setActiveTab('management')}
+              className="px-4 py-2.5 bg-white text-gray-900 hover:bg-gray-100 font-black text-xs rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
+            >
+              <Lock className="h-4 w-4 text-primary" />
+              Admin Actions & Password
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      {/* ADMIN QUICK ACTION BAR */}
+      <div className="bg-white border-2 border-primary/20 p-5 rounded-3xl shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Instant Admin Control Panel</h3>
+          </div>
+          <span className="text-[10px] font-bold font-mono bg-primary/10 text-primary px-2.5 py-1 rounded-full">
+            Auto-Dispatches Email to Founder on Any Change
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          
+          {/* Quick Status Control */}
+          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-2">
+            <label className="text-xs font-black text-gray-700 uppercase tracking-wide block">Account & Program Status</label>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => handleAdminSave({ program_status: 'ACTIVE' })}
+                disabled={saving || profile.program_status === 'ACTIVE'}
+                className="flex-1 py-2 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer"
+              >
+                <PlayCircle className="h-3.5 w-3.5" />
+                Active
+              </button>
+              <button
+                onClick={() => handleAdminSave({ program_status: 'PAUSED' })}
+                disabled={saving || profile.program_status === 'PAUSED'}
+                className="flex-1 py-2 px-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer"
+              >
+                <Ban className="h-3.5 w-3.5" />
+                Block/Pause
+              </button>
+              <button
+                onClick={() => handleAdminSave({ program_status: 'KICKED_OUT' })}
+                disabled={saving || profile.program_status === 'KICKED_OUT'}
+                className="flex-1 py-2 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer"
+              >
+                <ShieldX className="h-3.5 w-3.5" />
+                Kick Out
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-500 font-medium">Instantly updates status and sends email explanation to founder.</p>
+          </div>
+
+          {/* Quick Password Reset */}
+          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-2">
+            <label className="text-xs font-black text-gray-700 uppercase tracking-wide block">Change Founder Password</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="New Founder Password..."
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                className="flex-1 bg-white border border-gray-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold focus:outline-none focus:border-primary"
+              />
+              <button
+                onClick={() => handleAdminSave({ founder_password: newPassword })}
+                disabled={saving || !newPassword.trim()}
+                className="px-3 py-1.5 bg-primary text-white hover:bg-primary-dark font-bold text-xs rounded-xl transition-all disabled:opacity-40 cursor-pointer shrink-0"
+              >
+                Save & Email
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-500 font-medium">Founder's current password: <span className="font-mono font-bold text-gray-800">{profile.founder_password || 'Not set'}</span></p>
+          </div>
+
+          {/* Quick Stage Progression */}
+          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-2">
+            <label className="text-xs font-black text-gray-700 uppercase tracking-wide block">Advance Progress Stage</label>
+            <div className="flex items-center gap-2">
+              <select
+                value={formData.current_progress_stage}
+                onChange={e => {
+                  const val = e.target.value;
+                  setFormData({ ...formData, current_progress_stage: val });
+                  handleAdminSave({ current_progress_stage: val });
+                }}
+                disabled={saving}
+                className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:border-primary"
+              >
+                {STARTUP_PROGRESS_STAGES.map(stg => (
+                  <option key={stg.key} value={stg.key}>{stg.label}</option>
+                ))}
+              </select>
+            </div>
+            <p className="text-[10px] text-gray-500 font-medium">Current step: {currentStageInfo.name}</p>
+          </div>
+
+        </div>
+      </div>
+
+      {/* Tabs Bar */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-1.5 flex flex-wrap gap-1 shadow-2xs">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === 'overview' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          📋 Dossier Overview
+        </button>
+        <button
+          onClick={() => setActiveTab('management')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === 'management' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          ✏️ Edit Details & Credentials
+        </button>
+        <button
+          onClick={() => setActiveTab('attendance')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === 'attendance' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          📅 Attendance Report ({attendance?.attendance_rate || 100}%)
+        </button>
+        <button
+          onClick={() => setActiveTab('financials')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === 'financials' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          💵 Income & Financials
+        </button>
+        <button
+          onClick={() => setActiveTab('stage')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === 'stage' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          📈 Stage History ({stage_history?.length || 0})
+        </button>
+        <button
+          onClick={() => setActiveTab('pivots')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === 'pivots' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          🔄 Pivots ({pivots?.length || 0})
+        </button>
+        <button
+          onClick={() => setActiveTab('audit')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === 'audit' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          🛡️ Audit Trail ({audit_logs?.length || 0})
+        </button>
+      </div>
+
+      {/* TAB 1: OVERVIEW */}
+      {activeTab === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Column 1 & 2: Primary Dossier */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* Primary Founder Card */}
+            <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <User className="h-5 w-5 text-primary" />
+                  <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Primary Founder & Account Credentials</h3>
+                </div>
+                <span className="text-xs font-mono font-bold text-gray-500">ID: #{profile.applicant_id}</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium">
+                <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-200">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase">Founder Name</p>
+                  <p className="font-black text-gray-900 text-sm mt-0.5">{profile.founder_name || 'N/A'}</p>
+                </div>
+                <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-200">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase">Email Address</p>
+                  <p className="font-mono font-bold text-gray-900 text-sm mt-0.5">{profile.founder_email}</p>
+                </div>
+                <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-200">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase">Phone Number</p>
+                  <p className="font-mono font-bold text-gray-900 mt-0.5">{profile.founder_phone || 'N/A'}</p>
+                </div>
+                <div className="bg-gray-50 p-3.5 rounded-2xl border border-gray-200">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase">CNIC / Govt ID</p>
+                  <p className="font-mono font-bold text-gray-900 mt-0.5">{profile.founder_cnic || 'N/A'}</p>
+                </div>
+                <div className="bg-rose-50/60 p-3.5 rounded-2xl border border-rose-200 sm:col-span-2 flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-bold text-rose-800 uppercase">Portal Login Password</p>
+                    <p className="font-mono font-black text-rose-950 text-sm mt-0.5">
+                      {showPassword ? profile.founder_password || 'Not set' : '••••••••••••'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="px-3 py-1.5 bg-white text-rose-800 hover:bg-rose-100 rounded-xl text-xs font-bold border border-rose-200 flex items-center gap-1 transition-all cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    {showPassword ? 'Hide Password' : 'Show Password'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Team Members */}
+            <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Startup Team & Co-Founders</h3>
+                </div>
+                <span className="text-xs font-mono font-bold bg-gray-100 px-2.5 py-0.5 rounded-full">
+                  Total Team: {profile.team_size || profile.founders?.length || 1}
+                </span>
+              </div>
+
+              <div className="divide-y divide-gray-100">
+                {(profile.founders || []).map((f: any) => (
+                  <div key={f.id} className="py-3 flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-black text-gray-900">{f.name}</p>
+                      <p className="font-mono text-gray-500">{f.email} &bull; {f.phone || 'No phone'}</p>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-lg font-bold text-[10px] uppercase font-mono ${
+                      f.role === 'PRIMARY' ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      {f.role}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Application Questionnaire Responses */}
+            {profile.form_data && (
+              <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
+                <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+                  <FileText className="h-5 w-5 text-primary" />
+                  <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Intake Application Form Responses</h3>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 max-h-80 overflow-y-auto font-mono text-xs text-gray-800 space-y-2">
+                  {typeof profile.form_data === 'object' ? (
+                    Object.entries(profile.form_data).map(([k, v]: any) => (
+                      <div key={k} className="border-b border-gray-200 pb-2">
+                        <span className="font-bold text-gray-900 capitalize">{k.replace(/_/g, ' ')}:</span>
+                        <p className="text-gray-700 mt-0.5 whitespace-pre-wrap">{typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v)}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-600">{String(profile.form_data)}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {/* Column 3: Stats & Metrics */}
+          <div className="space-y-6">
+            
+            {/* Quick Metrics */}
+            <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
+              <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider border-b border-gray-100 pb-2">Key Performance Indicators</h3>
+              
+              <div className="space-y-3">
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold text-emerald-800 uppercase">Monthly Revenue (MRR)</p>
+                    <p className="text-lg font-black text-emerald-950 mt-0.5">{financials.monthly_revenue}</p>
+                  </div>
+                  <DollarSign className="h-6 w-6 text-emerald-600" />
+                </div>
+
+                <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold text-blue-800 uppercase">Attendance Compliance</p>
+                    <p className="text-lg font-black text-blue-950 mt-0.5">{attendance.attendance_rate}%</p>
+                  </div>
+                  <Calendar className="h-6 w-6 text-blue-600" />
+                </div>
+
+                <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-2xl flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold text-purple-800 uppercase">Funding Raised</p>
+                    <p className="text-lg font-black text-purple-950 mt-0.5">{financials.funding_raised || '0'}</p>
+                  </div>
+                  <Award className="h-6 w-6 text-purple-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Social & Website Links */}
+            <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-3">
+              <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider border-b border-gray-100 pb-2">Web & Digital Footprint</h3>
+              <p className="text-xs font-bold text-gray-800 flex items-center gap-2">
+                <span className="text-gray-400">Website:</span> 
+                {profile.website ? <a href={profile.website} target="_blank" rel="noreferrer" className="text-primary underline">{profile.website}</a> : 'Not added'}
+              </p>
+              <div className="text-xs space-y-1">
+                <p className="font-bold text-gray-400">Social Links:</p>
+                {profile.social_links && typeof profile.social_links === 'object' ? (
+                  Object.entries(profile.social_links).map(([k, v]: any) => (
+                    <p key={k} className="text-gray-700 font-mono"><strong className="capitalize">{k}:</strong> {String(v)}</p>
+                  ))
+                ) : (
+                  <p className="text-gray-500">No social links logged.</p>
+                )}
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* TAB 2: EDIT DETAILS & CREDENTIALS */}
+      {activeTab === 'management' && (
+        <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-6">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+            <div>
+              <h3 className="text-base font-black text-gray-900">Comprehensive Admin Master Profile Editor</h3>
+              <p className="text-xs text-gray-500 font-medium">
+                Admin can update startup information, password, stage, and revenue figures here. All edits send an email to the founder.
+              </p>
+            </div>
+            <button
+              onClick={() => handleAdminSave()}
+              disabled={saving}
+              className="px-5 py-2.5 bg-primary text-white hover:bg-primary-dark rounded-2xl font-black text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {saving ? 'Saving & Dispatching Email...' : 'Save All Changes & Notify Founder'}
+            </button>
+          </div>
+
+          <div className="space-y-6">
+            
+            {/* Admin Notes / Email Message */}
+            <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 space-y-2">
+              <label className="text-xs font-black text-amber-900 uppercase tracking-wider block">Admin Remarks / Message Included in Notification Email</label>
+              <textarea
+                rows={2}
+                placeholder="E.g., Updated password per request, advanced stage to MVP after review call..."
+                value={adminNotes}
+                onChange={e => setAdminNotes(e.target.value)}
+                className="w-full bg-white border border-amber-300 rounded-xl p-3 text-xs font-medium text-gray-900 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs font-medium">
+              
+              <div className="space-y-2">
+                <label className="font-black text-gray-700 uppercase tracking-wide block">Startup Name</label>
+                <input
+                  type="text"
+                  value={formData.startup_name || ''}
+                  onChange={e => setFormData({ ...formData, startup_name: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 font-bold text-gray-900 focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-black text-gray-700 uppercase tracking-wide block">Industry Sector</label>
+                <select
+                  value={formData.industry_id || ''}
+                  onChange={e => setFormData({ ...formData, industry_id: parseInt(e.target.value) })}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 font-bold text-gray-900 focus:outline-none focus:border-primary"
+                >
+                  {industries.map(ind => (
+                    <option key={ind.id} value={ind.id}>{ind.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="md:col-span-2 space-y-2">
+                <label className="font-black text-gray-700 uppercase tracking-wide block">Startup Description</label>
+                <textarea
+                  rows={3}
+                  value={formData.description || ''}
+                  onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl p-3 font-medium text-gray-900 focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-black text-gray-700 uppercase tracking-wide block">Team Size</label>
+                <input
+                  type="number"
+                  value={formData.team_size || 1}
+                  onChange={e => setFormData({ ...formData, team_size: parseInt(e.target.value) || 1 })}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 font-bold text-gray-900 focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-black text-gray-700 uppercase tracking-wide block">Website URL</label>
+                <input
+                  type="text"
+                  value={formData.website || ''}
+                  onChange={e => setFormData({ ...formData, website: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 font-bold text-gray-900 focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-black text-gray-700 uppercase tracking-wide block">Revenue Status</label>
+                <select
+                  value={formData.revenue_status || 'PRE_REVENUE'}
+                  onChange={e => setFormData({ ...formData, revenue_status: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 font-bold text-gray-900 focus:outline-none focus:border-primary"
+                >
+                  <option value="PRE_REVENUE">PRE_REVENUE (Idea/Validation)</option>
+                  <option value="POST_REVENUE">POST_REVENUE (Generating Income)</option>
+                  <option value="PROFITABLE">PROFITABLE</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-black text-gray-700 uppercase tracking-wide block">Monthly Revenue (MRR)</label>
+                <input
+                  type="text"
+                  placeholder="e.g., PKR 150,000"
+                  value={formData.monthly_revenue || ''}
+                  onChange={e => setFormData({ ...formData, monthly_revenue: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 font-bold text-gray-900 focus:outline-none focus:border-primary"
+                />
+              </div>
+
+            </div>
+
+            <div className="pt-4 border-t border-gray-100 flex justify-end">
+              <button
+                onClick={() => handleAdminSave()}
+                disabled={saving}
+                className="px-6 py-3 bg-primary text-white hover:bg-primary-dark rounded-2xl font-black text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" />
+                {saving ? 'Saving Changes...' : 'Save Profile & Email Founder'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: ATTENDANCE REPORT */}
+      {activeTab === 'attendance' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="bg-white border border-gray-200 p-4 rounded-2xl text-center">
+              <p className="text-[11px] font-bold text-gray-400 uppercase">Attendance Rate</p>
+              <p className="text-2xl font-black text-emerald-600 mt-1">{attendance.attendance_rate}%</p>
+            </div>
+            <div className="bg-white border border-gray-200 p-4 rounded-2xl text-center">
+              <p className="text-[11px] font-bold text-gray-400 uppercase">Total Sessions</p>
+              <p className="text-2xl font-black text-gray-900 mt-1">{attendance.total_sessions}</p>
+            </div>
+            <div className="bg-white border border-gray-200 p-4 rounded-2xl text-center">
+              <p className="text-[11px] font-bold text-gray-400 uppercase">Sessions Attended</p>
+              <p className="text-2xl font-black text-blue-600 mt-1">{attendance.present_count}</p>
+            </div>
+            <div className="bg-white border border-gray-200 p-4 rounded-2xl text-center">
+              <p className="text-[11px] font-bold text-gray-400 uppercase">Absences</p>
+              <p className="text-2xl font-black text-rose-600 mt-1">{attendance.absent_count}</p>
+            </div>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-xs">
+            <div className="p-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-xs font-black text-gray-800 uppercase tracking-wider">Cohort Workshop & Mentorship Session Log</h3>
+              <span className="text-xs font-mono font-bold text-gray-500">{attendance.records.length} session(s) logged</span>
+            </div>
+            <table className="w-full text-left text-xs">
+              <thead className="bg-gray-50 border-b border-gray-200 font-mono text-[11px] font-bold text-gray-500 uppercase">
+                <tr>
+                  <th className="py-3 px-4">Session Title</th>
+                  <th className="py-3 px-4">Date & Time</th>
+                  <th className="py-3 px-4">Type</th>
+                  <th className="py-3 px-4 text-right">Marked Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-150">
+                {attendance.records.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-gray-400 font-medium">
+                      No cohort session attendance records logged yet for this startup.
+                    </td>
+                  </tr>
+                ) : (
+                  attendance.records.map((rec: any) => (
+                    <tr key={rec.id} className="hover:bg-gray-50">
+                      <td className="py-3 px-4 font-black text-gray-900">{rec.session_title || 'Cohort Workshop Session'}</td>
+                      <td className="py-3 px-4 font-mono text-gray-600">{rec.session_date ? new Date(rec.session_date).toLocaleDateString() : 'N/A'}</td>
+                      <td className="py-3 px-4 font-bold text-gray-600">{rec.session_type || 'WORKSHOP'}</td>
+                      <td className="py-3 px-4 text-right">
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-black uppercase ${
+                          String(rec.status).toUpperCase() === 'PRESENT' ? 'bg-emerald-100 text-emerald-800' :
+                          String(rec.status).toUpperCase() === 'ABSENT' ? 'bg-rose-100 text-rose-800' :
+                          'bg-amber-100 text-amber-800'
+                        }`}>
+                          {rec.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: FINANCIALS */}
+      {activeTab === 'financials' && (
+        <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-6">
+          <div className="border-b border-gray-100 pb-3">
+            <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Startup Income & Revenue Performance Report</h3>
+            <p className="text-xs text-gray-500 font-medium mt-0.5">Track recurring revenue figures, investment status, and capital raised.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs">
+            <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-200 space-y-2">
+              <p className="text-[11px] font-bold text-emerald-800 uppercase">Monthly Recurring Revenue (MRR)</p>
+              <p className="text-2xl font-black text-emerald-950">{financials.monthly_revenue}</p>
+              <p className="text-[11px] text-emerald-700">Calculated based on latest monthly financial check-ins.</p>
+            </div>
+
+            <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-200 space-y-2">
+              <p className="text-[11px] font-bold text-blue-800 uppercase">Revenue Status Classification</p>
+              <p className="text-xl font-black text-blue-950 uppercase">{financials.revenue_status}</p>
+              <p className="text-[11px] text-blue-700">Program classification for seed & incubation tracking.</p>
+            </div>
+
+            <div className="bg-purple-50/50 p-5 rounded-2xl border border-purple-200 space-y-2">
+              <p className="text-[11px] font-bold text-purple-800 uppercase">Funding & Grants Raised</p>
+              <p className="text-2xl font-black text-purple-950">{financials.funding_raised || 'PKR 0'}</p>
+            </div>
+
+            <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 space-y-2">
+              <p className="text-[11px] font-bold text-gray-600 uppercase">Funding Stage</p>
+              <p className="text-xl font-black text-gray-900 uppercase">{financials.funding_status}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: STAGE HISTORY */}
+      {activeTab === 'stage' && (
+        <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
+          <div className="border-b border-gray-100 pb-3">
+            <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Historical Progress Stage Timeline</h3>
+            <p className="text-xs text-gray-500">Every transition approved by Takhleeq staff is logged with timestamp and remarks.</p>
+          </div>
+
+          <div className="space-y-3">
+            {stage_history.length === 0 ? (
+              <p className="text-xs text-gray-400 py-6 text-center">No progress stage transitions logged yet.</p>
+            ) : (
+              stage_history.map((stg: any) => (
+                <div key={stg.id} className="p-4 bg-gray-50 border border-gray-200 rounded-2xl space-y-1 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-gray-900">
+                      {stg.previous_stage || 'Initial'} &rarr; <span className="text-primary">{stg.new_stage}</span>
+                    </span>
+                    <span className="font-mono text-gray-400 text-[10px]">{stg.change_date ? new Date(stg.change_date).toLocaleString() : ''}</span>
+                  </div>
+                  <p className="text-gray-600">Updated by: <span className="font-bold text-gray-800">{stg.updated_by_email}</span></p>
+                  {stg.comments && <p className="text-gray-500 italic mt-1">"{stg.comments}"</p>}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 6: PIVOTS */}
+      {activeTab === 'pivots' && (
+        <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
+          <div className="border-b border-gray-100 pb-3">
+            <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Startup Pivots & Model Changes</h3>
+            <p className="text-xs text-gray-500">Permanent record of core concept or business model pivots.</p>
+          </div>
+
+          <div className="space-y-3">
+            {pivots.length === 0 ? (
+              <p className="text-xs text-gray-400 py-6 text-center">No pivots logged for this startup.</p>
+            ) : (
+              pivots.map((p: any) => (
+                <div key={p.id} className="p-4 bg-gray-50 border border-gray-200 rounded-2xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between font-bold text-gray-900">
+                    <span>Pivot Record #{p.id}</span>
+                    <span className="font-mono text-[10px] text-gray-400">{p.pivot_date ? new Date(p.pivot_date).toLocaleDateString() : ''}</span>
+                  </div>
+                  <p className="text-gray-700"><strong>New Idea:</strong> {p.new_idea}</p>
+                  <p className="text-gray-600"><strong>Reason:</strong> {p.reason}</p>
+                  <p className="text-gray-500 text-[11px]">Approved by: {p.approved_by_email}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 7: AUDIT TRAIL */}
+      {activeTab === 'audit' && (
+        <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
+          <div className="border-b border-gray-100 pb-3">
+            <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">System Audit Trail</h3>
+            <p className="text-xs text-gray-500">Log of all profile changes and administrative edits.</p>
+          </div>
+
+          <div className="divide-y divide-gray-150 text-xs">
+            {audit_logs.length === 0 ? (
+              <p className="text-gray-400 py-6 text-center">No audit log entries found.</p>
+            ) : (
+              audit_logs.map((log: any) => (
+                <div key={log.id} className="py-2.5 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-gray-900">{log.field_name}:</span>{' '}
+                    <span className="text-gray-500">{log.old_value || 'None'}</span> &rarr;{' '}
+                    <span className="text-primary font-bold">{log.new_value}</span>
+                  </div>
+                  <div className="text-right font-mono text-[10px] text-gray-400">
+                    <div>{log.changed_by_email}</div>
+                    <div>{log.created_at ? new Date(log.created_at).toLocaleTimeString() : ''}</div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};

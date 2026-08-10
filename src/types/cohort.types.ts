@@ -7,7 +7,7 @@ export interface Cohort {
   created_at: string;
 }
 
-export type FormFieldValidation = 'text' | 'email' | 'number' | 'cnic' | 'phone' | 'file';
+export type FormFieldValidation = 'text' | 'email' | 'number' | 'cnic' | 'phone' | 'file' | 'select' | 'textarea';
 
 export interface FormField {
   id: string;
@@ -15,6 +15,7 @@ export interface FormField {
   type: FormFieldValidation;
   required: boolean;
   placeholder?: string;
+  options?: string[];
 }
 
 export interface CohortFormSettings {

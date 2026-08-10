@@ -17,7 +17,8 @@ import {
   ArrowUpRight,
   ShieldAlert,
   Award,
-  Layers
+  Layers,
+  Plus
 } from 'lucide-react';
 import { 
   Cohort, 
@@ -40,6 +41,7 @@ interface CohortDashboardViewProps {
   milestoneSubmissions: MilestoneSubmission[];
   auditLogs?: AuditRecord[];
   onNavigateSubTab: (subTab: string, filterStatus?: string) => void;
+  onCreateCohort?: () => void;
 }
 
 export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
@@ -52,7 +54,8 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
   assignments,
   milestoneSubmissions,
   auditLogs = [],
-  onNavigateSubTab
+  onNavigateSubTab,
+  onCreateCohort
 }) => {
   // Scope data to selected cohort
   const cohortId = selectedCohort?.id || null;
@@ -62,10 +65,15 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
     return String(itemCohortId) === String(cohortId);
   };
 
-  const cohortApplicants = applicants.filter(a => matchesCohort(a.cohort_id));
-  const cohortSessions = sessions.filter(s => matchesCohort(s.cohort_id));
-  const cohortWarnings = warnings.filter(w => matchesCohort(w.cohort_id));
-  const cohortAssignments = assignments.filter(a => matchesCohort(a.cohort_id));
+  const safeApplicants = Array.isArray(applicants) ? applicants : [];
+  const safeSessions = Array.isArray(sessions) ? sessions : [];
+  const safeWarnings = Array.isArray(warnings) ? warnings : [];
+  const safeAssignments = Array.isArray(assignments) ? assignments : [];
+
+  const cohortApplicants = safeApplicants.filter(a => matchesCohort(a.cohort_id));
+  const cohortSessions = safeSessions.filter(s => matchesCohort(s.cohort_id));
+  const cohortWarnings = safeWarnings.filter(w => matchesCohort(w.cohort_id));
+  const cohortAssignments = safeAssignments.filter(a => matchesCohort(a.cohort_id));
 
   // Confirmed / Active startups in cohort
   const enrolledStartups = cohortApplicants.filter(a => {
@@ -242,6 +250,18 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
                 }`}>
                   {selectedCohort?.status || 'DRAFT'}
                 </span>
+
+                {onCreateCohort && (
+                  <button
+                    type="button"
+                    onClick={onCreateCohort}
+                    className="bg-primary hover:bg-[#5A0F0F] text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-3xs shrink-0"
+                    title="Create New Cohort"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>+ Create Cohort</span>
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center gap-4 text-xs font-bold text-gray-500 mt-2 flex-wrap">

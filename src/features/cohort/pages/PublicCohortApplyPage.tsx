@@ -384,7 +384,28 @@ export const PublicCohortApplyPage: React.FC<PublicCohortApplyPageProps> = ({ on
                           {field.label} {field.required ? '*' : ''}
                         </label>
                         
-                        {field.type === 'file' ? (
+                        {field.type === 'select' && field.options ? (
+                          <select
+                            required={field.required}
+                            value={dynamicAnswers[field.id] || ''}
+                            onChange={(e) => handleDynamicChange(field.id, e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-3 text-xs text-gray-800 focus:outline-none focus:border-primary focus:bg-white transition-all font-bold cursor-pointer"
+                          >
+                            <option value="">Select an option...</option>
+                            {field.options.map((opt, i) => (
+                              <option key={i} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        ) : field.type === 'textarea' ? (
+                          <textarea
+                            required={field.required}
+                            rows={3}
+                            value={dynamicAnswers[field.id] || ''}
+                            onChange={(e) => handleDynamicChange(field.id, e.target.value)}
+                            placeholder={field.placeholder || "Enter details..."}
+                            className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-3 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-primary focus:bg-white transition-all font-bold resize-none leading-relaxed"
+                          />
+                        ) : field.type === 'file' ? (
                           <input
                             type="text" // Simulated file upload paths as simple clean text/URLs for testing
                             required={field.required}
@@ -395,7 +416,7 @@ export const PublicCohortApplyPage: React.FC<PublicCohortApplyPageProps> = ({ on
                           />
                         ) : (
                           <input
-                            type={field.type === 'number' ? 'number' : 'text'}
+                            type={field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : 'text'}
                             required={field.required}
                             value={dynamicAnswers[field.id] || ''}
                             onChange={(e) => handleDynamicChange(field.id, e.target.value)}

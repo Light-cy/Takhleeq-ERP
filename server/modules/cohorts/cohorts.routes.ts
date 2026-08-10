@@ -19,13 +19,23 @@ import {
   deleteCohortSession,
   getSessionAttendance,
   saveSessionAttendance,
+  createSessionAssignment,
+  createCohortAssignment,
+  getCohortAssignments,
+  getSessionAssignments,
+  deleteSessionAssignment,
+  getAssignmentSubmissions,
+  submitAssignment,
   getCohortCheckIns,
   createTeamCheckIn,
   getCohortWarnings,
   issuePerformanceWarning,
   resolvePerformanceWarning,
   getMyStartupDetails,
-  updateApplicantProfile
+  updateApplicantProfile,
+  getApplicantStageHistory,
+  getApplicantCredentials,
+  manageApplicantCredentials
 } from './cohorts.controller.ts';
 
 const router = Router();
@@ -51,9 +61,12 @@ router.post('/cohort-form-settings', requireAuth, requirePermission('cohort:form
 
 // Applicant listings and details
 router.get('/applicants', requireAuth, requirePermission('cohort:applicant_review'), getApplicants);
+router.get('/applicants/:id/stage-history', requireAuth, requirePermission('cohort:applicant_review'), getApplicantStageHistory);
 router.get('/applicants/:id', requireAuth, requirePermission('cohort:applicant_review'), getApplicantById);
 
 // Applicant Admissions, Panel Scoring & Selection Decider
+router.get('/applicants/:id/credentials', requireAuth, requirePermission('cohort:applicant_review'), getApplicantCredentials);
+router.post('/applicants/:id/credentials', requireAuth, requirePermission('cohort:applicant_review'), manageApplicantCredentials);
 router.put('/applicants/:id/scores', requireAuth, requirePermission('cohort:applicant_review'), updateApplicantScores);
 router.put('/applicants/:id/status', updateApplicantStatus);
 router.put('/applicants/:id/program-status', requireAuth, requirePermission('cohort:applicant_review'), updateApplicantProgramStatus);
@@ -72,6 +85,17 @@ router.delete('/sessions/:id', requireAuth, requirePermission('cohort:session_ma
 // Attendance Markers
 router.get('/sessions/:id/attendance', requireAuth, getSessionAttendance);
 router.post('/sessions/:id/attendance', requireAuth, requirePermission('cohort:attendance_write'), saveSessionAttendance);
+
+// Session Assignments & Submissions
+router.get('/sessions/:id/assignments', requireAuth, getSessionAssignments);
+router.post('/sessions/:id/assignments', requireAuth, requirePermission('cohort:session_manage'), createSessionAssignment);
+router.get('/cohorts/:id/assignments', requireAuth, getCohortAssignments);
+router.post('/cohorts/:id/assignments', requireAuth, requirePermission('cohort:session_manage'), createCohortAssignment);
+router.get('/assignments', requireAuth, getCohortAssignments);
+router.post('/assignments', requireAuth, requirePermission('cohort:session_manage'), createCohortAssignment);
+router.delete('/assignments/:id', requireAuth, requirePermission('cohort:session_manage'), deleteSessionAssignment);
+router.get('/assignments/:id/submissions', requireAuth, requirePermission('cohort:attendance_write'), getAssignmentSubmissions);
+router.post('/assignments/:id/submit', requireAuth, submitAssignment);
 
 // Weekly Team Check-ins
 router.get('/cohorts/:id/checkins', requireAuth, getCohortCheckIns);

@@ -14,7 +14,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { Room } from '../../../../types';
-import { useRoomManagement } from './hooks/useRoomManagement';
+import { useRoomManagement, ALL_BOOKING_CATEGORIES } from './hooks/useRoomManagement';
 
 interface RoomManagementPageProps {
   rooms: Room[];
@@ -51,6 +51,11 @@ export function RoomManagementPage({
     setRoomMaxDur,
     roomPurpose,
     setRoomPurpose,
+    roomAllowedBookingTypes,
+    setRoomAllowedBookingTypes,
+    toggleBookingType,
+    selectAllBookingTypes,
+    deselectAllBookingTypes,
     errorMsg,
     setErrorMsg,
     successMsg,
@@ -180,6 +185,22 @@ export function RoomManagementPage({
                 <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Official Guideline Purpose</span>
                 <p className="text-[11px] text-gray-500 leading-normal font-medium">{room.purpose}</p>
               </div>
+
+              {/* Allowed Booking Types */}
+              <div className="space-y-1 pt-2 border-t border-gray-50">
+                <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Allowed Booking Types</span>
+                <div className="flex flex-wrap gap-1">
+                  {room.allowedBookingTypes && room.allowedBookingTypes.length > 0 ? (
+                    room.allowedBookingTypes.map((t: string) => (
+                      <span key={t} className="bg-gray-100 text-gray-700 font-extrabold text-[9px] px-2 py-0.5 rounded-md border border-gray-200/60">
+                        {t}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[9px] text-gray-400 italic">All booking types allowed</span>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Actions footer */}
@@ -230,13 +251,13 @@ export function RoomManagementPage({
       {/* ADD ROOM MODAL */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="add-room-modal">
-          <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="bg-primary text-white p-5 font-black text-sm flex items-center justify-between shrink-0">
               <span className="uppercase tracking-wider">Register New Space Room</span>
               <button onClick={() => setShowAddModal(false)} className="text-white hover:text-accent font-bold cursor-pointer text-sm">✕</button>
             </div>
 
-            <form onSubmit={handleAddSubmit} className="p-6 space-y-4 text-left">
+            <form onSubmit={handleAddSubmit} className="p-6 space-y-4 text-left overflow-y-auto">
               <div>
                 <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Room Name/Number <span className="text-red-500">*</span></label>
                 <input
@@ -308,6 +329,61 @@ export function RoomManagementPage({
                 />
               </div>
 
+              {/* ALLOWED BOOKING TYPES CONFIGURATION */}
+              <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider">
+                    Permitted Booking Categories ({roomAllowedBookingTypes.length})
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={selectAllBookingTypes}
+                      className="text-[9px] font-bold text-primary hover:underline cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-gray-300 text-[10px]">•</span>
+                    <button
+                      type="button"
+                      onClick={deselectAllBookingTypes}
+                      className="text-[9px] font-bold text-gray-400 hover:text-gray-600 hover:underline cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-400">
+                  Select which reservation categories are authorized to book this room.
+                </p>
+                <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto p-2 bg-gray-50 border border-gray-150 rounded-xl">
+                  {ALL_BOOKING_CATEGORIES.map(category => {
+                    const isChecked = roomAllowedBookingTypes.some(
+                      t => t.trim().toLowerCase() === category.trim().toLowerCase()
+                    );
+                    return (
+                      <div
+                        key={category}
+                        onClick={() => toggleBookingType(category)}
+                        className={`flex items-center gap-2 p-1.5 rounded-lg border text-[10.5px] font-medium cursor-pointer transition-all select-none ${
+                          isChecked
+                            ? 'bg-primary/10 border-primary text-primary font-bold'
+                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {}}
+                          className="rounded accent-primary text-primary cursor-pointer h-3.5 w-3.5 shrink-0"
+                        />
+                        <span className="truncate">{category}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="flex justify-end gap-2.5 border-t border-gray-100 pt-4">
                 <button
                   type="button"
@@ -332,13 +408,13 @@ export function RoomManagementPage({
       {/* EDIT ROOM MODAL */}
       {editingRoom && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="edit-room-modal">
-          <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-gray-100 overflow-hidden flex flex-col">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="bg-primary text-white p-5 font-black text-sm flex items-center justify-between shrink-0">
               <span className="uppercase tracking-wider">Configure Room: {editingRoom.name}</span>
               <button onClick={() => setEditingRoom(null)} className="text-white hover:text-accent font-bold cursor-pointer text-sm">✕</button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="p-6 space-y-4 text-left">
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4 text-left overflow-y-auto">
               <div>
                 <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Room Name/Number <span className="text-red-500">*</span></label>
                 <input
@@ -405,6 +481,61 @@ export function RoomManagementPage({
                   onChange={e => setRoomPurpose(e.target.value)}
                   className="w-full p-2.5 border border-gray-150 rounded-xl text-xs bg-gray-50/50 focus:bg-white focus:ring-1 focus:ring-primary"
                 />
+              </div>
+
+              {/* ALLOWED BOOKING TYPES CONFIGURATION */}
+              <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider">
+                    Permitted Booking Categories ({roomAllowedBookingTypes.length})
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={selectAllBookingTypes}
+                      className="text-[9px] font-bold text-primary hover:underline cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-gray-300 text-[10px]">•</span>
+                    <button
+                      type="button"
+                      onClick={deselectAllBookingTypes}
+                      className="text-[9px] font-bold text-gray-400 hover:text-gray-600 hover:underline cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-gray-400">
+                  Select which reservation categories are authorized to book this room.
+                </p>
+                <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto p-2 bg-gray-50 border border-gray-150 rounded-xl">
+                  {ALL_BOOKING_CATEGORIES.map(category => {
+                    const isChecked = roomAllowedBookingTypes.some(
+                      t => t.trim().toLowerCase() === category.trim().toLowerCase()
+                    );
+                    return (
+                      <div
+                        key={category}
+                        onClick={() => toggleBookingType(category)}
+                        className={`flex items-center gap-2 p-1.5 rounded-lg border text-[10.5px] font-medium cursor-pointer transition-all select-none ${
+                          isChecked
+                            ? 'bg-primary/10 border-primary text-primary font-bold'
+                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {}}
+                          className="rounded accent-primary text-primary cursor-pointer h-3.5 w-3.5 shrink-0"
+                        />
+                        <span className="truncate">{category}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="flex justify-end gap-2.5 border-t border-gray-100 pt-4">

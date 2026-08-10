@@ -3,6 +3,7 @@ import { Booking } from '../../../types';
 
 export const bookingsApi = {
   getAll: (token?: string | null) => apiClient.get<Booking[]>('/api/bookings', token),
+  getTodayAllRooms: () => apiClient.get<any>('/api/bookings/today-all-rooms'),
   submit: (data: any, token?: string | null) => apiClient.post<any>('/api/bookings', data, token),
   approve: (id: string, token?: string | null) => apiClient.post<any>(`/api/bookings/${id}/approve`, null, token),
   reject: (id: string, reason: string, token?: string | null) => apiClient.post<any>(`/api/bookings/${id}/reject`, { reason }, token),

@@ -28,7 +28,8 @@ import {
   Users,
   Bell,
   ArrowRight,
-  HelpCircle
+  HelpCircle,
+  Download
 } from 'lucide-react';
 
 interface CohortFounderDashboardPageProps {
@@ -114,6 +115,9 @@ interface AssignmentItem {
   status: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
   fileName?: string;
   uploadedAt?: string;
+  attachmentUrl?: string;
+  description?: string;
+  sessionTitle?: string;
 }
 
 export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProps> = ({ jwtToken, onNavigate }) => {
@@ -233,14 +237,28 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
       // 5. Contact Info / Phone
       setContactInput(pf.contact_info || app.phone || '');
 
-      // 6. Interactive states inside JSON profile
-      // Initializing default assignments if not saved on the backend yet
-      const savedAssignments: AssignmentItem[] = pf.assignments || [
-        { id: '1', title: 'Validated Lean Canvas Document', deadline: '2026-07-28', status: 'PENDING' },
-        { id: '2', title: 'Investor Pitch Deck (V1.0)', deadline: '2026-08-15', status: 'PENDING' },
-        { id: '3', title: 'Validated Financial & Pricing Model', deadline: '2026-09-02', status: 'PENDING' }
-      ];
-      setAssignments(savedAssignments);
+      // 6. Assignments from backend or fallback profile JSON
+      if (data.assignments && Array.isArray(data.assignments) && data.assignments.length > 0) {
+        const mappedAssignments: AssignmentItem[] = data.assignments.map((as: any) => ({
+          id: String(as.id),
+          title: as.title,
+          deadline: as.due_date,
+          status: as.is_submitted ? 'SUBMITTED' : 'PENDING',
+          fileName: as.submission?.file_url || undefined,
+          uploadedAt: as.submission?.submitted_at ? new Date(as.submission.submitted_at).toLocaleString() : undefined,
+          attachmentUrl: as.attachment_url,
+          description: as.description,
+          sessionTitle: as.session_title
+        }));
+        setAssignments(mappedAssignments);
+      } else {
+        const savedAssignments: AssignmentItem[] = pf.assignments || [
+          { id: '1', title: 'Validated Lean Canvas Document', deadline: '2026-07-28', status: 'PENDING' },
+          { id: '2', title: 'Investor Pitch Deck (V1.0)', deadline: '2026-08-15', status: 'PENDING' },
+          { id: '3', title: 'Validated Financial & Pricing Model', deadline: '2026-09-02', status: 'PENDING' }
+        ];
+        setAssignments(savedAssignments);
+      }
 
       // Initializing default team roster
       const savedTeam: TeamMember[] = pf.team_roster || [
@@ -364,53 +382,92 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
     }
   };
 
-  // 1. Assignment Action: Simulated File Upload with Real Persistence
-  const triggerAssignmentUpload = async (assignmentId: string) => {
-    if (!uploadedFileText.trim()) {
-      triggerToast('Please write a file name or file narrative to upload.', 'error');
+  // 1. Assignment Action: File Upload with Real Persistence
+  const triggerAssignmentUpload = async (assignmentId: string, fileUrlOverride?: string) => {
+    const fileUrl = fileUrlOverride || uploadedFileText.trim();
+    if (!fileUrl) {
+      triggerToast('Please write or upload a file.', 'error');
       return;
     }
 
     setUploadingAssignmentId(assignmentId);
-    // Simulate dynamic network payload compilation
-    await new Promise(resolve => setTimeout(resolve, 1400));
 
-    const updatedAssignments = assignments.map(as => {
-      if (as.id === assignmentId) {
-        return {
-          ...as,
-          status: 'SUBMITTED' as const,
-          fileName: uploadedFileText.trim(),
-          uploadedAt: new Date().toLocaleString()
-        };
+    try {
+      // Check if assignment is numeric ID (real backend assignment)
+      if (!isNaN(parseInt(assignmentId))) {
+        const res = await fetchWithAuth(`/api/assignments/${assignmentId}/submit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            file_url: fileUrl,
+            notes: 'Submitted via Founder Workspace'
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to submit assignment.');
+      } else {
+        // Fallback for profile JSON mock assignments
+        const updatedAssignments = assignments.map(as => {
+          if (as.id === assignmentId) {
+            return {
+              ...as,
+              status: 'SUBMITTED' as const,
+              fileName: fileUrl,
+              uploadedAt: new Date().toLocaleString()
+            };
+          }
+          return as;
+        });
+
+        await syncProfileToBackend({ assignments: updatedAssignments });
       }
-      return as;
-    });
 
-    // Compile dynamic notifications
-    const targetAssignment = assignments.find(a => a.id === assignmentId);
-    const updatedNotifications: NotificationItem[] = [
-      {
-        id: `not_${Date.now()}`,
-        date: new Date().toISOString(),
-        message: `Milestone deliverable "${targetAssignment?.title}" has been uploaded successfully.`,
-        type: 'success'
-      },
-      ...notifications
-    ];
+      const updatedAssignments = assignments.map(as => {
+        if (as.id === assignmentId) {
+          return {
+            ...as,
+            status: 'SUBMITTED' as const,
+            fileName: fileUrl,
+            uploadedAt: new Date().toLocaleString()
+          };
+        }
+        return as;
+      });
 
-    const success = await syncProfileToBackend({
-      assignments: updatedAssignments,
-      notifications: updatedNotifications
-    });
-
-    if (success) {
       setAssignments(updatedAssignments);
-      setNotifications(updatedNotifications);
       setUploadedFileText('');
-      triggerToast(`Deliverable filed: ${targetAssignment?.title}`);
+      triggerToast(`Deliverable filed successfully.`);
+    } catch (err: any) {
+      triggerToast(err.message, 'error');
+    } finally {
+      setUploadingAssignmentId(null);
     }
-    setUploadingAssignmentId(null);
+  };
+
+  const handleFileUploadAndSubmit = async (e: React.ChangeEvent<HTMLInputElement>, assignmentId: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingAssignmentId(assignmentId);
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const fileData = reader.result as string;
+        const uploadRes = await fetchWithAuth('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: file.name, fileData })
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(uploadData.error || 'File upload failed.');
+
+        await triggerAssignmentUpload(assignmentId, uploadData.url);
+      };
+    } catch (err: any) {
+      triggerToast(err.message, 'error');
+      setUploadingAssignmentId(null);
+    }
   };
 
   // 2. Feedback Action: Rate a Session with Real Persistence
@@ -1091,12 +1148,36 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                       <tbody className="divide-y divide-gray-100 text-xs font-semibold">
                         {assignments.map((as) => (
                           <tr key={as.id} className="hover:bg-gray-50/30 transition-colors">
-                            <td className="px-5 py-4 space-y-1">
-                              <p className="font-extrabold text-gray-800 uppercase tracking-tight">{as.title}</p>
+                            <td className="px-5 py-4 space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <p className="font-extrabold text-gray-800 uppercase tracking-tight">{as.title}</p>
+                                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${
+                                  as.sessionTitle 
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                }`}>
+                                  {as.sessionTitle ? `Session: ${as.sessionTitle}` : 'Cohort Assignment'}
+                                </span>
+                              </div>
+                              {as.description && (
+                                <p className="text-[11px] text-gray-500 font-normal leading-relaxed">{as.description}</p>
+                              )}
+                              {as.attachmentUrl && (
+                                <div>
+                                  <a
+                                    href={as.attachmentUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:underline bg-gray-50 px-2 py-0.5 rounded border border-gray-200"
+                                  >
+                                    <Download className="h-3 w-3" /> Reference Template
+                                  </a>
+                                </div>
+                              )}
                               {as.fileName && (
-                                <p className="text-[10px] font-mono text-emerald-600 flex items-center gap-1">
+                                <p className="text-[10px] font-mono text-emerald-600 flex items-center gap-1 font-bold pt-0.5">
                                   <CheckCircle2 className="h-3 w-3 shrink-0" />
-                                  File: {as.fileName} <span className="text-gray-400">({as.uploadedAt})</span>
+                                  Submitted: <a href={as.fileName} target="_blank" rel="noreferrer" className="underline">{as.fileName.split('/').pop()}</a> <span className="text-gray-400">({as.uploadedAt})</span>
                                 </p>
                               )}
                             </td>
@@ -1116,32 +1197,43 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                                 {as.status}
                               </span>
                             </td>
-                            <td className="px-5 py-4 text-right">
+                             <td className="px-5 py-4 text-right">
                               {uploadingAssignmentId === as.id ? (
                                 <div className="inline-flex items-center gap-1.5 text-[10px] text-gray-400 font-mono font-bold">
                                   <div className="h-3.5 w-3.5 border-2 border-[#8B1A1A] border-t-transparent rounded-full animate-spin" />
-                                  Filing...
+                                  Uploading...
                                 </div>
                               ) : (
                                 <div className="flex flex-col gap-2 items-end justify-end">
-                                  <div className="flex gap-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <label className="bg-gray-100 hover:bg-gray-200 text-gray-800 text-[10px] font-bold py-1 px-2.5 rounded-lg cursor-pointer transition-all flex items-center gap-1">
+                                      <Upload className="h-3 w-3 text-primary" />
+                                      Select File
+                                      <input 
+                                        type="file" 
+                                        onChange={(e) => handleFileUploadAndSubmit(e, as.id)} 
+                                        disabled={as.status === 'APPROVED'}
+                                        className="hidden" 
+                                      />
+                                    </label>
+                                    <span className="text-[10px] text-gray-400 font-mono">or</span>
                                     <input
                                       type="text"
-                                      placeholder="File URL or filename..."
+                                      placeholder="File URL..."
                                       disabled={as.status === 'APPROVED'}
                                       value={uploadingAssignmentId === null && as.status !== 'APPROVED' ? undefined : undefined}
                                       onChange={(e) => setUploadedFileText(e.target.value)}
-                                      className="bg-white border border-gray-200 rounded-lg px-2 py-1 text-[10px] w-36 focus:outline-none focus:border-primary font-mono disabled:opacity-40"
+                                      className="bg-white border border-gray-200 rounded-lg px-2 py-1 text-[10px] w-28 focus:outline-none focus:border-primary font-mono disabled:opacity-40"
                                     />
                                     <button
                                       disabled={as.status === 'APPROVED'}
                                       onClick={() => {
                                         triggerAssignmentUpload(as.id);
                                       }}
-                                      className="bg-[#8B1A1A] hover:bg-[#5A0F0F] text-white p-1.5 rounded-lg cursor-pointer disabled:opacity-45"
-                                      title="Simulate upload"
+                                      className="bg-[#8B1A1A] hover:bg-[#5A0F0F] text-white px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer disabled:opacity-45"
+                                      title="Submit URL"
                                     >
-                                      <Upload className="h-3.5 w-3.5" />
+                                      Submit
                                     </button>
                                   </div>
                                 </div>

@@ -19,6 +19,7 @@ import { PublicCohortApplyPage } from './features/cohort/pages/PublicCohortApply
 import { PublicCohortTrackPage } from './features/cohort/pages/PublicCohortTrackPage';
 import { CohortFounderDashboardPage } from './features/cohort/pages/CohortFounderDashboardPage';
 import { CohortManagementPage } from './features/admin/pages/CohortManagement/CohortManagementPage';
+import { PublicRoomDisplayPage } from './features/booking/pages/PublicRoomDisplayPage';
 
 
 // Services
@@ -43,17 +44,13 @@ export default function App() {
   // Options: 'queue' | 'register' | 'governance' | 'rooms' | 'audits'
   const [activeTab, setActiveTab] = useState<string>('queue');
 
-  // Simulated identities for testing complex roles & Microsoft SSO simulation
-  const simulatedIdentities: ERPUser[] = [
-    { email: 'usman@society.pk', name: 'Usman Ghani (Society Rep)', role: 'UCP Member', status: 'Active' },
-    { email: 'faisal@ucp.edu.pk', name: 'Faisal Mehmood (Coordinator)', role: 'Facility Coordinator', status: 'Active' },
-    { email: 'maheen@ucp.edu.pk', name: 'Maheen Malik (Manager)', role: 'Booking Manager', status: 'Active' },
-    { email: 'director@takhleeq.pk', name: 'Dr. Qaseeb (Director)', role: 'Administrator', status: 'Active' },
-    { email: 'banned-test@ucp.edu.pk', name: 'Banned Student (Testing)', role: 'UCP Member', status: 'Inactive' },
-    { email: 'zohaib@startup.pk', name: 'Zohaib Niaz (MedRoute Founder)', role: 'Cohort Founder', status: 'Active' }
-  ];
-
-  const [activeUser, setActiveUser] = useState<ERPUser>(simulatedIdentities[3]); // Default to Administrator for easy testing
+  const [activeUser, setActiveUser] = useState<ERPUser | null>(() => {
+    const stored = localStorage.getItem('currentUser');
+    if (stored) {
+      try { return JSON.parse(stored); } catch (e) { return null; }
+    }
+    return null;
+  });
   const [globalBannedError, setGlobalBannedError] = useState<string | null>(null);
 
   // Core synchronized database states
@@ -65,7 +62,9 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditRecord[]>([]);
   const [reportsData, setReportsData] = useState<any>(null);
 
-  const [jwtToken, setJwtToken] = useState<string | null>(null);
+  const [jwtToken, setJwtToken] = useState<string | null>(() => {
+    return localStorage.getItem('jwtToken');
+  });
   const [loading, setLoading] = useState(true);
 
   // Cohort context state
@@ -134,12 +133,14 @@ export default function App() {
           if (activeUser.role !== freshUserRecord.role || 
               JSON.stringify(activeUser.permissions) !== JSON.stringify(freshPermissions) ||
               activeUser.status !== freshUserRecord.status) {
-            setActiveUser(prev => ({
-              ...prev,
+            const updatedUser = {
+              ...activeUser,
               role: freshUserRecord.role,
               status: freshUserRecord.status,
               permissions: freshPermissions
-            }));
+            };
+            setActiveUser(updatedUser);
+            localStorage.setItem('currentUser', JSON.stringify(updatedUser));
           }
         }
       }
@@ -174,19 +175,18 @@ export default function App() {
     }
   };
 
-  // Configure simulated Azure authentication token on boot
+  // Initialize session on boot from localStorage
   useEffect(() => {
     const initAuth = async () => {
-      try {
-        const data = await authApi.loginSimulated(activeUser.email);
-        setJwtToken(data.token);
-        setActiveUser(data.user);
-        await fetchStateData(data.token);
-      } catch (err) {
-        console.error('Error during initial simulated SSO setup:', err);
-      } finally {
-        setLoading(false);
+      const storedToken = localStorage.getItem('jwtToken');
+      if (storedToken) {
+        try {
+          await fetchStateData(storedToken);
+        } catch (err) {
+          console.error('Session initialization error:', err);
+        }
       }
+      setLoading(false);
     };
     initAuth();
   }, []);
@@ -203,49 +203,20 @@ export default function App() {
     return () => clearInterval(interval);
   }, [currentPath, jwtToken]);
 
-  // Sync profile impersonation selection
-  const handleActiveIdentityChange = async (email: string) => {
-    const found = simulatedIdentities.find(i => i.email === email);
-    if (found) {
-      setLoading(true);
-      setGlobalBannedError(null);
-      try {
-        const data = await authApi.loginSimulated(found.email);
-        setJwtToken(data.token);
-        setActiveUser(data.user);
-        await fetchStateData(data.token);
-
-        // Auto route to respective environments
-        if (data.user.role === 'Cohort Founder') {
-          navigate('/founder-dashboard');
-        } else if (data.user.role === 'UCP Member') {
-          navigate('/booking');
-        } else {
-          navigate('/staff/dashboard');
-        }
-      } catch (err: any) {
-        console.warn('Error switching identities via SSO:', err.message || err);
-        if (err.message && err.message.includes('banned')) {
-          setGlobalBannedError(err.message);
-        } else {
-          alert(err.message || 'Identity authentication failed.');
-        }
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
   // Logout routine
   const handleLogout = () => {
+    localStorage.removeItem('jwtToken');
+    localStorage.removeItem('currentUser');
     setJwtToken(null);
+    setActiveUser(null);
     setGlobalBannedError(null);
-    setActiveUser(simulatedIdentities[0]); // Reset to student society profile
-    navigate('/');
+    navigate('/login');
   };
 
-  // SSO Login callback
+  // SSO / Password Login callback
   const handleLoginSuccess = (token: string, user: ERPUser) => {
+    localStorage.setItem('jwtToken', token);
+    localStorage.setItem('currentUser', JSON.stringify(user));
     setJwtToken(token);
     setActiveUser(user);
     fetchStateData(token);
@@ -373,6 +344,7 @@ export default function App() {
 
   // Helper check for active permission node
   const hasPermission = (permissionNode: string): boolean => {
+    if (!activeUser) return false;
     if (activeUser.role === 'Administrator') return true;
     if (activeUser.permissions && activeUser.permissions.includes(permissionNode)) return true;
     const roleRecord = roles.find(r => r.name === activeUser.role);
@@ -391,6 +363,88 @@ export default function App() {
       );
     }
 
+    if (currentPath.startsWith('/admissions/applications')) {
+      if (!jwtToken || !activeUser) {
+        return (
+          <LoginPage 
+            onNavigate={navigate} 
+            onLoginSuccess={handleLoginSuccess} 
+            isStaff={true} 
+          />
+        );
+      }
+      return (
+        <StaffLayout
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          activeUser={activeUser}
+          hasPermission={hasPermission}
+          onNavigate={navigate}
+          onLogout={handleLogout}
+          jwtToken={jwtToken}
+          cohortsList={cohortsList}
+          selectedCohortId={selectedCohortId}
+          setSelectedCohortId={setSelectedCohortId}
+          currentPath={currentPath}
+        >
+          <CohortManagementPage 
+            currentUser={activeUser}
+            hasPermission={hasPermission}
+            onRefresh={fetchStateData}
+            jwtToken={jwtToken}
+            activeTab="cohort_intake"
+            selectedCohortId={selectedCohortId}
+            setSelectedCohortId={setSelectedCohortId}
+            cohortsList={cohortsList}
+            auditLogs={auditLogs}
+            currentPath={currentPath}
+            onNavigate={navigate}
+          />
+        </StaffLayout>
+      );
+    }
+
+    if (currentPath.startsWith('/admin/sessions')) {
+      if (!jwtToken || !activeUser) {
+        return (
+          <LoginPage 
+            onNavigate={navigate} 
+            onLoginSuccess={handleLoginSuccess} 
+            isStaff={true} 
+          />
+        );
+      }
+      return (
+        <StaffLayout
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          activeUser={activeUser}
+          hasPermission={hasPermission}
+          onNavigate={navigate}
+          onLogout={handleLogout}
+          jwtToken={jwtToken}
+          cohortsList={cohortsList}
+          selectedCohortId={selectedCohortId}
+          setSelectedCohortId={setSelectedCohortId}
+          currentPath={currentPath}
+        >
+          <CohortManagementPage 
+            currentUser={activeUser}
+            hasPermission={hasPermission}
+            onRefresh={fetchStateData}
+            jwtToken={jwtToken}
+            activeTab="cohort_sessions"
+            selectedCohortId={selectedCohortId}
+            setSelectedCohortId={setSelectedCohortId}
+            cohortsList={cohortsList}
+            auditLogs={auditLogs}
+            currentPath={currentPath}
+            onNavigate={navigate}
+          />
+        </StaffLayout>
+      );
+    }
+
     switch (currentPath) {
       case '/':
         return <LandingPage onNavigate={navigate} activeUser={activeUser} />;
@@ -400,7 +454,6 @@ export default function App() {
           <LoginPage 
             onNavigate={navigate} 
             onLoginSuccess={handleLoginSuccess} 
-            simulatedUsers={simulatedIdentities} 
             isStaff={false} 
           />
         );
@@ -410,7 +463,6 @@ export default function App() {
           <LoginPage 
             onNavigate={navigate} 
             onLoginSuccess={handleLoginSuccess} 
-            simulatedUsers={simulatedIdentities} 
             isStaff={true} 
           />
         );
@@ -425,7 +477,7 @@ export default function App() {
           >
             <BookingFormPage 
               rooms={rooms}
-              selectedUserEmail={activeUser.email}
+              selectedUserEmail={activeUser?.email || ''}
               onBookingSubmitted={fetchStateData}
               onNavigate={navigate}
             />
@@ -442,12 +494,23 @@ export default function App() {
           >
             <TrackPage 
               bookings={bookings}
-              currentUserEmail={activeUser.email}
+              currentUserEmail={activeUser?.email || ''}
               jwtToken={jwtToken}
               onRefresh={fetchStateData}
               onNavigate={navigate}
             />
           </PublicLayout>
+        );
+
+      case '/room-display':
+      case '/display':
+        return (
+          <PublicRoomDisplayPage
+            rooms={rooms}
+            bookings={bookings}
+            onRefresh={fetchStateData}
+            onNavigate={navigate}
+          />
         );
 
       case '/cohort-apply':
@@ -475,6 +538,15 @@ export default function App() {
         );
 
       case '/founder-dashboard':
+        if (!jwtToken || !activeUser) {
+          return (
+            <LoginPage 
+              onNavigate={navigate} 
+              onLoginSuccess={handleLoginSuccess} 
+              isStaff={false} 
+            />
+          );
+        }
         return (
           <PublicLayout
             currentPath={currentPath}
@@ -490,6 +562,15 @@ export default function App() {
         );
 
       case '/staff/dashboard':
+        if (!jwtToken || !activeUser) {
+          return (
+            <LoginPage 
+              onNavigate={navigate} 
+              onLoginSuccess={handleLoginSuccess} 
+              isStaff={true} 
+            />
+          );
+        }
         return (
           <StaffLayout
             activeTab={activeTab}
@@ -502,6 +583,7 @@ export default function App() {
             cohortsList={cohortsList}
             selectedCohortId={selectedCohortId}
             setSelectedCohortId={setSelectedCohortId}
+            currentPath={currentPath}
           >
             {activeTab === 'queue' && (
               <StaffReviewQueue 
@@ -569,7 +651,7 @@ export default function App() {
               />
             )}
 
-            {(activeTab.startsWith('cohort') || activeTab === 'builder') && (
+            {(activeTab.startsWith('cohort') || activeTab === 'builder' || currentPath.startsWith('/admissions/applications')) && (
               <CohortManagementPage 
                 currentUser={activeUser}
                 hasPermission={hasPermission}
@@ -580,6 +662,8 @@ export default function App() {
                 setSelectedCohortId={setSelectedCohortId}
                 cohortsList={cohortsList}
                 auditLogs={auditLogs}
+                currentPath={currentPath}
+                onNavigate={navigate}
               />
             )}
           </StaffLayout>
@@ -590,7 +674,7 @@ export default function App() {
           <div className="py-24 text-center bg-white max-w-md mx-auto rounded-2xl border border-gray-100 shadow-3xs p-6 mt-12 text-xs text-gray-500 leading-relaxed">
             <ShieldAlert className="h-10 w-10 text-rose-600 mx-auto mb-2" />
             <p className="font-extrabold text-gray-800 uppercase tracking-wide">404: Endpoint Route Not Found</p>
-            <p className="mt-1">The requested URL block is not active in this sandbox. Please go back to safety.</p>
+            <p className="mt-1">The requested page or endpoint does not exist. Please return to safety.</p>
             <button 
               onClick={() => navigate('/')} 
               className="mt-4 bg-primary text-white font-bold py-2 px-5 rounded-xl uppercase tracking-wider text-[10px] cursor-pointer"
@@ -604,71 +688,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-[#1A1A1A]" id="takhleeq-erp-application">
-      
-      {/* ENTERPRISE SIMULATION BAR - IMMUTABLE ON ALL PAGES TO ENABLE SPEED TESTING */}
-      <section className="bg-[#121214] text-gray-300 border-b border-gray-800 py-2.5 px-4 flex flex-col lg:flex-row justify-between items-center gap-4 shrink-0 shadow-sm text-xs">
-        <div className="flex items-center gap-3">
-          <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <p className="text-[11px] font-bold tracking-wider uppercase text-gray-400">
-            Interactive Portal Switcher & Microsoft SSO Sandbox
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3.5 flex-wrap font-bold">
-          {/* Public / Staff Domain Buttons */}
-          <div className="bg-[#1F1F23] border border-gray-700/60 p-1 rounded-xl flex items-center gap-1">
-            <button
-              onClick={() => { navigate('/'); }}
-              className={`px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider transition-all cursor-pointer ${
-                currentPath === '/'
-                  ? 'bg-primary text-white shadow-3xs'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}
-            >
-              Home
-            </button>
-            <button
-              onClick={() => { navigate('/booking'); }}
-              className={`px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider transition-all cursor-pointer ${
-                currentPath === '/booking' || currentPath === '/track'
-                  ? 'bg-primary text-white shadow-3xs'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}
-            >
-              Public booking
-            </button>
-            <button
-              onClick={() => { navigate('/staff/dashboard'); }}
-              className={`px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider transition-all cursor-pointer ${
-                currentPath === '/staff/dashboard'
-                  ? 'bg-primary text-white shadow-3xs'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
-              }`}
-            >
-              Staff Back-office ERP
-            </button>
-          </div>
-
-          <div className="h-4 w-px bg-gray-800 hidden md:block" />
-
-          {/* Active Persona selection */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-gray-400 uppercase font-black">Impersonate Profile:</span>
-            <select 
-              value={activeUser.email}
-              onChange={(e) => handleActiveIdentityChange(e.target.value)}
-              className="bg-[#1F1F23] border border-gray-700/60 text-xs text-white rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer hover:bg-gray-800 font-bold"
-            >
-              {simulatedIdentities.map(id => (
-                <option key={id.email} value={id.email}>
-                  {id.name} ({id.role})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </section>
-
       {/* RENDER CURRENT PAGE */}
       {renderRouteContent()}
 

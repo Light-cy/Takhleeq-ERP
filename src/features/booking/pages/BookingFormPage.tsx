@@ -14,7 +14,8 @@ import {
   FileText,
   MapPin,
   HelpCircle,
-  Copy
+  Copy,
+  Search
 } from 'lucide-react';
 import { Room, BookingType } from '../../../types';
 import { bookingsApi } from '../services/bookings.api';
@@ -87,6 +88,44 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
 
   // Find room parameters
   const selectedRoomObj = rooms.find(r => r.name === room);
+
+  // Dynamically compute permitted booking types based on selected room
+  const availableBookingTypes = React.useMemo(() => {
+    if (!selectedRoomObj || !selectedRoomObj.allowedBookingTypes || selectedRoomObj.allowedBookingTypes.length === 0) {
+      return bookingTypes;
+    }
+
+    const allowedList = selectedRoomObj.allowedBookingTypes;
+
+    // Filter active bookingTypes that match the room's allowed list
+    const matched = bookingTypes.filter(bt =>
+      allowedList.some(a => a.trim().toLowerCase() === bt.name.trim().toLowerCase())
+    );
+
+    // Also include any allowed strings from room configuration if not already in bookingTypes
+    const existingLower = new Set(matched.map(m => m.name.trim().toLowerCase()));
+    const extras: BookingType[] = allowedList
+      .filter(a => !existingLower.has(a.trim().toLowerCase()))
+      .map((a, idx) => ({
+        id: 9900 + idx,
+        name: a,
+        isActive: true
+      }));
+
+    return [...matched, ...extras];
+  }, [selectedRoomObj, bookingTypes]);
+
+  // When room selection or available booking types change, ensure selected bookingType is valid for the room
+  useEffect(() => {
+    if (availableBookingTypes.length > 0) {
+      const isValid = availableBookingTypes.some(
+        bt => bt.name.trim().toLowerCase() === bookingType.trim().toLowerCase()
+      );
+      if (!isValid) {
+        setBookingType(availableBookingTypes[0].name);
+      }
+    }
+  }, [availableBookingTypes, bookingType]);
 
   // Real-time Validations
   const getNameValidationError = (val: string) => {
@@ -184,6 +223,19 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
     return `${year}-${month}-${day}`;
   };
 
+  const getWeekendError = () => {
+    if (!date) return null;
+    const parts = date.split('-').map(Number);
+    if (parts.length === 3) {
+      const selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      const dayOfWeek = selectedDate.getDay(); // 0 is Sunday, 6 is Saturday
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        return "Bookings are only allowed on working days (Monday to Friday). Saturday and Sunday bookings are not permitted.";
+      }
+    }
+    return null;
+  };
+
   const getPastDateTimeError = () => {
     if (!date || !startTime) return null;
     const todayStr = getLocalDateString();
@@ -211,6 +263,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
 
   const operatingHoursError = getOperatingHoursError();
   const pastDateTimeError = getPastDateTimeError();
+  const weekendError = getWeekendError();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -248,6 +301,11 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
       return;
     }
 
+    if (weekendError) {
+      setErrorMsg(`Validation Error: ${weekendError}`);
+      return;
+    }
+
     if (pastDateTimeError) {
       setErrorMsg(`Validation Error: ${pastDateTimeError}`);
       return;
@@ -277,8 +335,8 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
       });
 
       setSuccessData({
-        id: result.booking.id,
-        message: result.message
+        id: result?.booking?.id || result?.booking?.booking_id || 'TBK-2026',
+        message: result?.message || 'Your space booking request has been submitted.'
       });
 
       // Reset form fields
@@ -317,50 +375,61 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
           <span className="text-gray-800">Booking Portal</span>
         </nav>
 
-        {successData ? (
-          <div className="bg-white border border-green-100 rounded-2xl shadow-lg p-8 text-center space-y-6 animate-fade-in" id="booking-success-panel">
-            <div className="h-16 w-16 bg-green-50 border border-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto">
-              <CheckCircle2 className="h-10 w-10 animate-bounce" />
-            </div>
+        {/* BLOCKING SUCCESS CONFIRMATION MODAL */}
+        {successData && (
+          <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" id="booking-success-modal-overlay">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-emerald-100 text-center space-y-6 relative overflow-hidden animate-scale-up">
+              
+              <div className="h-20 w-20 bg-emerald-50 border-2 border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                <CheckCircle2 className="h-12 w-12 animate-bounce" />
+              </div>
 
-            <div className="space-y-2">
-              <h2 className="text-lg font-black text-gray-900 uppercase tracking-tight">Booking Submitted Successfully</h2>
-              <p className="text-xs text-gray-500">Your space reservation has been created and logged in the central verification stream.</p>
-            </div>
+              <div className="space-y-2">
+                <span className="inline-block bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full">
+                  Status: Request Pending Approval
+                </span>
+                <h2 className="text-xl font-black text-gray-900 tracking-tight uppercase">Your Request is Pending Approval</h2>
+                <p className="text-xs text-gray-500 max-w-sm mx-auto leading-relaxed">
+                  Your space booking request has been logged in the system. Our operations team is reviewing it and you can check live progress anytime.
+                </p>
+              </div>
 
-            {/* Prominent booking ID highlight */}
-            <div className="bg-green-50/50 border border-green-100 rounded-2xl p-6 max-w-md mx-auto space-y-3">
-              <span className="text-[10px] text-green-700 font-black uppercase tracking-wider block">Reference Booking ID</span>
-              <div className="flex items-center justify-center gap-3 bg-white border border-green-100 rounded-xl px-4 py-3 max-w-xs mx-auto">
-                <span className="font-mono text-base font-black text-primary select-all">{successData.id}</span>
+              {/* Reference ID Box */}
+              <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-5 space-y-2.5">
+                <span className="text-[10px] text-emerald-800 font-extrabold uppercase tracking-wider block">Your Booking Tracking Code</span>
+                <div className="flex items-center justify-center gap-3 bg-white border border-emerald-200 rounded-xl px-4 py-3 shadow-xs">
+                  <span className="font-mono text-lg font-black text-primary select-all tracking-wider">{successData.id}</span>
+                  <button 
+                    onClick={() => copyToClipboard(successData.id)}
+                    className="p-1.5 text-gray-400 hover:text-primary hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
+                    title="Copy Reference Code"
+                  >
+                    <Copy className="h-4.5 w-4.5" />
+                  </button>
+                </div>
+                {copied && <p className="text-[10px] text-emerald-600 font-bold">Copied code to clipboard!</p>}
+                <p className="text-[11px] text-emerald-800 font-medium">{successData.message}</p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button 
-                  onClick={() => copyToClipboard(successData.id)}
-                  className="p-1.5 text-gray-400 hover:text-primary hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
-                  title="Copy Reference ID"
+                  onClick={() => onNavigate(`/track?token=${successData.id}`)}
+                  className="w-full sm:w-auto flex-1 bg-primary hover:bg-primary/95 text-white font-bold py-3 px-6 rounded-xl text-xs uppercase tracking-wider cursor-pointer shadow-md transition-all flex items-center justify-center gap-2"
                 >
-                  <Copy className="h-4 w-4" />
+                  <Search className="h-4 w-4" /> Track Status Page
+                </button>
+                <button 
+                  onClick={() => setSuccessData(null)}
+                  className="w-full sm:w-auto bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 px-5 rounded-xl text-xs uppercase tracking-wider cursor-pointer transition-colors"
+                >
+                  Close & Submit Another
                 </button>
               </div>
-              {copied && <p className="text-[10px] text-green-600 font-semibold">Copied Reference ID to clipboard!</p>}
-              <p className="text-[11px] text-green-700 leading-normal font-medium mt-2">{successData.message}</p>
-            </div>
 
-            <div className="flex flex-wrap justify-center gap-3 pt-4 border-t border-gray-50">
-              <button 
-                onClick={() => setSuccessData(null)}
-                className="bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-bold px-5 py-2.5 rounded-xl text-xs uppercase tracking-wider cursor-pointer"
-              >
-                Submit Another
-              </button>
-              <button 
-                onClick={() => onNavigate('/track')}
-                className="bg-primary hover:bg-primary/95 text-white font-bold px-5 py-2.5 rounded-xl text-xs uppercase tracking-wider cursor-pointer"
-              >
-                Track Status
-              </button>
             </div>
           </div>
-        ) : (
+        )}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden" id="booking-form-card">
             
             {/* Header cover banner */}
@@ -507,19 +576,6 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Booking Type <span className="text-red-500">*</span></label>
-                      <select
-                        value={bookingType}
-                        onChange={e => setBookingType(e.target.value)}
-                        className="w-full p-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium cursor-pointer"
-                      >
-                        {bookingTypes.map(bt => (
-                          <option key={bt.id} value={bt.name}>{bt.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
                       <label className="block text-xs font-bold text-gray-700 mb-1">Select Room <span className="text-red-500">*</span></label>
                       <select
                         required
@@ -527,11 +583,42 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
                         onChange={e => setRoom(e.target.value)}
                         className="w-full p-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium cursor-pointer"
                       >
-                        <option value="">-- Choose Space --</option>
+                        <option value="">-- Choose Space First --</option>
                         {rooms.filter(r => r.isActive).map(r => (
                           <option key={r.id} value={r.name}>{r.name} (Cap. {r.capacity})</option>
                         ))}
                       </select>
+                      {selectedRoomObj ? (
+                        <p className="text-[10px] text-emerald-700 font-medium mt-1">
+                          Space selected: {selectedRoomObj.name}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          Select a room to view permitted booking categories.
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Booking Type <span className="text-red-500">*</span></label>
+                      <select
+                        value={bookingType}
+                        onChange={e => setBookingType(e.target.value)}
+                        className="w-full p-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium cursor-pointer"
+                      >
+                        {availableBookingTypes.map(bt => (
+                          <option key={bt.id} value={bt.name}>{bt.name}</option>
+                        ))}
+                      </select>
+                      {selectedRoomObj ? (
+                        <p className="text-[10px] text-emerald-700 font-medium mt-1">
+                          Permitted categories for {selectedRoomObj.name} ({availableBookingTypes.length} available).
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          Showing default categories.
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -603,11 +690,14 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
                         value={date}
                         onChange={e => setDate(e.target.value)}
                         className={`w-full p-2.5 border rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium cursor-pointer ${
-                          pastDateTimeError 
+                          pastDateTimeError || weekendError
                             ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:ring-rose-500 focus:border-rose-500' 
                             : 'border-gray-200'
                         }`}
                       />
+                      {weekendError && (
+                        <p className="text-[11px] text-rose-600 mt-1 font-medium leading-tight">{weekendError}</p>
+                      )}
                     </div>
 
                     <div>
@@ -701,7 +791,6 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
               </form>
             </div>
           </div>
-        )}
 
     </div>
   );

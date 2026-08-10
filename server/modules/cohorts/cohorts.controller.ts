@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { query, logAudit } from '../../db.ts';
 import { AuthenticatedRequest } from '../../shared/types/index.ts';
 import { sendApplicantStatusEmail } from './cohort-email.service.ts';
+import { syncAcceptedStartupsInternal } from '../startups/startups.controller.ts';
 
 // Helper to generate a friendly Pakistani tracking token like TK-STR-5129
 function generateTrackingToken(): string {
@@ -128,6 +129,17 @@ export const submitApplicant = async (req: AuthenticatedRequest, res: Response) 
 
     const newApplicant = insertRes.rows[0];
 
+    // Log initial stage history
+    try {
+      await query(
+        `INSERT INTO applicant_stage_history (applicant_id, previous_stage, new_stage, updated_by_email, comments, include_in_email)
+         VALUES ($1, NULL, 'APPLIED', $2, 'Application Form Submitted', TRUE)`,
+        [newApplicant.id, email.toLowerCase().trim()]
+      );
+    } catch (ashErr) {
+      console.error('Failed to log initial stage history:', ashErr);
+    }
+
     await logAudit(
       `New startup application submitted: '${startup_name}' by founder ${name}. Token: ${token}`,
       'applicant',
@@ -168,7 +180,7 @@ export const trackApplicant = async (req: AuthenticatedRequest, res: Response) =
 
   try {
     const result = await query(
-      `SELECT id, tracking_token, name, email, startup_name, status, orientation_conducted, created_at 
+      `SELECT id, tracking_token, name, email, startup_name, status, program_status, orientation_conducted, created_at 
        FROM applicants 
        WHERE LOWER(tracking_token) = LOWER($1)`,
       [token.trim()]
@@ -178,7 +190,18 @@ export const trackApplicant = async (req: AuthenticatedRequest, res: Response) =
       return res.status(404).json({ error: 'Tracking Token Error: No application found matching the provided token.' });
     }
 
-    res.json(result.rows[0]);
+    const applicant = result.rows[0];
+
+    // Fetch applicant's stage history for timeline synchronization
+    const historyRes = await query(
+      `SELECT * FROM applicant_stage_history WHERE applicant_id = $1 ORDER BY change_date ASC`,
+      [applicant.id]
+    );
+
+    res.json({
+      ...applicant,
+      stage_history: historyRes.rows
+    });
   } catch (err: any) {
     console.error('Failed to track applicant:', err);
     res.status(500).json({ error: 'Failed to retrieve tracking status.' });
@@ -220,6 +243,17 @@ export const getApplicantById = async (req: AuthenticatedRequest, res: Response)
     const panel_scores = row.panel_scores && typeof row.panel_scores === 'string' ? JSON.parse(row.panel_scores) : row.panel_scores;
     const form_data = row.form_data && typeof row.form_data === 'string' ? JSON.parse(row.form_data) : row.form_data;
     
+    // Auto-generate credentials if confirmed or enrolled and not yet present
+    let founderPassword = row.founder_password;
+    if (!founderPassword) {
+      try {
+        const c = await ensureFounderCredentials(row.id);
+        founderPassword = c.password;
+      } catch (e) {
+        console.error('Auto-credentials check error in getApplicantById:', e);
+      }
+    }
+
     // If has parent, fetch the parent details too
     let parent = null;
     if (row.parent_applicant_id) {
@@ -231,6 +265,7 @@ export const getApplicantById = async (req: AuthenticatedRequest, res: Response)
 
     res.json({
       ...row,
+      founder_password: founderPassword || row.founder_password,
       panel_scores,
       form_data,
       parent
@@ -289,7 +324,7 @@ export const updateApplicantScores = async (req: AuthenticatedRequest, res: Resp
 export const updateApplicantStatus = async (req: AuthenticatedRequest, res: Response) => {
   const admin = req.currentUser;
   const { id } = req.params;
-  const { status, program_status, cohort_id } = req.body; // status: 'IN_REVIEW' | 'BACKUP_CANDIDATE' | 'ACCEPTED' | 'CONFIRMED' | 'REJECTED'
+  const { status, program_status, cohort_id, comments, remarks, include_in_email } = req.body; 
 
   if (!status && !program_status) {
     return res.status(400).json({ error: 'Missing status or program_status field.' });
@@ -342,29 +377,183 @@ export const updateApplicantStatus = async (req: AuthenticatedRequest, res: Resp
 
     const updated = result.rows[0];
 
+    // Log to applicant_stage_history table
+    const remarksText = comments || remarks || null;
+    const includeInEmailBool = include_in_email !== undefined ? Boolean(include_in_email) : true;
+    try {
+      await query(
+        `INSERT INTO applicant_stage_history (applicant_id, previous_stage, new_stage, updated_by_email, comments, include_in_email)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [parseInt(id), prev.status, newStatus, admin?.email || 'Staff/System', remarksText, includeInEmailBool]
+      );
+    } catch (hErr) {
+      console.error('Failed to insert applicant_stage_history record:', hErr);
+    }
+
     await logAudit(
       `Status updated for startup '${prev.startup_name}': Changed status from '${prev.status}' to '${newStatus}' (program_status: '${newProgramStatus}').`,
       'applicant_status',
       String(id),
       admin?.email || 'Admin',
       { previousStatus: prev.status, previousProgramStatus: prev.program_status, previousCohort: prev.cohort_id },
-      { newStatus, newProgramStatus, cohort_id: assignedCohortId }
+      { newStatus, newProgramStatus, cohort_id: assignedCohortId, remarks: remarksText, include_in_email: includeInEmailBool }
     );
 
-    // Send milestone email notification asynchronously
+    // Auto-ensure founder credentials for login portal if status is CONFIRMED, ENROLLED, ACCEPTED, CONDITIONAL_ACCEPTED, etc.
+    let creds: any = null;
+    if (['CONFIRMED', 'ENROLLED', 'ACCEPTED', 'CONDITIONAL_ACCEPTED', 'SHORTLISTED', 'RECOMMENDED_FOR_INCUBATION', 'ORIENTATION_CONDUCTED', 'CONTRACT_SIGNED', 'GRADUATED'].includes(newStatus)) {
+      try {
+        creds = await ensureFounderCredentials(updated.id);
+      } catch (cErr) {
+        console.error('Failed to ensure founder credentials on status update:', cErr);
+      }
+    }
+
+    // Send milestone email notification asynchronously with login credentials attached
     sendApplicantStatusEmail({
       id: updated.id,
       name: updated.name,
       email: updated.email,
       startup_name: updated.startup_name,
       tracking_token: updated.tracking_token,
-      status: newStatus
+      status: newStatus,
+      notes: remarksText,
+      include_in_email: includeInEmailBool,
+      login_email: creds?.email || updated.email,
+      login_password: creds?.password || updated.founder_password
     }).catch(e => console.error('Failed to send status update notification email:', e));
 
-    res.json({ success: true, applicant: updated });
+    // Auto sync accepted startups to startup_profiles
+    syncAcceptedStartupsInternal().catch(err => console.error('Auto sync error on status change:', err));
+
+    res.json({ success: true, applicant: { ...updated, founder_password: creds?.password || updated.founder_password } });
   } catch (err: any) {
     console.error('Failed to update applicant status:', err);
-    res.status(500).json({ error: 'Internal Server Error while changing status.' });
+    res.status(500).json({ error: 'Failed to update applicant status.' });
+  }
+};
+
+export async function ensureFounderCredentials(applicantId: number, customPassword?: string) {
+  const appRes = await query('SELECT * FROM applicants WHERE id = $1', [applicantId]);
+  if (appRes.rows.length === 0) {
+    throw new Error('Applicant not found');
+  }
+  const app = appRes.rows[0];
+
+  let pwd = customPassword ? customPassword.trim() : (app.founder_password || '');
+  if (!pwd) {
+    const randomDigits = Math.floor(100000 + Math.random() * 900000);
+    pwd = `Tk#${randomDigits}`;
+  }
+
+  // Update applicants table
+  await query('UPDATE applicants SET founder_password = $1 WHERE id = $2', [pwd, applicantId]);
+  app.founder_password = pwd;
+
+  // Ensure user exists in users table with role Cohort Founder
+  const cleanEmail = app.email.toLowerCase().trim();
+  const userRes = await query('SELECT * FROM users WHERE LOWER(email) = $1', [cleanEmail]);
+
+  let userId: number;
+  if (userRes.rows.length === 0) {
+    const insRes = await query(
+      `INSERT INTO users (email, full_name, is_active, password)
+       VALUES ($1, $2, TRUE, $3)
+       RETURNING id`,
+      [cleanEmail, app.name, pwd]
+    );
+    userId = insRes.rows[0].id;
+  } else {
+    userId = userRes.rows[0].id;
+    await query('UPDATE users SET password = $1, is_active = TRUE WHERE id = $2', [pwd, userId]);
+  }
+
+  // Ensure user has Cohort Founder role
+  const roleRes = await query(`SELECT id FROM roles WHERE name = 'Cohort Founder'`);
+  const roleId = roleRes.rows[0]?.id;
+  if (roleId) {
+    const userRoleRes = await query(
+      `SELECT * FROM user_roles WHERE user_id = $1 AND role_id = $2`,
+      [userId, roleId]
+    );
+    if (userRoleRes.rows.length === 0) {
+      await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [userId, roleId]);
+    }
+  }
+
+  return {
+    applicant_id: applicantId,
+    email: cleanEmail,
+    password: pwd,
+    name: app.name,
+    startup_name: app.startup_name,
+    tracking_token: app.tracking_token
+  };
+}
+
+export const getApplicantCredentials = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  try {
+    const creds = await ensureFounderCredentials(parseInt(id));
+    res.json({ success: true, credentials: creds });
+  } catch (err: any) {
+    console.error('Failed to get applicant credentials:', err);
+    res.status(500).json({ error: err.message || 'Failed to retrieve credentials.' });
+  }
+};
+
+export const manageApplicantCredentials = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { password, resendEmail } = req.body;
+  const admin = req.currentUser;
+
+  try {
+    const creds = await ensureFounderCredentials(parseInt(id), password);
+    let emailSent = false;
+
+    if (resendEmail !== false) {
+      emailSent = await sendApplicantStatusEmail({
+        id: creds.applicant_id,
+        name: creds.name,
+        email: creds.email,
+        startup_name: creds.startup_name,
+        tracking_token: creds.tracking_token,
+        status: 'CREDENTIALS',
+        login_email: creds.email,
+        login_password: creds.password,
+        include_in_email: true
+      });
+    }
+
+    await logAudit(
+      `Founder credentials updated/sent for startup '${creds.startup_name}' (${creds.email}).`,
+      'applicant_credentials',
+      String(id),
+      admin?.email || 'Admin'
+    );
+
+    res.json({
+      success: true,
+      credentials: creds,
+      emailSent
+    });
+  } catch (err: any) {
+    console.error('Failed to manage applicant credentials:', err);
+    res.status(500).json({ error: err.message || 'Failed to manage credentials.' });
+  }
+};
+
+export const getApplicantStageHistory = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  try {
+    const result = await query(
+      `SELECT * FROM applicant_stage_history WHERE applicant_id = $1 ORDER BY change_date DESC`,
+      [parseInt(id)]
+    );
+    res.json(result.rows || []);
+  } catch (err: any) {
+    console.error('Failed to fetch applicant stage history:', err);
+    res.status(500).json({ error: 'Failed to fetch applicant stage history.' });
   }
 };
 
@@ -557,7 +746,49 @@ export const getCohortSessions = async (req: AuthenticatedRequest, res: Response
       `SELECT * FROM cohort_sessions WHERE cohort_id = $1 ORDER BY date ASC, start_time ASC`,
       [parseInt(id)]
     );
-    res.json(result.rows);
+    const sessions = result.rows;
+
+    const applicantsRes = await query(
+      `SELECT COUNT(*) FROM applicants WHERE cohort_id = $1 OR status = 'CONFIRMED'`,
+      [parseInt(id)]
+    );
+    const totalStartups = parseInt(applicantsRes.rows[0]?.count || '0', 10);
+
+    const enriched = await Promise.all(sessions.map(async (sess: any) => {
+      const attRes = await query(
+        `SELECT COUNT(*) as total_marked, COUNT(CASE WHEN status = 'PRESENT' THEN 1 END) as present_count FROM session_attendance WHERE session_id = $1`,
+        [sess.id]
+      );
+      const totalMarked = parseInt(attRes.rows[0]?.total_marked || '0', 10);
+      const presentCount = parseInt(attRes.rows[0]?.present_count || '0', 10);
+
+      let attendance_summary = "Attendance not marked yet";
+      if (totalMarked > 0) {
+        const totalTarget = totalStartups > 0 ? totalStartups : totalMarked;
+        attendance_summary = `${presentCount} of ${totalTarget} marked present`;
+      }
+
+      const asgRes = await query(
+        `SELECT a.id, (SELECT COUNT(*) FROM assignment_submissions sub WHERE sub.assignment_id = a.id) as sub_count FROM assignments a WHERE a.session_id = $1`,
+        [sess.id]
+      );
+      const asgCount = asgRes.rows.length;
+      let subCount = 0;
+      asgRes.rows.forEach((r: any) => { subCount += parseInt(r.sub_count || '0', 10); });
+
+      let assignments_summary = "No assignments yet";
+      if (asgCount > 0) {
+        assignments_summary = `${asgCount} assignment${asgCount > 1 ? 's' : ''} · ${subCount} submission${subCount === 1 ? '' : 's'}`;
+      }
+
+      return {
+        ...sess,
+        attendance_summary,
+        assignments_summary
+      };
+    }));
+
+    res.json(enriched);
   } catch (err: any) {
     console.error('Failed to query sessions:', err);
     res.status(500).json({ error: 'Failed to retrieve scheduled cohort sessions.' });
@@ -605,6 +836,30 @@ export const createCohortSession = async (req: AuthenticatedRequest, res: Respon
 
     const session = result.rows[0];
 
+    // Automatically create attendance records for every active/confirmed startup in this cohort
+    try {
+      let startupsRes = await query(
+        `SELECT id FROM applicants WHERE cohort_id = $1 AND (program_status = 'ACTIVE' OR status = 'CONFIRMED')`,
+        [parseInt(id)]
+      );
+      if (startupsRes.rows.length === 0) {
+        startupsRes = await query(`SELECT id FROM applicants WHERE cohort_id = $1`, [parseInt(id)]);
+      }
+      if (startupsRes.rows.length === 0) {
+        startupsRes = await query(`SELECT id FROM applicants LIMIT 10`);
+      }
+
+      for (const st of startupsRes.rows) {
+        await query(
+          `INSERT INTO session_attendance (session_id, applicant_id, status)
+           VALUES ($1, $2, 'not_marked')`,
+          [session.id, st.id]
+        );
+      }
+    } catch (attErr) {
+      console.error('Failed to auto-seed session attendance records:', attErr);
+    }
+
     await logAudit(
       `Scheduled new cohort session: '${title}' led by ${mentor_name || 'Internal Staff'} on ${date} (${start_time} - ${end_time})`,
       'session',
@@ -632,8 +887,9 @@ export const deleteCohortSession = async (req: AuthenticatedRequest, res: Respon
     }
     const sess = sessRes.rows[0];
 
-    // Delete attendance records first
+    // Delete attendance records & assignments first
     await query('DELETE FROM session_attendance WHERE session_id = $1', [parseInt(id)]);
+    await query('DELETE FROM assignments WHERE session_id = $1', [parseInt(id)]);
     
     // Delete session
     await query('DELETE FROM cohort_sessions WHERE id = $1', [parseInt(id)]);
@@ -657,8 +913,41 @@ export const deleteCohortSession = async (req: AuthenticatedRequest, res: Respon
 export const getSessionAttendance = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params; // session_id
   try {
-    const result = await query('SELECT * FROM session_attendance WHERE session_id = $1', [parseInt(id)]);
-    res.json(result.rows);
+    const sessRes = await query('SELECT * FROM cohort_sessions WHERE id = $1', [parseInt(id)]);
+    if (sessRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found.' });
+    }
+    const sess = sessRes.rows[0];
+
+    let applicantsRes = await query('SELECT id, name, startup_name, email FROM applicants WHERE cohort_id = $1 OR status = \'CONFIRMED\'', [sess.cohort_id]);
+    if (applicantsRes.rows.length === 0) {
+      applicantsRes = await query('SELECT id, name, startup_name, email FROM applicants ORDER BY id ASC');
+    }
+
+    const attendanceRes = await query('SELECT * FROM session_attendance WHERE session_id = $1', [parseInt(id)]);
+    
+    const attMap = new Map();
+    (attendanceRes.rows || []).forEach((a: any) => attMap.set(a.applicant_id, a));
+
+    const records = (applicantsRes.rows || []).map((app: any) => {
+      const existing = attMap.get(app.id);
+      return {
+        id: existing?.id || null,
+        session_id: parseInt(id),
+        applicant_id: app.id,
+        startup_name: app.startup_name || 'Startup Team',
+        founder_name: app.name || 'Founder',
+        status: existing?.status || 'not_marked',
+        marked_at: existing?.marked_at || null
+      };
+    });
+
+    res.json({
+      success: true,
+      session: sess,
+      attendance: records,
+      attendance_sheet_photo_url: sess.attendance_sheet_photo_url || null
+    });
   } catch (err: any) {
     console.error('Failed to fetch session attendance:', err);
     res.status(500).json({ error: 'Failed to retrieve attendance logs.' });
@@ -668,7 +957,7 @@ export const getSessionAttendance = async (req: AuthenticatedRequest, res: Respo
 export const saveSessionAttendance = async (req: AuthenticatedRequest, res: Response) => {
   const admin = req.currentUser;
   const { id } = req.params; // session_id
-  const { attendance } = req.body; // array of { applicant_id: number, status: 'PRESENT' | 'ABSENT' | 'EXCUSED' }
+  const { attendance, attendance_sheet_photo_url } = req.body;
 
   if (!attendance || !Array.isArray(attendance)) {
     return res.status(400).json({ error: 'Missing attendance logs array.' });
@@ -681,32 +970,253 @@ export const saveSessionAttendance = async (req: AuthenticatedRequest, res: Resp
     }
     const sess = sessRes.rows[0];
 
-    // Delete previous attendance log to write cleanly
-    await query('DELETE FROM session_attendance WHERE session_id = $1', [parseInt(id)]);
+    if (attendance_sheet_photo_url !== undefined) {
+      await query('UPDATE cohort_sessions SET attendance_sheet_photo_url = $1 WHERE id = $2', [
+        attendance_sheet_photo_url ? attendance_sheet_photo_url.trim() : null,
+        parseInt(id)
+      ]);
+    }
 
     const saved = [];
     for (const record of attendance) {
       const insRes = await query(
         `INSERT INTO session_attendance (session_id, applicant_id, status)
-         VALUES ($1, $2, $3) RETURNING *`,
-        [parseInt(id), parseInt(record.applicant_id), record.status]
+         VALUES ($1, $2, $3)`,
+        [parseInt(id), parseInt(record.applicant_id), record.status || 'not_marked']
       );
       saved.push(insRes.rows[0]);
     }
 
     await logAudit(
-      `Marked attendance list for session '${sess.title}': ${attendance.filter(a => a.status === 'PRESENT').length} present, ${attendance.filter(a => a.status === 'ABSENT').length} absent.`,
+      `Marked attendance list for session '${sess.title}': ${attendance.filter(a => a.status === 'present' || a.status === 'PRESENT').length} present, ${attendance.filter(a => a.status === 'absent' || a.status === 'ABSENT').length} absent.`,
       'session_attendance',
       String(id),
       admin?.email || 'Admin',
       null,
-      { presentCount: attendance.filter(a => a.status === 'PRESENT').length, totalCount: attendance.length }
+      { presentCount: attendance.filter(a => a.status === 'present' || a.status === 'PRESENT').length, totalCount: attendance.length }
     );
 
-    res.json({ success: true, attendance: saved });
+    res.json({ success: true, attendance: saved, attendance_sheet_photo_url: attendance_sheet_photo_url || null });
   } catch (err: any) {
     console.error('Failed to save session attendance:', err);
     res.status(500).json({ error: 'Internal Server Error while saving attendance.' });
+  }
+};
+
+// --- ASSIGNMENTS & SUBMISSIONS ---
+export const createCohortAssignment = async (req: AuthenticatedRequest, res: Response) => {
+  const admin = req.currentUser;
+  const { id } = req.params; // cohort_id
+  const { title, description, due_date, attachment_url, cohort_id } = req.body;
+
+  if (!title || !due_date) {
+    return res.status(400).json({ error: 'Title and due date are required for an assignment.' });
+  }
+
+  try {
+    let targetCohortId: number | null = null;
+    if (id && !isNaN(parseInt(id))) {
+      targetCohortId = parseInt(id);
+    } else if (cohort_id && !isNaN(parseInt(cohort_id))) {
+      targetCohortId = parseInt(cohort_id);
+    }
+
+    if (!targetCohortId) {
+      return res.status(400).json({ error: 'Cohort ID is required for a standalone assignment.' });
+    }
+
+    const insRes = await query(
+      `INSERT INTO assignments (cohort_id, session_id, title, description, due_date, attachment_url, created_by_user_id)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6) RETURNING *`,
+      [targetCohortId, title.trim(), description ? description.trim() : null, due_date, attachment_url ? attachment_url.trim() : null, admin?.id || null]
+    );
+
+    res.status(201).json({ success: true, assignment: insRes.rows[0] });
+  } catch (err: any) {
+    console.error('Failed to create independent cohort assignment:', err);
+    res.status(500).json({ error: 'Failed to create independent assignment.' });
+  }
+};
+
+export const getCohortAssignments = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params; // cohort_id
+  try {
+    const cohortId = (id && !isNaN(parseInt(id))) ? parseInt(id) : null;
+    const result = await query(
+      `SELECT a.*, cs.title as session_title 
+       FROM assignments a 
+       LEFT JOIN cohort_sessions cs ON a.session_id = cs.id
+       WHERE a.session_id IS NULL 
+         AND ($1::integer IS NULL OR a.cohort_id = $1)
+       ORDER BY a.created_at DESC`,
+      [cohortId]
+    );
+
+    const assignmentsWithStats = await Promise.all(
+      result.rows.map(async (asg: any) => {
+        const countRes = await query(
+          `SELECT COUNT(*) as count FROM assignment_submissions WHERE assignment_id = $1`,
+          [asg.id]
+        );
+        return {
+          ...asg,
+          submissions_count: parseInt(countRes.rows[0]?.count || '0')
+        };
+      })
+    );
+
+    res.json({ success: true, assignments: assignmentsWithStats });
+  } catch (err: any) {
+    console.error('Failed to fetch cohort assignments:', err);
+    res.status(500).json({ error: 'Failed to fetch cohort assignments.' });
+  }
+};
+
+export const createSessionAssignment = async (req: AuthenticatedRequest, res: Response) => {
+  const admin = req.currentUser;
+  const { id } = req.params; // session_id
+  const { title, description, due_date, attachment_url } = req.body;
+
+  if (!title || !due_date) {
+    return res.status(400).json({ error: 'Title and due date are required for an assignment.' });
+  }
+
+  try {
+    const sessRes = await query('SELECT id, title, cohort_id FROM cohort_sessions WHERE id = $1', [parseInt(id)]);
+    if (sessRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found.' });
+    }
+
+    const cohortId = sessRes.rows[0].cohort_id;
+
+    const insRes = await query(
+      `INSERT INTO assignments (session_id, cohort_id, title, description, due_date, attachment_url, created_by_user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [parseInt(id), cohortId, title.trim(), description ? description.trim() : null, due_date, attachment_url ? attachment_url.trim() : null, admin?.id || null]
+    );
+
+    res.status(201).json({ success: true, assignment: insRes.rows[0] });
+  } catch (err: any) {
+    console.error('Failed to create assignment:', err);
+    res.status(500).json({ error: 'Failed to create assignment.' });
+  }
+};
+
+export const getSessionAssignments = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params; // session_id
+  try {
+    const result = await query('SELECT * FROM assignments WHERE session_id = $1 ORDER BY created_at DESC', [parseInt(id)]);
+    res.json({ success: true, assignments: result.rows });
+  } catch (err: any) {
+    console.error('Failed to fetch assignments:', err);
+    res.status(500).json({ error: 'Failed to fetch assignments.' });
+  }
+};
+
+export const deleteSessionAssignment = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params; // assignment_id
+  try {
+    await query('DELETE FROM assignment_submissions WHERE assignment_id = $1', [parseInt(id)]);
+    await query('DELETE FROM assignments WHERE id = $1', [parseInt(id)]);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error('Failed to delete assignment:', err);
+    res.status(500).json({ error: 'Failed to delete assignment.' });
+  }
+};
+
+export const getAssignmentSubmissions = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params; // assignment_id
+  try {
+    const asgRes = await query('SELECT * FROM assignments WHERE id = $1', [parseInt(id)]);
+    if (asgRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Assignment not found.' });
+    }
+    const assignment = asgRes.rows[0];
+
+    let cohortId = assignment.cohort_id;
+    if (!cohortId && assignment.session_id) {
+      const sessRes = await query('SELECT cohort_id FROM cohort_sessions WHERE id = $1', [assignment.session_id]);
+      cohortId = sessRes.rows[0]?.cohort_id;
+    }
+
+    let applicantsRes = await query('SELECT id, name, startup_name, email FROM applicants WHERE cohort_id = $1 OR status = \'CONFIRMED\'', [cohortId]);
+    if (applicantsRes.rows.length === 0) {
+      applicantsRes = await query('SELECT id, name, startup_name, email FROM applicants ORDER BY id ASC');
+    }
+
+    const submissionsRes = await query('SELECT * FROM assignment_submissions WHERE assignment_id = $1', [parseInt(id)]);
+
+    const subMap = new Map();
+    (submissionsRes.rows || []).forEach((s: any) => subMap.set(s.applicant_id, s));
+
+    const submissions = (applicantsRes.rows || []).map((app: any) => {
+      const sub = subMap.get(app.id);
+      return {
+        applicant_id: app.id,
+        startup_name: app.startup_name || 'Startup Team',
+        founder_name: app.name || 'Founder',
+        is_submitted: !!sub,
+        file_url: sub?.file_url || null,
+        submitted_at: sub?.submitted_at || null,
+        updated_at: sub?.updated_at || null
+      };
+    });
+
+    res.json({
+      success: true,
+      assignment,
+      submissions
+    });
+  } catch (err: any) {
+    console.error('Failed to fetch assignment submissions:', err);
+    res.status(500).json({ error: 'Failed to retrieve assignment submissions.' });
+  }
+};
+
+export const submitAssignment = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params; // assignment_id
+  const { file_url, applicant_id } = req.body;
+  const user = req.currentUser;
+
+  if (!file_url) {
+    return res.status(400).json({ error: 'file_url is required for submission.' });
+  }
+
+  try {
+    let targetApplicantId = applicant_id ? parseInt(applicant_id) : null;
+
+    if (!targetApplicantId && user?.email) {
+      const appRes = await query('SELECT id FROM applicants WHERE LOWER(email) = LOWER($1)', [user.email]);
+      if (appRes.rows.length > 0) {
+        targetApplicantId = appRes.rows[0].id;
+      }
+    }
+
+    if (!targetApplicantId) {
+      const appRes = await query('SELECT id FROM applicants ORDER BY id ASC LIMIT 1');
+      if (appRes.rows.length > 0) {
+        targetApplicantId = appRes.rows[0].id;
+      }
+    }
+
+    if (!targetApplicantId) {
+      return res.status(400).json({ error: 'Could not resolve startup applicant identity for submission.' });
+    }
+
+    const subRes = await query(
+      `INSERT INTO assignment_submissions (assignment_id, applicant_id, file_url)
+       VALUES ($1, $2, $3)`,
+      [parseInt(id), targetApplicantId, file_url.trim()]
+    );
+
+    res.json({
+      success: true,
+      submission: subRes.rows[0]
+    });
+  } catch (err: any) {
+    console.error('Failed to submit assignment:', err);
+    res.status(500).json({ error: 'Failed to submit assignment.' });
   }
 };
 
@@ -889,26 +1399,9 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
     }
 
     if (applicantRes.rows.length === 0) {
-      // Graceful fallback profile if applicants table is empty
-      const defaultApplicant = {
-        id: 1,
-        tracking_token: 'TK-STR-7821',
-        name: req.currentUser.name || 'Founder',
-        email: req.currentUser.email,
-        phone: '0300-1234567',
-        cnic: '35201-1234567-1',
-        startup_name: 'MedRoute',
-        startup_description: 'An AI-powered pharmaceutical route planner reducing delivery times by 40%.',
-        cohort_id: 1,
-        status: 'CONFIRMED',
-        panel_scores: { viability: 8, team: 9, scalability: 8, average: 8.3 },
-        parent_applicant_id: null,
-        form_data: { profile: {} },
-        orientation_conducted: true
-      };
       return res.json({
         success: true,
-        applicant: defaultApplicant,
+        applicant: null,
         cohort: null,
         sessions: [],
         attendance: [],
@@ -947,13 +1440,36 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
       [applicant.id]
     );
 
-    // 4. Fetch Weekly Team Check-ins
+    // 4. Fetch Assignments and founder's submissions
+    let assignmentsList: any[] = [];
+    const allAsgsRes = await query(
+      `SELECT a.*, cs.title as session_title 
+       FROM assignments a 
+       LEFT JOIN cohort_sessions cs ON a.session_id = cs.id 
+       WHERE a.session_id IS NULL AND a.cohort_id = $1 
+       ORDER BY a.created_at DESC`,
+      [cohortId]
+    );
+
+    for (const asg of allAsgsRes.rows) {
+      const subRes = await query(
+        `SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND applicant_id = $2`,
+        [asg.id, applicant.id]
+      );
+      assignmentsList.push({
+        ...asg,
+        sessionTitle: asg.session_title,
+        submission: subRes.rows[0] || null
+      });
+    }
+
+    // 5. Fetch Weekly Team Check-ins
     const checkinsRes = await query(
       `SELECT * FROM team_checkins WHERE applicant_id = $1 ORDER BY created_at DESC`,
       [applicant.id]
     );
 
-    // 5. Fetch Performance Warnings
+    // 6. Fetch Performance Warnings
     const warningsRes = await query(
       `SELECT * FROM performance_warnings WHERE applicant_id = $1 ORDER BY created_at DESC`,
       [applicant.id]
@@ -965,6 +1481,7 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
       cohort,
       sessions,
       attendance: attendanceRes.rows,
+      assignments: assignmentsList,
       checkins: checkinsRes.rows,
       warnings: warningsRes.rows
     });
@@ -987,15 +1504,9 @@ export const updateApplicantProfile = async (req: AuthenticatedRequest, res: Res
     }
 
     if (appRes.rows.length === 0) {
-      return res.json({
-        success: true,
-        applicant: {
-          id: targetId,
-          startup_name: 'MedRoute',
-          startup_description: description || 'MedRoute Platform',
-          phone: phone || '0300-1234567',
-          form_data: { profile: { website, social_links, logo_url, contact_info, pivot_history } }
-        }
+      return res.status(404).json({
+        success: false,
+        error: 'Applicant not found.'
       });
     }
 

@@ -57,35 +57,45 @@ function initializeLocalDB() {
     
     // Core cohort tables dynamic schema migration
     if (!db.cohorts || !Array.isArray(db.cohorts)) {
-      db.cohorts = [
-        { id: 1, name: 'Takhleeq Cohort 1', status: 'ACTIVE', created_at: new Date().toISOString() }
-      ];
+      db.cohorts = [];
       updated = true;
     }
     
-    if (!db.cohort_form_settings) {
-      db.cohort_form_settings = {
-        is_active: true,
-        fields: [
-          { id: 'field_startup_name', label: 'Startup Name', type: 'text', required: true, placeholder: 'Enter your startup name' },
-          { id: 'field_startup_desc', label: 'Idea Description', type: 'text', required: true, placeholder: 'Explain your business idea in 2-3 sentences' },
-          { id: 'field_founder_name', label: 'Team Lead Name', type: 'text', required: true, placeholder: 'Enter full name of the team lead' },
-          { id: 'field_founder_email', label: 'Email Address', type: 'email', required: true, placeholder: 'Enter team lead email' },
-          { id: 'field_founder_phone', label: 'Phone Number', type: 'phone', required: true, placeholder: 'e.g. 03xx-xxxxxxx' },
-          { id: 'field_founder_cnic', label: 'CNIC Number', type: 'cnic', required: true, placeholder: 'e.g. 35201-xxxxxxx-x' }
-        ]
-      };
-      updated = true;
-    }
+    db.cohort_form_settings = {
+      is_active: true,
+      fields: [
+        { id: 'field_startup_name', label: 'Q1. What is the name of your startup?', type: 'text', required: true, placeholder: 'Enter startup name' },
+        { id: 'field_q2_venture_type', label: 'Q2. Is this a product-based or service-based venture?', type: 'select', required: true, options: ['Product-based', 'Service-based', 'Hybrid / Both'] },
+        { id: 'field_startup_desc', label: 'Q3. Describe your idea/startup. What does it do, and how does it work?', type: 'textarea', required: true, placeholder: 'Be concise but clear about your concept or business model' },
+        { id: 'field_q4_services', label: 'Q4. If you’re providing services, describe your offerings and any clients you’ve worked with', type: 'textarea', required: false, placeholder: 'Describe service offerings and client history if applicable' },
+        { id: 'field_q5_business_model', label: 'Q5. What is your business model? (e.g., B2B, B2C, subscription-based, etc.)', type: 'text', required: true, placeholder: 'e.g. B2B SaaS, B2C Subscription, Marketplace commission' },
+        { id: 'field_q6_discovery', label: 'Q6. How did you get to know about Takhleeq Cohort 11 Incubation Program?', type: 'select', required: true, options: ['Email', 'Takhleeq Socials', 'UCP Socials', 'Dean/hod/faculty email or word', 'Digital display across ucp (tv screens etc)'] },
+        { id: 'field_q7_stage', label: 'Q7. What stage is your startup currently at?', type: 'select', required: true, options: ['Idea stage', 'Problem Discovery / validation', 'Proof of Concept / MVP', 'Post Revenue', 'Scale'] },
+        { id: 'field_q8_team_size', label: 'Q8. Number of members in Team', type: 'select', required: true, options: ['Solo', '2', '3', '4'] },
+        { id: 'field_founder_name', label: 'Q9. Team lead name', type: 'text', required: true, placeholder: 'Enter full name of the team lead' },
+        { id: 'field_q10_father_name', label: "Q10. Team Lead Father's Name", type: 'text', required: true, placeholder: "Enter father's name" },
+        { id: 'field_q11_gender', label: "Q11. Team Lead's Gender", type: 'select', required: true, options: ['Male', 'Female'] },
+        { id: 'field_founder_email', label: "Q12. Team Lead's Email", type: 'email', required: true, placeholder: 'Enter email address' },
+        { id: 'field_founder_phone', label: "Q13. Team Lead's Contact Number", type: 'phone', required: true, placeholder: 'e.g. 0300-1234567' },
+        { id: 'field_q14_roll_number', label: "Q14. Team Lead's Roll Number", type: 'text', required: false, placeholder: 'Enter student roll number if applicable' },
+        { id: 'field_founder_cnic', label: "Q15. Team Lead's CNIC/Passport Number", type: 'cnic', required: true, placeholder: 'e.g. 35201-1234567-1' },
+        { id: 'field_q16_location', label: "Q16. Team Lead's Location", type: 'text', required: true, placeholder: 'e.g. Lahore, Pakistan' },
+        { id: 'field_q17_postal_address', label: "Q17. Team Lead's Postal Address", type: 'text', required: true, placeholder: 'Enter full home/postal address' },
+        { id: 'field_q18_team_role', label: 'Q18. Team Lead: Role in the Team', type: 'text', required: true, placeholder: 'e.g. Founder & CEO, Chief Technology Officer' },
+        { id: 'field_q19_skillset', label: 'Q19. Team Lead: How does your skillset contribute to this venture?', type: 'textarea', required: true, placeholder: 'Explain technical, business or domain expertise' },
+        { id: 'field_q20_linkedin', label: 'Q20. Team Lead: LinkedIn Profile (optional)', type: 'text', required: false, placeholder: 'https://linkedin.com/in/username' },
+        { id: 'field_q21_past_projects', label: 'Q21. Team Lead: Have you worked on a project before? If yes, describe briefly.', type: 'textarea', required: false, placeholder: 'Describe previous projects, hackathons or research' },
+        { id: 'field_q22_status', label: "Q22. Team Lead: What's your current status?", type: 'select', required: true, options: ['Current Student/Faculty/Staff', 'Alumni Student'] },
+        { id: 'field_q23_batch_year', label: "Q23. What is your batch's starting year", type: 'text', required: true, placeholder: 'e.g. 2022' },
+        { id: 'field_q24_department', label: 'Q24. Department', type: 'text', required: true, placeholder: 'e.g. Computer Science, Business School' },
+        { id: 'field_q25_degree', label: 'Q25. Degree/Position', type: 'text', required: true, placeholder: 'e.g. BS Computer Science, Assistant Professor' },
+        { id: 'field_q26_working', label: 'Q26. Are you currently working?', type: 'select', required: true, options: ['Yes', 'No'] },
+        { id: 'field_q27_work_details', label: 'Q27. If Yes, Where are you working? Provide Company name and designation.', type: 'text', required: false, placeholder: 'Company name & designation if working' }
+      ]
+    };
 
     if (!db.applicants || !Array.isArray(db.applicants)) {
-      db.applicants = [
-        { id: 1, tracking_token: 'TK-STR-7821', name: 'Zohaib Niaz', email: 'zohaib@startup.pk', phone: '0300-1234567', cnic: '35201-1234567-1', startup_name: 'MedRoute', startup_description: 'An AI-powered pharmaceutical route planner reducing delivery times by 40%.', cohort_id: 1, status: 'CONFIRMED', program_status: 'ACTIVE', panel_scores: { viability: 8, team: 9, scalability: 8, average: 8.3 }, parent_applicant_id: null, form_data: {}, orientation_conducted: true, created_at: '2026-07-20T00:00:00.000Z' },
-        { id: 2, tracking_token: 'TK-STR-5921', name: 'Ayesha Malik', email: 'ayesha@fintech.pk', phone: '0321-7654321', cnic: '35201-7654321-2', startup_name: 'PaisaFlow', startup_description: 'Micro-lending platform for small merchants using alternative credit scoring.', cohort_id: 1, status: 'CONFIRMED', program_status: 'ACTIVE', panel_scores: { viability: 9, team: 8, scalability: 9, average: 8.7 }, parent_applicant_id: null, form_data: {}, orientation_conducted: true, created_at: '2026-07-20T00:00:00.000Z' },
-        { id: 3, tracking_token: 'TK-STR-4412', name: 'Imran Khan', email: 'imran@edtech.pk', phone: '0333-5551212', cnic: '35201-5551212-3', startup_name: 'Dars-e-Nau', startup_description: 'Localized video-based educational app for public school students in Urdu.', cohort_id: null, status: 'IN_REVIEW', program_status: 'NOT_ENROLLED', panel_scores: null, parent_applicant_id: null, form_data: {}, orientation_conducted: false, created_at: '2026-07-20T00:00:00.000Z' },
-        { id: 4, tracking_token: 'TK-STR-1092', name: 'Qasim Ali', email: 'qasim@agritech.pk', phone: '0345-9998887', cnic: '35201-9998887-4', startup_name: 'AgriSense', startup_description: 'IoT-enabled soil nutrient analysis probe for smallholder farmers.', cohort_id: null, status: 'BACKUP_CANDIDATE', program_status: 'NOT_ENROLLED', panel_scores: { viability: 7, team: 7, scalability: 7, average: 7.0 }, parent_applicant_id: null, form_data: {}, orientation_conducted: false, created_at: '2026-07-20T00:00:00.000Z' },
-        { id: 5, tracking_token: 'TK-STR-2291', name: 'Raza Jafar', email: 'raza@delivery.pk', phone: '0312-3334445', cnic: '35201-3334445-5', startup_name: 'LogiSwift', startup_description: 'B2B express delivery aggregator connecting local freight vans.', cohort_id: null, status: 'REJECTED', program_status: 'NOT_ENROLLED', panel_scores: { viability: 4, team: 5, scalability: 4, average: 4.3 }, parent_applicant_id: null, form_data: {}, orientation_conducted: false, created_at: '2026-07-20T00:00:00.000Z' }
-      ];
+      db.applicants = [];
       updated = true;
     } else {
       // Migrate existing applicants in memory DB to have valid program_status
@@ -107,10 +117,7 @@ function initializeLocalDB() {
     }
 
     if (!db.cohort_sessions || !Array.isArray(db.cohort_sessions)) {
-      db.cohort_sessions = [
-        { id: 1, cohort_id: 1, title: 'Orientation & Incubation Blueprint', date: '2026-07-22', start_time: '10:00:00', end_time: '12:00:00', mentor_name: 'Dr. Qaseeb Ahmed', created_at: '2026-07-20T00:00:00.000Z' },
-        { id: 2, cohort_id: 1, title: 'Value Proposition & Customer Discovery', date: '2026-07-29', start_time: '14:00:00', end_time: '16:00:00', mentor_name: 'Syed Usman', created_at: '2026-07-20T00:00:00.000Z' }
-      ];
+      db.cohort_sessions = [];
       updated = true;
     }
 
@@ -166,7 +173,34 @@ function initializeLocalDB() {
       });
     }
 
-    if (!db.booking_types || !Array.isArray(db.booking_types)) {
+    if (db.rooms && Array.isArray(db.rooms)) {
+      db.rooms.forEach((r: any) => {
+        if (!r.allowed_booking_types) {
+          if (r.name === 'Board Room') {
+            r.allowed_booking_types = JSON.stringify(['Startup teams', 'Faculty members', 'Department representatives', 'Cohort members', 'Entrepreneurs in residence', 'Professionals in residence', 'Cohort Startup', 'Department']);
+          } else {
+            r.allowed_booking_types = JSON.stringify(['Student societies', 'Startup teams', 'Faculty members', 'Department representatives', 'Cohort members', 'Entrepreneurs in residence', 'Professionals in residence', 'Meeting / Event', 'Cohort Startup', 'Department']);
+          }
+          updated = true;
+        }
+      });
+    }
+    const hasFounderRole = (db.roles || []).some((r: any) => r.name === 'Cohort Founder');
+    if (!hasFounderRole && db.roles && Array.isArray(db.roles)) {
+      const nextId = Math.max(...db.roles.map((r: any) => r.id || 0), 0) + 1;
+      db.roles.push({
+        id: nextId,
+        name: 'Cohort Founder',
+        description: 'Enrolled startup founder with access to Cohort Self-Service dashboard',
+        permissions: ["cohort:profile_write", "cohort:feedback_submit", "cohort:assignment_upload"],
+        ban_duration_ceiling: null,
+        created_by: null,
+        created_at: new Date().toISOString()
+      });
+      updated = true;
+    }
+
+    if (!db.booking_types || !Array.isArray(db.booking_types) || db.booking_types.length === 0) {
       db.booking_types = [
         { id: 1, name: 'Student societies', description: 'Registered student clubs and societies', is_active: true },
         { id: 2, name: 'Startup teams', description: 'Incubated or acceleration stage startup ventures', is_active: true },
@@ -182,105 +216,8 @@ function initializeLocalDB() {
       updated = true;
     }
 
-    if (!db.bookings || !Array.isArray(db.bookings) || db.bookings.length === 0) {
-      db.bookings = [
-        {
-          id: 1,
-          booking_id: 'BK-2026-001',
-          requester_name: 'Usman Ghani',
-          requester_email: 'usman@society.pk',
-          requester_phone: '0300-1112223',
-          organization_name: 'ACM Student Chapter',
-          room_id: 1,
-          booking_type: 'Student societies',
-          event_title: 'ACM Executive Council Sync',
-          event_description: 'Planning upcoming Hackathon 2026 and assigning operational committees.',
-          date: '2026-07-25',
-          start_time: '10:00:00',
-          end_time: '11:30:00',
-          expected_attendance: 12,
-          status: 'PENDING_REVIEW',
-          conflict_status: 'CLEAR',
-          conflicting_booking_id: null,
-          rejection_reason: null,
-          approved_by: null,
-          decision_reason: null,
-          reviewed_at: null,
-          created_at: '2026-07-21T10:00:00.000Z'
-        },
-        {
-          id: 2,
-          booking_id: 'BK-2026-002',
-          requester_name: 'Ayesha Malik',
-          requester_email: 'ayesha@fintech.pk',
-          requester_phone: '0321-7654321',
-          organization_name: 'PaisaFlow Startup',
-          room_id: 2,
-          booking_type: 'Startup teams',
-          event_title: 'PaisaFlow Pitch Rehearsal',
-          event_description: 'Dry run presentation ahead of investor demo day.',
-          date: '2026-07-26',
-          start_time: '14:00:00',
-          end_time: '16:00:00',
-          expected_attendance: 25,
-          status: 'PENDING_REVIEW',
-          conflict_status: 'CLEAR',
-          conflicting_booking_id: null,
-          rejection_reason: null,
-          approved_by: null,
-          decision_reason: null,
-          reviewed_at: null,
-          created_at: '2026-07-21T11:15:00.000Z'
-        },
-        {
-          id: 3,
-          booking_id: 'BK-2026-003',
-          requester_name: 'Dr. Qaseeb Ahmed',
-          requester_email: 'director@takhleeq.pk',
-          requester_phone: '0300-9998887',
-          organization_name: 'Takhleeq Incubation Center',
-          room_id: 1,
-          booking_type: 'Cohort Startup',
-          event_title: 'Cohort 1 Orientation Briefing',
-          event_description: 'Official welcome session and milestone review with inducted startups.',
-          date: '2026-07-22',
-          start_time: '10:00:00',
-          end_time: '12:00:00',
-          expected_attendance: 15,
-          status: 'APPROVED',
-          conflict_status: 'CLEAR',
-          conflicting_booking_id: null,
-          rejection_reason: null,
-          approved_by: 1,
-          decision_reason: 'Approved for incubator operations',
-          reviewed_at: '2026-07-20T09:00:00.000Z',
-          created_at: '2026-07-20T08:00:00.000Z'
-        },
-        {
-          id: 4,
-          booking_id: 'BK-2026-004',
-          requester_name: 'Syed Usman',
-          requester_email: 'manager@takhleeq.pk',
-          requester_phone: '0333-4445556',
-          organization_name: 'Takhleeq Operations',
-          room_id: 3,
-          booking_type: 'Faculty members',
-          event_title: 'Mentor Advisory Session',
-          event_description: 'One-on-one mentorship clinic with resident industry experts.',
-          date: '2026-07-23',
-          start_time: '11:00:00',
-          end_time: '12:00:00',
-          expected_attendance: 4,
-          status: 'APPROVED',
-          conflict_status: 'CLEAR',
-          conflicting_booking_id: null,
-          rejection_reason: null,
-          approved_by: 1,
-          decision_reason: 'Regular mentor clinic session',
-          reviewed_at: '2026-07-21T09:00:00.000Z',
-          created_at: '2026-07-21T08:00:00.000Z'
-        }
-      ];
+    if (!db.bookings || !Array.isArray(db.bookings)) {
+      db.bookings = [];
       updated = true;
     }
 
@@ -314,6 +251,38 @@ function initializeLocalDB() {
           created_at: '2026-07-22T05:00:00.000Z'
         }
       ];
+      updated = true;
+    }
+
+    if (!db.industries || !Array.isArray(db.industries) || db.industries.length === 0) {
+      db.industries = [
+        { id: 1, name: 'EdTech & Learning', description: 'Educational software and tools' },
+        { id: 2, name: 'HealthTech & Bio', description: 'Healthcare, wellness, medical software' },
+        { id: 3, name: 'FinTech & Commerce', description: 'Financial tech and e-commerce' },
+        { id: 4, name: 'CleanTech & Agri', description: 'Green energy and agricultural tech' },
+        { id: 5, name: 'SaaS & Enterprise', description: 'B2B software and productivity tools' },
+        { id: 6, name: 'AI & DeepTech', description: 'Artificial Intelligence & Machine Learning' }
+      ];
+      updated = true;
+    }
+
+    if (!db.startup_profiles || !Array.isArray(db.startup_profiles)) {
+      db.startup_profiles = [];
+      updated = true;
+    }
+
+    if (!db.startup_stage_history || !Array.isArray(db.startup_stage_history)) {
+      db.startup_stage_history = [];
+      updated = true;
+    }
+
+    if (!db.startup_pivots || !Array.isArray(db.startup_pivots)) {
+      db.startup_pivots = [];
+      updated = true;
+    }
+
+    if (!db.startup_audit_logs || !Array.isArray(db.startup_audit_logs)) {
+      db.startup_audit_logs = [];
       updated = true;
     }
 
@@ -356,11 +325,11 @@ function initializeLocalDB() {
       { user_id: 7, role_id: 4 }
     ],
     rooms: [
-      { id: 1, name: 'Board Room', capacity: 15, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Formal executive meetings and syndicate sessions', policies: 'Authorized UCP societies and startups only. Strictly no external foods allowed. Leave room clean.', is_active: true, created_at: new Date().toISOString() },
-      { id: 2, name: 'Presentation Hall', capacity: 50, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Large cohort presentations, talks, and community panels', policies: 'Pre-approval from Faculty advisor required. Keep setup reset after use.', is_active: true, created_at: new Date().toISOString() },
-      { id: 3, name: 'Cube 1', capacity: 6, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 30, max_duration_minutes: 60, purpose: 'Small meetings and focused discussions', policies: 'Leave room clean. No loud noise.', is_active: true, created_at: new Date().toISOString() },
-      { id: 4, name: 'Cube 2', capacity: 6, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 30, max_duration_minutes: 60, purpose: 'Small meetings and focused discussions', policies: 'Leave room clean. No loud noise.', is_active: true, created_at: new Date().toISOString() },
-      { id: 5, name: 'Podcast Room', capacity: 4, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Podcast recording and audio sessions', policies: 'Technical staff assistance must be booked separately.', is_active: true, created_at: new Date().toISOString() }
+      { id: 1, name: 'Board Room', capacity: 15, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Formal executive meetings and syndicate sessions', policies: 'Authorized UCP societies and startups only. Strictly no external foods allowed. Leave room clean.', allowed_booking_types: JSON.stringify(['Startup teams', 'Faculty members', 'Department representatives', 'Cohort members', 'Entrepreneurs in residence', 'Professionals in residence', 'Cohort Startup', 'Department']), is_active: true, created_at: new Date().toISOString() },
+      { id: 2, name: 'Presentation Hall', capacity: 50, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Large cohort presentations, talks, and community panels', policies: 'Pre-approval from Faculty advisor required. Keep setup reset after use.', allowed_booking_types: JSON.stringify(['Student societies', 'Startup teams', 'Faculty members', 'Department representatives', 'Cohort members', 'Entrepreneurs in residence', 'Professionals in residence', 'Meeting / Event', 'Cohort Startup', 'Department']), is_active: true, created_at: new Date().toISOString() },
+      { id: 3, name: 'Cube 1', capacity: 6, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 30, max_duration_minutes: 60, purpose: 'Small meetings and focused discussions', policies: 'Leave room clean. No loud noise.', allowed_booking_types: JSON.stringify(['Startup teams', 'Faculty members', 'Cohort members', 'Entrepreneurs in residence', 'Professionals in residence', 'Cohort Startup', 'Student societies']), is_active: true, created_at: new Date().toISOString() },
+      { id: 4, name: 'Cube 2', capacity: 6, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 30, max_duration_minutes: 60, purpose: 'Small meetings and focused discussions', policies: 'Leave room clean. No loud noise.', allowed_booking_types: JSON.stringify(['Startup teams', 'Faculty members', 'Cohort members', 'Entrepreneurs in residence', 'Professionals in residence', 'Cohort Startup', 'Student societies']), is_active: true, created_at: new Date().toISOString() },
+      { id: 5, name: 'Podcast Room', capacity: 4, operating_hours_start: '09:00:00', operating_hours_end: '17:00:00', min_duration_minutes: 60, max_duration_minutes: 180, purpose: 'Podcast recording and audio sessions', policies: 'Technical staff assistance must be booked separately.', allowed_booking_types: JSON.stringify(['Student societies', 'Startup teams', 'Faculty members', 'Department representatives', 'Cohort members', 'Entrepreneurs in residence', 'Professionals in residence', 'Cohort Startup']), is_active: true, created_at: new Date().toISOString() }
     ],
     booking_types: [
       { id: 1, name: 'Student societies', description: 'Registered student clubs and societies', is_active: true },
@@ -376,7 +345,8 @@ function initializeLocalDB() {
     ],
     bookings: [],
     ban_records: [],
-    audit_logs: []
+    audit_logs: [],
+    applicant_stage_history: []
   };
 
   try {
@@ -450,15 +420,15 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
 
   // 3. Applicants Interceptors
   if (q.includes('from applicants') && !q.includes('insert into applicants') && !q.includes('update applicants')) {
-    if (q.includes('tracking_token =')) {
-      const tok = String(params[0] || '').toUpperCase();
-      return { rows: (db.applicants || []).filter((a: any) => String(a.tracking_token).toUpperCase() === tok) };
+    if (q.includes('tracking_token')) {
+      const tok = String(params[0] || '').toUpperCase().trim();
+      return { rows: (db.applicants || []).filter((a: any) => String(a.tracking_token).toUpperCase().trim() === tok) };
     }
     if (q.includes('where id =') || q.includes('id = $1')) {
       const aid = parseInt(params[0]);
       return { rows: (db.applicants || []).filter((a: any) => a.id === aid) };
     }
-    if (q.includes('cohort_id =')) {
+    if (q.includes('where cohort_id =') || q.includes('where a.cohort_id =')) {
       const cid = parseInt(params[0]);
       return { rows: (db.applicants || []).filter((a: any) => a.cohort_id === cid) };
     }
@@ -526,7 +496,9 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     const idVal = parseInt(params[params.length - 1]);
     const app = (db.applicants || []).find((x: any) => x.id === idVal);
     if (app) {
-      if (q.includes('status = $1') && q.includes('program_status = $2') && q.includes('cohort_id = $3')) {
+      if (q.includes('founder_password = $1')) {
+        app.founder_password = params[0];
+      } else if (q.includes('status = $1') && q.includes('program_status = $2') && q.includes('cohort_id = $3')) {
         app.status = params[0];
         app.program_status = typeof params[1] === 'string' && params[1] !== '{}' ? params[1] : (app.cohort_id || params[2] ? 'ACTIVE' : 'NOT_ENROLLED');
         app.cohort_id = params[2] ? parseInt(params[2]) : null;
@@ -564,11 +536,53 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
 
   // 4. Cohort Sessions Interceptors
   if (q.includes('select * from cohort_sessions') || q.includes('select * from cohort_sessions where cohort_id = $1')) {
-    if (params.length > 0) {
+    let list: any[] = [];
+    if (params.length > 0 && q.includes('where id = $1')) {
+      const sid = parseInt(params[0]);
+      list = (db.cohort_sessions || []).filter((s: any) => s.id === sid);
+    } else if (params.length > 0) {
       const cid = parseInt(params[0]);
-      return { rows: (db.cohort_sessions || []).filter((s: any) => s.cohort_id === cid) };
+      list = (db.cohort_sessions || []).filter((s: any) => s.cohort_id === cid);
+    } else {
+      list = db.cohort_sessions || [];
     }
-    return { rows: db.cohort_sessions || [] };
+
+    const enriched = list.map((sess: any) => {
+      const totalStartups = (db.applicants || []).filter((a: any) => a.cohort_id === sess.cohort_id || a.status === 'CONFIRMED').length || 8;
+      const attRecords = (db.session_attendance || []).filter((att: any) => att.session_id === sess.id);
+      let attendance_summary = "Attendance not marked yet";
+      if (attRecords.length > 0) {
+        const presentCount = attRecords.filter((att: any) => att.status === 'PRESENT').length;
+        const totalTarget = totalStartups > 0 ? totalStartups : attRecords.length;
+        attendance_summary = `${presentCount} of ${totalTarget} marked present`;
+      }
+
+      const asgs = (db.assignments || []).filter((a: any) => a.session_id === sess.id);
+      let assignments_summary = "No assignments yet";
+      if (asgs.length > 0) {
+        const asgIds = asgs.map((a: any) => a.id);
+        const subCount = (db.assignment_submissions || []).filter((sub: any) => asgIds.includes(sub.assignment_id)).length;
+        assignments_summary = `${asgs.length} assignment${asgs.length > 1 ? 's' : ''} · ${subCount} submission${subCount === 1 ? '' : 's'}`;
+      }
+
+      return {
+        ...sess,
+        attendance_summary,
+        assignments_summary
+      };
+    });
+
+    return { rows: enriched };
+  }
+  if (q.includes('update cohort_sessions set attendance_sheet_photo_url')) {
+    const photoUrl = params[0];
+    const sid = parseInt(params[1]);
+    const sess = (db.cohort_sessions || []).find((s: any) => s.id === sid);
+    if (sess) {
+      sess.attendance_sheet_photo_url = photoUrl;
+      saveLocalDB(db);
+    }
+    return { rows: sess ? [sess] : [] };
   }
   if (q.includes('insert into cohort_sessions')) {
     const id = Math.max(...(db.cohort_sessions || []).map((s: any) => s.id), 0) + 1;
@@ -583,6 +597,7 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       topic_category: params[6] || null,
       venue: params[7] || null,
       recording_url: params[8] || null,
+      attendance_sheet_photo_url: null,
       created_at: new Date().toISOString()
     };
     db.cohort_sessions = db.cohort_sessions || [];
@@ -613,18 +628,112 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: [] };
   }
   if (q.includes('insert into session_attendance')) {
-    const id = Math.max(...(db.session_attendance || []).map((a: any) => a.id), 0) + 1;
-    const newAtt = {
-      id,
-      session_id: parseInt(params[0]),
-      applicant_id: parseInt(params[1]),
-      status: params[2],
-      marked_at: new Date().toISOString()
-    };
+    const sid = parseInt(params[0]);
+    const aid = parseInt(params[1]);
+    const st = params[2] || 'not_marked';
     db.session_attendance = db.session_attendance || [];
-    db.session_attendance.push(newAtt);
+    let existing = db.session_attendance.find((a: any) => a.session_id === sid && a.applicant_id === aid);
+    if (existing) {
+      existing.status = st;
+      existing.marked_at = new Date().toISOString();
+      saveLocalDB(db);
+      return { rows: [existing] };
+    } else {
+      const id = Math.max(...db.session_attendance.map((a: any) => a.id), 0) + 1;
+      const newAtt = {
+        id,
+        session_id: sid,
+        applicant_id: aid,
+        status: st,
+        marked_at: new Date().toISOString()
+      };
+      db.session_attendance.push(newAtt);
+      saveLocalDB(db);
+      return { rows: [newAtt] };
+    }
+  }
+
+  // 5b. Assignments Interceptors
+  if (q.includes('delete from assignment_submissions')) {
+    const aid = parseInt(params[0]);
+    db.assignment_submissions = (db.assignment_submissions || []).filter((s: any) => s.assignment_id !== aid);
     saveLocalDB(db);
-    return { rows: [newAtt] };
+    return { rows: [] };
+  }
+  if (q.includes('delete from assignments')) {
+    const aid = parseInt(params[0]);
+    const idx = (db.assignments || []).findIndex((a: any) => a.id === aid);
+    let deleted = null;
+    if (idx !== -1) {
+      deleted = db.assignments.splice(idx, 1)[0];
+      db.assignment_submissions = (db.assignment_submissions || []).filter((s: any) => s.assignment_id !== aid);
+      saveLocalDB(db);
+    }
+    return { rows: deleted ? [deleted] : [] };
+  }
+  if (q.includes('select * from assignments where session_id = $1')) {
+    const sid = parseInt(params[0]);
+    return { rows: (db.assignments || []).filter((a: any) => a.session_id === sid) };
+  }
+  if (q.includes('select * from assignments where id = $1')) {
+    const aid = parseInt(params[0]);
+    const found = (db.assignments || []).find((a: any) => a.id === aid);
+    return { rows: found ? [found] : [] };
+  }
+  if (q.includes('select') && q.includes('assignments')) {
+    db.assignments = db.assignments || [];
+    const targetCohortId = (params && params[0] && !isNaN(parseInt(params[0]))) ? parseInt(params[0]) : null;
+    let list = db.assignments.map((asg: any) => {
+      let session_title = null;
+      if (asg.session_id) {
+        const sess = (db.cohort_sessions || []).find((s: any) => s.id === asg.session_id);
+        if (sess) session_title = sess.title;
+      }
+      return { ...asg, session_title };
+    });
+
+    // Standalone assignments filtering rule: must NOT have a session_id
+    list = list.filter((a: any) => {
+      if (a.session_id) return false; // Strictly exclude session-scoped assignments from standalone list
+      if (targetCohortId !== null) {
+        return a.cohort_id === targetCohortId;
+      }
+      return true;
+    });
+
+    return { rows: list };
+  }
+
+  // 5c. Assignment Submissions Interceptors
+  if (q.includes('select * from assignment_submissions where assignment_id = $1')) {
+    const aid = parseInt(params[0]);
+    return { rows: (db.assignment_submissions || []).filter((s: any) => s.assignment_id === aid) };
+  }
+  if (q.includes('insert into assignment_submissions')) {
+    db.assignment_submissions = db.assignment_submissions || [];
+    const asgId = parseInt(params[0]);
+    const appId = parseInt(params[1]);
+    const fileUrl = params[2];
+    let existing = db.assignment_submissions.find((s: any) => s.assignment_id === asgId && s.applicant_id === appId);
+    if (existing) {
+      existing.file_url = fileUrl;
+      existing.updated_at = new Date().toISOString();
+      saveLocalDB(db);
+      return { rows: [existing] };
+    } else {
+      const id = Math.max(...db.assignment_submissions.map((s: any) => s.id), 0) + 1;
+      const newSub = {
+        id,
+        assignment_id: asgId,
+        applicant_id: appId,
+        file_url: fileUrl,
+        submitted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      db.assignment_submissions.push(newSub);
+      saveLocalDB(db);
+      return { rows: [newSub] };
+    }
   }
 
   // 6. Team Check-ins Interceptors
@@ -749,6 +858,23 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: found.map((r: any) => ({ id: r.id })) };
   }
 
+  // SELECT * FROM rooms WHERE LOWER(name) = LOWER($1) OR id = $2
+  if (q.includes('from rooms') && q.includes('lower(name) = lower($1) or id = $2')) {
+    const nameVal = String(params[0] || '').toLowerCase();
+    const idVal = parseInt(params[1]);
+    const found = db.rooms.filter((r: any) => r.name.toLowerCase() === nameVal || r.id === idVal || String(r.id) === String(params[0]));
+    console.log(`[DB ROOM LOOKUP] q="${q}" params=`, params, `found=`, found);
+    return { rows: found };
+  }
+
+  // SELECT id FROM rooms WHERE name = $1 OR id = $2
+  if (q.includes('from rooms') && q.includes('name = $1 or id = $2')) {
+    const nameVal = String(params[0] || '').toLowerCase();
+    const idVal = parseInt(params[1]);
+    const found = db.rooms.filter((r: any) => r.name.toLowerCase() === nameVal || r.id === idVal || String(r.id) === String(params[0]));
+    return { rows: found.map((r: any) => ({ id: r.id })) };
+  }
+
   // 3. SELECT * FROM rooms WHERE id = $1
   if (q.includes('select * from rooms where id = $1')) {
     const id = parseInt(params[0]);
@@ -757,7 +883,7 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   }
 
   // 4. SELECT * FROM ban_records WHERE LOWER(email) = $1 AND is_active = TRUE
-  if (q.includes('select * from ban_records') && q.includes('is_active = true') && q.includes('lower(email) = $1')) {
+  if (q.includes('select * from ban_records') && q.includes('is_active = true') && (q.includes('lower(email) = $1') || q.includes('lower(email) = lower($1)'))) {
     const email = String(params[0] || '').toLowerCase();
     const found = db.ban_records.filter((b: any) => b.email.toLowerCase() === email && b.is_active === true);
     return { rows: found };
@@ -861,6 +987,54 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     };
   }
 
+  // 15b. SELECT b.*, r.name as room_name, r.id as room_id FROM bookings b JOIN rooms r ON b.room_id = r.id WHERE b.date = $1 AND (b.status = 'APPROVED' OR b.status = 'approved') AND r.is_active = TRUE ORDER BY b.start_time ASC
+  if (q.includes('select b.*, r.name as room_name') && (q.includes('b.date = $1') || q.includes('where b.date = $1'))) {
+    const targetDate = params[0];
+    const list = db.bookings
+      .filter((b: any) => {
+        const room = db.rooms.find((r: any) => r.id === b.room_id);
+        const isRoomActive = room ? (room.is_active !== false) : true;
+        const isApproved = ['APPROVED', 'approved'].includes(b.status);
+        return b.date === targetDate && isApproved && isRoomActive;
+      })
+      .map((b: any) => {
+        const room = db.rooms.find((r: any) => r.id === b.room_id);
+        return {
+          ...b,
+          room_name: room ? room.name : '',
+          room_id: b.room_id
+        };
+      })
+      .sort((a: any, b: any) => (a.start_time || '').localeCompare(b.start_time || ''));
+    return { rows: list };
+  }
+
+  // 15c. SELECT b.*, r.name as room_name, r.id as room_id FROM bookings b JOIN rooms r ON b.room_id = r.id WHERE b.date > $1 AND (b.status = 'APPROVED' OR b.status = 'approved') AND r.is_active = TRUE ORDER BY b.date ASC, b.start_time ASC
+  if (q.includes('select b.*, r.name as room_name') && (q.includes('b.date > $1') || q.includes('where b.date > $1'))) {
+    const targetDate = params[0];
+    const list = db.bookings
+      .filter((b: any) => {
+        const room = db.rooms.find((r: any) => r.id === b.room_id);
+        const isRoomActive = room ? (room.is_active !== false) : true;
+        const isApproved = ['APPROVED', 'approved'].includes(b.status);
+        return b.date > targetDate && isApproved && isRoomActive;
+      })
+      .map((b: any) => {
+        const room = db.rooms.find((r: any) => r.id === b.room_id);
+        return {
+          ...b,
+          room_name: room ? room.name : '',
+          room_id: b.room_id
+        };
+      })
+      .sort((a: any, b: any) => {
+        const dateCmp = (a.date || '').localeCompare(b.date || '');
+        if (dateCmp !== 0) return dateCmp;
+        return (a.start_time || '').localeCompare(b.start_time || '');
+      });
+    return { rows: list };
+  }
+
   // 16. SELECT b.*, r.name as room_name, u.full_name as approver_name... ORDER BY b.id DESC
   if (q.includes('select b.*, r.name as room_name') && q.includes('order by b.id desc')) {
     const list = db.bookings.map((b: any) => {
@@ -949,6 +1123,16 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: [{ count: String(count) }] };
   }
 
+  // 24b. SELECT * FROM applicant_stage_history WHERE applicant_id = $1 ORDER BY change_date DESC
+  if (q.includes('from applicant_stage_history') && q.includes('applicant_id = $1')) {
+    const applicantId = parseInt(params[0]);
+    if (!db.applicant_stage_history) db.applicant_stage_history = [];
+    const list = db.applicant_stage_history
+      .filter((h: any) => h.applicant_id === applicantId)
+      .sort((a: any, b: any) => new Date(b.change_date || 0).getTime() - new Date(a.change_date || 0).getTime());
+    return { rows: list };
+  }
+
   // 24. Reports - Bookings by Type
   if (q.includes('select booking_type, count(*) as count from bookings where status =') || q.includes('booking_type, count(*) as count')) {
     const types: Record<string, number> = {};
@@ -980,16 +1164,16 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: found.map((u: any) => ({ id: u.id, email: u.email, full_name: u.full_name })) };
   }
 
-  // 27. SELECT u.id, u.email, u.full_name, u.is_active, r.name as role_name... WHERE LOWER(u.email) = $1
-  if (q.includes('select u.id, u.email, u.full_name, u.is_active, r.name as role_name') && (q.includes('lower(u.email) = $1') || q.includes('lower(u.email) = lower($1)'))) {
+  // 27. SELECT u.id, u.email... FROM users u... WHERE LOWER(u.email) = $1
+  if ((q.includes('from users u') || q.includes('from users')) && (q.includes('lower(u.email) = $1') || q.includes('lower(u.email) = lower($1)') || q.includes('lower(email) = $1'))) {
     const email = String(params[0] || '').toLowerCase();
     const users = getUsersWithRoles(db);
     const found = users.filter((u: any) => u.email.toLowerCase() === email);
     return { rows: found };
   }
 
-  // 28. SELECT u.id, u.email, u.full_name, u.is_active, r.name as role_name... WHERE u.id = $1
-  if (q.includes('select u.id, u.email, u.full_name, u.is_active, r.name as role_name') && q.includes('u.id = $1')) {
+  // 28. SELECT u.id, u.email... FROM users u... WHERE u.id = $1
+  if (q.includes('from users u') && q.includes('u.id = $1')) {
     const id = parseInt(params[0]);
     const users = getUsersWithRoles(db);
     const found = users.filter((u: any) => u.id === id);
@@ -997,22 +1181,43 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   }
 
   // 29. SELECT u.id, u.email, u.full_name, u.is_active, u.last_login... ORDER BY u.id ASC
-  if (q.includes('select u.id, u.email, u.full_name, u.is_active, u.last_login, r.name as role_name') && q.includes('order by u.id asc')) {
+  if (q.includes('from users u') && q.includes('order by u.id asc')) {
     const users = getUsersWithRoles(db);
     return { rows: users.sort((a: any, b: any) => a.id - b.id) };
   }
 
-  // 30. INSERT INTO users (microsoft_id, email, full_name, is_active, last_login) VALUES ($1, $2, $3, TRUE, CURRENT_TIMESTAMP) RETURNING id
-  if (q.includes('insert into users') && q.includes('returning id')) {
-    const microsoft_id = params.length > 3 ? params[0] : null;
-    const email = params.length > 3 ? params[1] : params[0];
-    const full_name = params.length > 3 ? params[2] : params[1];
+  // 30. INSERT INTO users
+  if (q.includes('insert into users') && (q.includes('returning id') || q.includes('returning *'))) {
+    let email = params[0];
+    let full_name = params[1];
+    let password = null;
+    let microsoft_id = null;
+
+    if (params.length === 3 && typeof params[2] === 'string') {
+      email = params[0];
+      full_name = params[1];
+      password = params[2];
+    } else if (params.length > 3) {
+      microsoft_id = params[0];
+      email = params[1];
+      full_name = params[2];
+    }
+
+    // Check if user already exists in db.users
+    let existingUser = db.users.find((u: any) => u.email.toLowerCase() === String(email).toLowerCase());
+    if (existingUser) {
+      if (password) existingUser.password = password;
+      saveLocalDB(db);
+      return { rows: [{ id: existingUser.id }] };
+    }
+
     const id = Math.max(...db.users.map((u: any) => u.id), 0) + 1;
     const newUser = {
       id,
       microsoft_id,
       email,
       full_name,
+      password,
       is_active: true,
       last_login: new Date().toISOString(),
       created_at: new Date().toISOString()
@@ -1047,6 +1252,17 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: [newRole] };
   }
 
+  // 31b. SELECT * FROM user_roles
+  if (q.includes('select * from user_roles')) {
+    const userId = parseInt(params[0]);
+    const roleId = params[1] ? parseInt(params[1]) : null;
+    let list = (db.user_roles || []).filter((ur: any) => ur.user_id === userId);
+    if (roleId) {
+      list = list.filter((ur: any) => ur.role_id === roleId);
+    }
+    return { rows: list };
+  }
+
   // 32. INSERT INTO user_roles (user_id, role_id)
   if (q.includes('insert into user_roles')) {
     const user_id = parseInt(params[0]);
@@ -1057,7 +1273,19 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: [{ user_id, role_id }] };
   }
 
-  // 33. UPDATE users SET last_login = CURRENT_TIMESTAMP... WHERE id = $2
+  // 33. UPDATE users SET password = $1... WHERE id = $2 OR UPDATE users SET last_login ...
+  if (q.includes('update users set password = $1')) {
+    const pwd = params[0];
+    const id = parseInt(params[1]);
+    const user = (db.users || []).find((u: any) => u.id === id);
+    if (user) {
+      user.password = pwd;
+      user.is_active = true;
+      saveLocalDB(db);
+    }
+    return { rows: user ? [user] : [] };
+  }
+
   if (q.includes('update users') && q.includes('where id = $2')) {
     const microsoftId = params[0];
     const id = parseInt(params[1]);
@@ -1371,6 +1599,25 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: ban ? [ban] : [] };
   }
 
+  // 44b. INSERT INTO applicant_stage_history
+  if (q.includes('insert into applicant_stage_history')) {
+    if (!db.applicant_stage_history) db.applicant_stage_history = [];
+    const id = Math.max(...db.applicant_stage_history.map((h: any) => h.id || 0), 0) + 1;
+    const newRecord = {
+      id,
+      applicant_id: parseInt(params[0]),
+      previous_stage: params[1],
+      new_stage: params[2],
+      updated_by_email: params[3],
+      comments: params[4] || null,
+      include_in_email: params[5] !== undefined ? Boolean(params[5]) : true,
+      change_date: new Date().toISOString()
+    };
+    db.applicant_stage_history.push(newRecord);
+    saveLocalDB(db);
+    return { rows: [newRecord] };
+  }
+
   // 45. INSERT INTO audit_logs ...
   if (q.includes('insert into audit_logs')) {
     const action = params[0];
@@ -1391,6 +1638,213 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       timestamp: new Date().toISOString()
     };
     db.audit_logs.push(newLog);
+    saveLocalDB(db);
+    return { rows: [newLog] };
+  }
+
+  // 46. Industries Query Interceptor
+  if (q.includes('from industries')) {
+    if (!db.industries || !Array.isArray(db.industries) || db.industries.length === 0) {
+      db.industries = [
+        { id: 1, name: 'EdTech & Learning', description: 'Educational software and tools' },
+        { id: 2, name: 'HealthTech & Bio', description: 'Healthcare, wellness, medical software' },
+        { id: 3, name: 'FinTech & Commerce', description: 'Financial tech and e-commerce' },
+        { id: 4, name: 'CleanTech & Agri', description: 'Green energy and agricultural tech' },
+        { id: 5, name: 'SaaS & Enterprise', description: 'B2B software and productivity tools' },
+        { id: 6, name: 'AI & DeepTech', description: 'Artificial Intelligence & Machine Learning' }
+      ];
+      saveLocalDB(db);
+    }
+    return { rows: db.industries };
+  }
+
+  // 47. Startup Profiles Query Interceptor
+  if (q.includes('from startup_profiles') && q.includes('select')) {
+    if (!db.startup_profiles) db.startup_profiles = [];
+    if (q.includes('where sp.id = $1') || q.includes('where id = $1')) {
+      const spId = parseInt(params[0]);
+      const p = db.startup_profiles.find((x: any) => x.id === spId);
+      if (p) {
+        const ind = (db.industries || []).find((i: any) => i.id === p.industry_id);
+        const coh = (db.cohorts || []).find((c: any) => c.id === p.cohort_id);
+        const app = (db.applicants || []).find((a: any) => a.id === p.applicant_id);
+        return { rows: [{
+          ...p,
+          industry_name: ind?.name || 'General Tech',
+          cohort_name: coh?.name || 'Cohort 1',
+          founder_name: app?.name || 'Founder',
+          founder_email: app?.email || '',
+          founder_phone: app?.phone || '',
+          founder_cnic: app?.cnic || '',
+          founder_tracking_token: app?.tracking_token || ''
+        }] };
+      }
+      return { rows: [] };
+    }
+    if (q.includes('where applicant_id = $1') || q.includes('where sp.applicant_id = $1')) {
+      const appId = parseInt(params[0]);
+      const p = db.startup_profiles.find((x: any) => x.applicant_id === appId);
+      if (p) {
+        const ind = (db.industries || []).find((i: any) => i.id === p.industry_id);
+        const coh = (db.cohorts || []).find((c: any) => c.id === p.cohort_id);
+        const app = (db.applicants || []).find((a: any) => a.id === p.applicant_id);
+        return { rows: [{
+          ...p,
+          industry_name: ind?.name || 'General Tech',
+          cohort_name: coh?.name || 'Cohort 1',
+          founder_name: app?.name || 'Founder',
+          founder_email: app?.email || '',
+          founder_phone: app?.phone || '',
+          founder_cnic: app?.cnic || '',
+          founder_tracking_token: app?.tracking_token || ''
+        }] };
+      }
+      return { rows: [] };
+    }
+
+    const rows = (db.startup_profiles || []).map((p: any) => {
+      const ind = (db.industries || []).find((i: any) => i.id === p.industry_id);
+      const coh = (db.cohorts || []).find((c: any) => c.id === p.cohort_id);
+      const app = (db.applicants || []).find((a: any) => a.id === p.applicant_id);
+      return {
+        ...p,
+        industry_name: ind?.name || 'General Tech',
+        cohort_name: coh?.name || 'Cohort 1',
+        founder_name: app?.name || 'Founder',
+        founder_email: app?.email || '',
+        founder_phone: app?.phone || '',
+        founder_cnic: app?.cnic || '',
+        founder_tracking_token: app?.tracking_token || ''
+      };
+    });
+    return { rows };
+  }
+
+  if (q.includes('insert into startup_profiles')) {
+    if (!db.startup_profiles) db.startup_profiles = [];
+    const id = Math.max(...db.startup_profiles.map((sp: any) => sp.id || 0), 0) + 1;
+    const applicant_id = parseInt(params[0]);
+    const startup_name = params[1];
+    const industry_id = params[2] ? parseInt(params[2]) : 1;
+    const description = params[3];
+    const cohort_id = params[4] ? parseInt(params[4]) : 1;
+
+    const newProfile = {
+      id,
+      applicant_id,
+      startup_name,
+      industry_id,
+      description,
+      cohort_id,
+      enrollment_date: new Date().toISOString(),
+      current_progress_stage: 'IDEA_STAGE',
+      program_status: 'ACTIVE',
+      team_size: 1,
+      revenue_status: 'PRE_REVENUE',
+      funding_status: 'BOOTSTRAPPED',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    db.startup_profiles.push(newProfile);
+    saveLocalDB(db);
+    return { rows: [newProfile] };
+  }
+
+  if (q.includes('update startup_profiles')) {
+    if (!db.startup_profiles) db.startup_profiles = [];
+    const idVal = parseInt(params[params.length - 1]);
+    const profile = db.startup_profiles.find((p: any) => p.id === idVal);
+    if (profile) {
+      if (params.length >= 8) {
+        profile.startup_name = params[0] || profile.startup_name;
+        profile.description = params[1] || profile.description;
+        profile.industry_id = params[2] ? parseInt(params[2]) : profile.industry_id;
+        profile.cohort_id = params[3] ? parseInt(params[3]) : profile.cohort_id;
+        profile.current_progress_stage = params[4] || profile.current_progress_stage;
+        profile.program_status = params[5] || profile.program_status;
+        profile.team_size = params[6] !== undefined ? parseInt(params[6]) : profile.team_size;
+        profile.revenue_status = params[7] || profile.revenue_status;
+      }
+      profile.updated_at = new Date().toISOString();
+      saveLocalDB(db);
+    }
+    return { rows: profile ? [profile] : [] };
+  }
+
+  // 48. Startup Stage History
+  if (q.includes('from startup_stage_history')) {
+    if (!db.startup_stage_history) db.startup_stage_history = [];
+    if (q.includes('where startup_profile_id = $1')) {
+      const spId = parseInt(params[0]);
+      return { rows: db.startup_stage_history.filter((h: any) => h.startup_profile_id === spId) };
+    }
+    return { rows: db.startup_stage_history };
+  }
+  if (q.includes('insert into startup_stage_history')) {
+    if (!db.startup_stage_history) db.startup_stage_history = [];
+    const id = Math.max(...db.startup_stage_history.map((h: any) => h.id || 0), 0) + 1;
+    const newHist = {
+      id,
+      startup_profile_id: parseInt(params[0]),
+      previous_stage: params[1],
+      new_stage: params[2],
+      change_date: new Date().toISOString(),
+      updated_by_email: params[3],
+      comments: params[4] || null
+    };
+    db.startup_stage_history.push(newHist);
+    saveLocalDB(db);
+    return { rows: [newHist] };
+  }
+
+  // 49. Startup Pivots
+  if (q.includes('from startup_pivots')) {
+    if (!db.startup_pivots) db.startup_pivots = [];
+    if (q.includes('where startup_profile_id = $1')) {
+      const spId = parseInt(params[0]);
+      return { rows: db.startup_pivots.filter((p: any) => p.startup_profile_id === spId) };
+    }
+    return { rows: db.startup_pivots };
+  }
+  if (q.includes('insert into startup_pivots')) {
+    if (!db.startup_pivots) db.startup_pivots = [];
+    const id = Math.max(...db.startup_pivots.map((p: any) => p.id || 0), 0) + 1;
+    const newPivot = {
+      id,
+      startup_profile_id: parseInt(params[0]),
+      pivot_date: new Date().toISOString(),
+      previous_model: params[1],
+      new_model: params[2],
+      reason: params[3],
+      logged_by_email: params[4]
+    };
+    db.startup_pivots.push(newPivot);
+    saveLocalDB(db);
+    return { rows: [newPivot] };
+  }
+
+  // 50. Startup Audit Logs
+  if (q.includes('from startup_audit_logs')) {
+    if (!db.startup_audit_logs) db.startup_audit_logs = [];
+    if (q.includes('where startup_profile_id = $1')) {
+      const spId = parseInt(params[0]);
+      return { rows: db.startup_audit_logs.filter((l: any) => l.startup_profile_id === spId) };
+    }
+    return { rows: db.startup_audit_logs };
+  }
+  if (q.includes('insert into startup_audit_logs')) {
+    if (!db.startup_audit_logs) db.startup_audit_logs = [];
+    const id = Math.max(...db.startup_audit_logs.map((l: any) => l.id || 0), 0) + 1;
+    const newLog = {
+      id,
+      startup_profile_id: parseInt(params[0]),
+      changed_by_email: params[1],
+      field_name: params[2],
+      old_value: params[3] || null,
+      new_value: params[4] || null,
+      created_at: new Date().toISOString()
+    };
+    db.startup_audit_logs.push(newLog);
     saveLocalDB(db);
     return { rows: [newLog] };
   }
@@ -1533,14 +1987,7 @@ async function ensureDBReady() {
         await pool.query(`
           INSERT INTO users (id, email, full_name, is_active, last_login)
           VALUES 
-          (1, 'director@takhleeq.pk', 'Dr. Qaseeb (Director)', TRUE, CURRENT_TIMESTAMP),
-          (2, 'manager@takhleeq.pk', 'Syed Usman (Booking Manager)', TRUE, CURRENT_TIMESTAMP),
-          (3, 'coordinator@takhleeq.pk', 'Sara Khan (Coordinator)', TRUE, CURRENT_TIMESTAMP),
-          (4, 'usman@society.pk', 'Usman Ghani (Society Rep)', TRUE, CURRENT_TIMESTAMP),
-          (5, 'faisal@ucp.edu.pk', 'Faisal Mehmood (Coordinator)', TRUE, CURRENT_TIMESTAMP),
-          (6, 'maheen@ucp.edu.pk', 'Maheen Malik (Manager)', TRUE, CURRENT_TIMESTAMP),
-          (7, 'banned-test@ucp.edu.pk', 'Banned Student (Testing)', FALSE, CURRENT_TIMESTAMP),
-          (8, 'zohaib@startup.pk', 'Zohaib Niaz (MedRoute Founder)', TRUE, CURRENT_TIMESTAMP)
+          (1, 'qaseebahmed@gmail.com', 'Qaseeb Ahmed', TRUE, CURRENT_TIMESTAMP)
           ON CONFLICT (email) DO UPDATE SET
             full_name = EXCLUDED.full_name,
             is_active = EXCLUDED.is_active;
@@ -1562,14 +2009,7 @@ async function ensureDBReady() {
 
         // 3. Set standard user roles
         const assignments = [
-          { email: 'director@takhleeq.pk', role: 'Administrator' },
-          { email: 'manager@takhleeq.pk', role: 'Booking Manager' },
-          { email: 'coordinator@takhleeq.pk', role: 'Facility Coordinator' },
-          { email: 'usman@society.pk', role: 'UCP Member' },
-          { email: 'faisal@ucp.edu.pk', role: 'Facility Coordinator' },
-          { email: 'maheen@ucp.edu.pk', role: 'Booking Manager' },
-          { email: 'banned-test@ucp.edu.pk', role: 'UCP Member' },
-          { email: 'zohaib@startup.pk', role: 'Cohort Founder' }
+          { email: 'qaseebahmed@gmail.com', role: 'Administrator' }
         ];
 
         for (const assign of assignments) {
@@ -1648,19 +2088,6 @@ async function ensureDBReady() {
           );
         `);
 
-        // Seed default cohort if none exists
-        const cohortCountRes = await pool.query('SELECT count(*) FROM cohorts');
-        if (parseInt(cohortCountRes.rows[0].count) === 0) {
-          await pool.query(`
-            INSERT INTO cohorts (id, name, status)
-            VALUES (1, 'Takhleeq Cohort 1', 'ACTIVE')
-            ON CONFLICT DO NOTHING;
-          `);
-          try {
-            await pool.query(`SELECT setval(pg_get_serial_sequence('cohorts', 'id'), COALESCE(MAX(id), 1)) FROM cohorts;`);
-          } catch (e) {}
-        }
-
         // 2. cohort_form_settings table
         await pool.query(`
           CREATE TABLE IF NOT EXISTS cohort_form_settings (
@@ -1726,33 +2153,13 @@ async function ensureDBReady() {
             SET program_status = 'NOT_ENROLLED' 
             WHERE program_status IS NULL;
           `);
+          await pool.query(`ALTER TABLE applicants ADD COLUMN IF NOT EXISTS founder_password VARCHAR(255);`);
+          await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password VARCHAR(255);`);
         } catch (mErr) {
           console.error('Applicants schema migration notice:', mErr);
         }
 
-        // Seed default applicants if empty
-        const applicantsCountRes = await pool.query('SELECT count(*) FROM applicants');
-        if (parseInt(applicantsCountRes.rows[0].count) === 0) {
-          const defaultApplicants = [
-            { id: 1, tracking_token: 'TK-STR-7821', name: 'Zohaib Niaz', email: 'zohaib@startup.pk', phone: '0300-1234567', cnic: '35201-1234567-1', startup_name: 'MedRoute', startup_description: 'An AI-powered pharmaceutical route planner reducing delivery times by 40%.', cohort_id: 1, status: 'CONFIRMED', program_status: 'ACTIVE', panel_scores: { viability: 8, team: 9, scalability: 8, average: 8.3 }, form_data: {}, orientation_conducted: true },
-            { id: 2, tracking_token: 'TK-STR-5921', name: 'Ayesha Malik', email: 'ayesha@fintech.pk', phone: '0321-7654321', cnic: '35201-7654321-2', startup_name: 'PaisaFlow', startup_description: 'Micro-lending platform for small merchants using alternative credit scoring.', cohort_id: 1, status: 'CONFIRMED', program_status: 'ACTIVE', panel_scores: { viability: 9, team: 8, scalability: 9, average: 8.7 }, form_data: {}, orientation_conducted: true },
-            { id: 3, tracking_token: 'TK-STR-4412', name: 'Imran Khan', email: 'imran@edtech.pk', phone: '0333-5551212', cnic: '35201-5551212-3', startup_name: 'Dars-e-Nau', startup_description: 'Localized video-based educational app for public school students in Urdu.', cohort_id: null, status: 'IN_REVIEW', program_status: 'NOT_ENROLLED', panel_scores: null, form_data: {}, orientation_conducted: false },
-            { id: 4, tracking_token: 'TK-STR-1092', name: 'Qasim Ali', email: 'qasim@agritech.pk', phone: '0345-9998887', cnic: '35201-9998887-4', startup_name: 'AgriSense', startup_description: 'IoT-enabled soil nutrient analysis probe for smallholder farmers.', cohort_id: null, status: 'BACKUP_CANDIDATE', program_status: 'NOT_ENROLLED', panel_scores: { viability: 7, team: 7, scalability: 7, average: 7.0 }, form_data: {}, orientation_conducted: false },
-            { id: 5, tracking_token: 'TK-STR-2291', name: 'Raza Jafar', email: 'raza@delivery.pk', phone: '0312-3334445', cnic: '35201-3334445-5', startup_name: 'LogiSwift', startup_description: 'B2B express delivery aggregator connecting local freight vans.', cohort_id: null, status: 'REJECTED', program_status: 'NOT_ENROLLED', panel_scores: { viability: 4, team: 5, scalability: 4, average: 4.3 }, form_data: {}, orientation_conducted: false }
-          ];
-
-          for (const a of defaultApplicants) {
-            await pool.query(
-              `INSERT INTO applicants (id, tracking_token, name, email, phone, cnic, startup_name, startup_description, cohort_id, status, program_status, panel_scores, form_data, orientation_conducted)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-               ON CONFLICT DO NOTHING`,
-              [a.id, a.tracking_token, a.name, a.email, a.phone, a.cnic, a.startup_name, a.startup_description, a.cohort_id, a.status, a.program_status, JSON.stringify(a.panel_scores), JSON.stringify(a.form_data), a.orientation_conducted]
-            );
-          }
-          try {
-            await pool.query(`SELECT setval(pg_get_serial_sequence('applicants', 'id'), COALESCE(MAX(id), 1)) FROM applicants;`);
-          } catch (e) {}
-        }
+        // Applicants initialization complete
 
         // 4. cohort_sessions table
         await pool.query(`
@@ -1767,6 +2174,7 @@ async function ensureDBReady() {
               topic_category VARCHAR(255),
               venue VARCHAR(255),
               recording_url VARCHAR(1024),
+              attendance_sheet_photo_url TEXT,
               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
         `);
@@ -1776,6 +2184,7 @@ async function ensureDBReady() {
           await pool.query(`ALTER TABLE cohort_sessions ADD COLUMN IF NOT EXISTS topic_category VARCHAR(255);`);
           await pool.query(`ALTER TABLE cohort_sessions ADD COLUMN IF NOT EXISTS venue VARCHAR(255);`);
           await pool.query(`ALTER TABLE cohort_sessions ADD COLUMN IF NOT EXISTS recording_url VARCHAR(1024);`);
+          await pool.query(`ALTER TABLE cohort_sessions ADD COLUMN IF NOT EXISTS attendance_sheet_photo_url TEXT;`);
         } catch (e) {
           console.error("Failed to alter cohort_sessions table columns", e);
         }
@@ -1806,8 +2215,39 @@ async function ensureDBReady() {
               id SERIAL PRIMARY KEY,
               session_id INTEGER REFERENCES cohort_sessions(id) ON DELETE CASCADE,
               applicant_id INTEGER REFERENCES applicants(id) ON DELETE CASCADE,
-              status VARCHAR(50) NOT NULL,
-              marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+              status VARCHAR(50) DEFAULT 'not_marked',
+              marked_by_user_id INTEGER,
+              marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              CONSTRAINT unique_session_applicant UNIQUE (session_id, applicant_id)
+          );
+        `);
+
+        // 5b. assignments table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS assignments (
+              id SERIAL PRIMARY KEY,
+              session_id INTEGER REFERENCES cohort_sessions(id) ON DELETE CASCADE,
+              cohort_id INTEGER REFERENCES cohorts(id) ON DELETE CASCADE,
+              title VARCHAR(255) NOT NULL,
+              description TEXT,
+              due_date VARCHAR(100) NOT NULL,
+              attachment_url TEXT,
+              created_by_user_id INTEGER,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+        await pool.query(`ALTER TABLE assignments ADD COLUMN IF NOT EXISTS cohort_id INTEGER REFERENCES cohorts(id) ON DELETE CASCADE;`);
+
+        // 5c. assignment_submissions table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS assignment_submissions (
+              id SERIAL PRIMARY KEY,
+              assignment_id INTEGER REFERENCES assignments(id) ON DELETE CASCADE,
+              applicant_id INTEGER REFERENCES applicants(id) ON DELETE CASCADE,
+              file_url TEXT NOT NULL,
+              submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              CONSTRAINT unique_assignment_applicant UNIQUE (assignment_id, applicant_id)
           );
         `);
 
@@ -1841,7 +2281,153 @@ async function ensureDBReady() {
           );
         `);
 
-        console.log("Cohort tables synchronized successfully in PostgreSQL.");
+        // 8. Startup Profile & Progress Management Module Tables
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS industries (
+              id SERIAL PRIMARY KEY,
+              name VARCHAR(100) UNIQUE NOT NULL
+          );
+        `);
+
+        // Seed default industries if empty
+        const indCount = await pool.query('SELECT count(*) FROM industries');
+        if (parseInt(indCount.rows[0].count) === 0) {
+          const defaultIndustries = [
+            'FinTech', 'EdTech', 'AgriTech', 'HealthTech', 
+            'E-Commerce & Retail', 'Logistics & Supply Chain', 
+            'SaaS & Enterprise Software', 'CleanTech & Energy', 
+            'AI & DeepTech', 'Other Services'
+          ];
+          for (const ind of defaultIndustries) {
+            await pool.query(
+              `INSERT INTO industries (name) VALUES ($1) ON CONFLICT (name) DO NOTHING;`,
+              [ind]
+            );
+          }
+        }
+
+        // Create custom ENUM types safely if not present
+        try {
+          await pool.query(`
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'startup_progress_stage_enum') THEN
+                    CREATE TYPE startup_progress_stage_enum AS ENUM ('IDEA_STAGE', 'PROBLEM_DISCOVERY', 'MARKET_VALIDATION', 'POC_MVP', 'POST_REVENUE', 'SCALE_STAGE');
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'program_status_enum') THEN
+                    CREATE TYPE program_status_enum AS ENUM ('ACTIVE', 'PAUSED', 'GRADUATED', 'KICKED_OUT');
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'startup_type_enum') THEN
+                    CREATE TYPE startup_type_enum AS ENUM ('PRODUCT', 'SERVICE', 'HYBRID');
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'business_model_enum') THEN
+                    CREATE TYPE business_model_enum AS ENUM ('B2B', 'B2C', 'SUBSCRIPTION');
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'revenue_status_enum') THEN
+                    CREATE TYPE revenue_status_enum AS ENUM ('PRE_REVENUE', 'POST_REVENUE', 'PROFITABLE');
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'funding_status_enum') THEN
+                    CREATE TYPE funding_status_enum AS ENUM ('BOOTSTRAPPED', 'GRANT_FUNDED', 'PRE_SEED', 'SEED', 'SERIES_A_PLUS');
+                END IF;
+            END $$;
+          `);
+        } catch (e) {
+          console.error("Custom types notice:", e);
+        }
+
+        // 9. startup_profiles table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS startup_profiles (
+              id SERIAL PRIMARY KEY,
+              applicant_id INTEGER UNIQUE REFERENCES applicants(id) ON DELETE CASCADE,
+              startup_name VARCHAR(255) NOT NULL,
+              logo_url TEXT,
+              industry_id INTEGER REFERENCES industries(id) ON DELETE SET NULL,
+              description TEXT,
+              website VARCHAR(255),
+              social_links JSONB DEFAULT '{}'::jsonb,
+              contact_info JSONB DEFAULT '{}'::jsonb,
+              startup_type startup_type_enum,
+              business_model business_model_enum,
+              cohort_id INTEGER REFERENCES cohorts(id) ON DELETE SET NULL,
+              enrollment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              current_progress_stage startup_progress_stage_enum DEFAULT 'IDEA_STAGE',
+              program_status program_status_enum DEFAULT 'ACTIVE',
+              team_size INTEGER DEFAULT 1,
+              revenue_status revenue_status_enum DEFAULT 'PRE_REVENUE',
+              funding_status funding_status_enum DEFAULT 'BOOTSTRAPPED',
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        // 10. startup_stage_history table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS startup_stage_history (
+              id SERIAL PRIMARY KEY,
+              startup_profile_id INTEGER REFERENCES startup_profiles(id) ON DELETE CASCADE,
+              previous_stage startup_progress_stage_enum,
+              new_stage startup_progress_stage_enum NOT NULL,
+              change_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              updated_by_email VARCHAR(255),
+              comments TEXT
+          );
+        `);
+
+        // 10b. applicant_stage_history table (Intake Admissions Evaluator)
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS applicant_stage_history (
+              id SERIAL PRIMARY KEY,
+              applicant_id INTEGER REFERENCES applicants(id) ON DELETE CASCADE,
+              previous_stage VARCHAR(100),
+              new_stage VARCHAR(100) NOT NULL,
+              change_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              updated_by_email VARCHAR(255),
+              comments TEXT,
+              include_in_email BOOLEAN NOT NULL DEFAULT true
+          );
+        `);
+        try {
+          await pool.query(`ALTER TABLE applicant_stage_history ADD COLUMN IF NOT EXISTS include_in_email BOOLEAN NOT NULL DEFAULT true;`);
+          await pool.query(`ALTER TABLE applicant_stage_history ADD COLUMN IF NOT EXISTS comments TEXT;`);
+        } catch (ashErr) {
+          console.error("applicant_stage_history migration notice:", ashErr);
+        }
+
+        // 11. startup_pivots table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS startup_pivots (
+              id SERIAL PRIMARY KEY,
+              startup_profile_id INTEGER REFERENCES startup_profiles(id) ON DELETE CASCADE,
+              previous_idea TEXT,
+              new_idea TEXT NOT NULL,
+              previous_industry_id INTEGER REFERENCES industries(id) ON DELETE SET NULL,
+              new_industry_id INTEGER REFERENCES industries(id) ON DELETE SET NULL,
+              pivot_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              reason TEXT NOT NULL,
+              approved_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              approved_by_email VARCHAR(255),
+              supporting_notes TEXT
+          );
+        `);
+
+        // 12. startup_audit_logs table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS startup_audit_logs (
+              id SERIAL PRIMARY KEY,
+              startup_profile_id INTEGER REFERENCES startup_profiles(id) ON DELETE CASCADE,
+              changed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              changed_by_email VARCHAR(255) NOT NULL,
+              field_name VARCHAR(100) NOT NULL,
+              old_value TEXT,
+              new_value TEXT,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        console.log("Cohort & Startup tables synchronized successfully in PostgreSQL.");
+
       } catch (syncCohortsErr: any) {
         console.error("Could not synchronize cohort tables in PostgreSQL:", syncCohortsErr.message);
       }
@@ -2035,6 +2621,17 @@ export function mapRoom(row: any): Room {
     }
   }
 
+  let allowedBookingTypes: string[] = [];
+  if (row.allowed_booking_types) {
+    try {
+      allowedBookingTypes = typeof row.allowed_booking_types === 'string'
+        ? JSON.parse(row.allowed_booking_types)
+        : row.allowed_booking_types;
+    } catch {
+      allowedBookingTypes = [];
+    }
+  }
+
   return {
     id: String(row.id),
     name: row.name,
@@ -2044,7 +2641,8 @@ export function mapRoom(row: any): Room {
     maxBookingDuration: row.max_duration_minutes,
     purpose: row.purpose || '',
     policies,
-    isActive: row.is_active
+    isActive: row.is_active,
+    allowedBookingTypes
   };
 }
 

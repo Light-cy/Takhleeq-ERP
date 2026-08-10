@@ -15,7 +15,7 @@ export const getRooms = async (req: AuthenticatedRequest, res: Response) => {
 
 export const createRoom = async (req: AuthenticatedRequest, res: Response) => {
   const admin = req.currentUser!;
-  const { name, capacity, operatingHours, minBookingDuration, maxBookingDuration, purpose, policies } = req.body;
+  const { name, capacity, operatingHours, minBookingDuration, maxBookingDuration, purpose, policies, allowedBookingTypes } = req.body;
 
   if (!name || !capacity || !operatingHours) {
     return res.status(400).json({ error: 'Missing required parameters: name, capacity, operatingHours' });
@@ -38,12 +38,13 @@ export const createRoom = async (req: AuthenticatedRequest, res: Response) => {
     const maxDur = maxBookingDuration ? parseInt(maxBookingDuration) : 180;
     const roomPurpose = purpose || 'General use';
     const roomPolicies = policies ? JSON.stringify(policies) : '[]';
+    const allowedTypesJson = allowedBookingTypes ? JSON.stringify(allowedBookingTypes) : JSON.stringify(['Student societies', 'Startup teams', 'Faculty members', 'Department representatives', 'Cohort members', 'Entrepreneurs in residence', 'Professionals in residence', 'Meeting / Event', 'Cohort Startup', 'Department']);
 
     const insertRes = await query(
-      `INSERT INTO rooms (name, capacity, operating_hours_start, operating_hours_end, min_duration_minutes, max_duration_minutes, purpose, policies, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE)
+      `INSERT INTO rooms (name, capacity, operating_hours_start, operating_hours_end, min_duration_minutes, max_duration_minutes, purpose, policies, allowed_booking_types, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE)
        RETURNING *`,
-      [name, parseInt(capacity), opStart, opEnd, minDur, maxDur, roomPurpose, roomPolicies]
+      [name, parseInt(capacity), opStart, opEnd, minDur, maxDur, roomPurpose, roomPolicies, allowedTypesJson]
     );
 
     const newRoom = mapRoom(insertRes.rows[0]);
@@ -68,7 +69,7 @@ export const updateRoom = async (req: AuthenticatedRequest, res: Response) => {
     }
     const oldRoom = mapRoom(roomRes.rows[0]);
 
-    const { name, capacity, operatingHours, minBookingDuration, maxBookingDuration, purpose, policies, isActive } = req.body;
+    const { name, capacity, operatingHours, minBookingDuration, maxBookingDuration, purpose, policies, isActive, allowedBookingTypes } = req.body;
 
     const updates: string[] = [];
     const values: any[] = [];
@@ -112,6 +113,10 @@ export const updateRoom = async (req: AuthenticatedRequest, res: Response) => {
     if (isActive !== undefined) {
       updates.push(`is_active = $${valCounter++}`);
       values.push(isActive === true || isActive === 'true');
+    }
+    if (allowedBookingTypes !== undefined) {
+      updates.push(`allowed_booking_types = $${valCounter++}`);
+      values.push(JSON.stringify(allowedBookingTypes));
     }
 
     if (updates.length === 0) {

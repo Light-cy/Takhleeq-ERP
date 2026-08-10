@@ -23,8 +23,6 @@ async function autoRejectPastPendingBookings() {
     const currentMins = String(pktDate.getUTCMinutes()).padStart(2, '0');
     const nowTimeStr = `${currentHours}:${currentMins}`;
 
-    console.log(`[Auto-Reject Check] Running. Today (PKT): ${todayStr}, Time (PKT): ${nowTimeStr}`);
-
     // Fetch all bookings that are in PENDING_REVIEW status
     const pendingRes = await query(
       `SELECT b.*, r.name as room_name 
@@ -102,6 +100,91 @@ router.get('/bookings', async (req, res) => {
   } catch (err) {
     console.error('Failed to retrieve bookings:', err);
     res.status(500).json({ error: 'Failed to retrieve bookings.' });
+  }
+});
+
+// Retrieve unified today's activity across all rooms for signage display
+router.get('/bookings/today-all-rooms', async (req, res) => {
+  try {
+    const now = new Date();
+    // Pakistan Standard Time is UTC+5.
+    const pktOffset = 5 * 60 * 60 * 1000;
+    const pktDate = new Date(now.getTime() + pktOffset);
+    
+    const year = pktDate.getUTCFullYear();
+    const month = String(pktDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(pktDate.getUTCDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+    
+    const currentHours = String(pktDate.getUTCHours()).padStart(2, '0');
+    const currentMins = String(pktDate.getUTCMinutes()).padStart(2, '0');
+    const nowTimeStr = `${currentHours}:${currentMins}`;
+    const nowMinutesFromMidnight = pktDate.getUTCHours() * 60 + pktDate.getUTCMinutes();
+
+    // Query today's approved bookings across all active rooms
+    const todayRes = await query(
+      `SELECT b.*, r.name as room_name, r.id as room_id 
+       FROM bookings b 
+       JOIN rooms r ON b.room_id = r.id 
+       WHERE b.date = $1 AND (b.status = 'APPROVED' OR b.status = 'approved') AND r.is_active = TRUE
+       ORDER BY b.start_time ASC`,
+      [todayStr]
+    );
+
+    // Query upcoming approved bookings later this week across all active rooms
+    const upcomingRes = await query(
+      `SELECT b.*, r.name as room_name, r.id as room_id 
+       FROM bookings b 
+       JOIN rooms r ON b.room_id = r.id 
+       WHERE b.date > $1 AND (b.status = 'APPROVED' OR b.status = 'approved') AND r.is_active = TRUE
+       ORDER BY b.date ASC, b.start_time ASC`,
+      [todayStr]
+    );
+
+    const todayBookings = todayRes.rows.map(row => {
+      const b = mapBooking(row);
+      const start = b.startTime.slice(0, 5);
+      const end = b.endTime.slice(0, 5);
+      
+      const [sH, sM] = start.split(':').map(Number);
+      const [eH, eM] = end.split(':').map(Number);
+      const startMinutes = sH * 60 + sM;
+      const endMinutes = eH * 60 + eM;
+
+      const is_ongoing = (nowMinutesFromMidnight >= startMinutes && nowMinutesFromMidnight < endMinutes);
+      const is_upcoming = (nowMinutesFromMidnight < startMinutes);
+
+      const remaining_minutes = is_ongoing ? Math.max(0, endMinutes - nowMinutesFromMidnight) : 0;
+      // Target end timestamp in ms
+      const end_timestamp = is_ongoing ? Date.now() + (remaining_minutes * 60 * 1000) : 0;
+
+      return {
+        ...b,
+        roomId: String(row.room_id),
+        is_ongoing,
+        is_upcoming,
+        remaining_minutes,
+        end_timestamp
+      };
+    });
+
+    const upcomingWeek = upcomingRes.rows.map(row => {
+      const b = mapBooking(row);
+      return {
+        ...b,
+        roomId: String(row.room_id)
+      };
+    });
+
+    res.json({
+      date: todayStr,
+      currentTime: nowTimeStr,
+      today: todayBookings,
+      upcomingWeek
+    });
+  } catch (err) {
+    console.error('Failed to fetch today all rooms bookings:', err);
+    res.status(500).json({ error: 'Failed to fetch room activity.' });
   }
 });
 
@@ -203,8 +286,18 @@ router.post('/bookings', async (req, res) => {
     let isPastDate = false;
     let isPastTimeForToday = false;
     let isFutureLimitExceeded = false;
+    let isWeekend = false;
     let maxFutureDateStr = '';
     if (date) {
+      const parts = date.split('-').map(Number);
+      if (parts.length === 3) {
+        const reqDateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+        const dayOfWeek = reqDateObj.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          isWeekend = true;
+        }
+      }
+
       const reqDate = new Date(`${date}T00:00:00`);
       const today = new Date();
       today.setHours(0,0,0,0);
@@ -263,6 +356,8 @@ router.post('/bookings', async (req, res) => {
       validationErrorMsg = 'Validation Error: Phone number must contain only digits and be exactly 11 digits long (e.g., 03001234567).';
     } else if (isNegativeAttendance) {
       validationErrorMsg = 'Validation Error: Expected Attendance cannot be negative.';
+    } else if (isWeekend) {
+      validationErrorMsg = 'Validation Error: Bookings are only allowed on working days (Monday to Friday). Saturday and Sunday bookings are not permitted.';
     } else if (isPastDate) {
       validationErrorMsg = 'Validation Error: Past dates cannot be booked.';
     } else if (isFutureLimitExceeded) {
@@ -276,22 +371,44 @@ router.post('/bookings', async (req, res) => {
     } else if (!roomRecord.is_active) {
       validationErrorMsg = 'Validation Error: New bookings are not allowed for this room (Deactivated).';
     } else {
-      // Validate Operating Hours
-      const cleanStart = startTime.includes(':') && startTime.split(':').length === 2 ? startTime + ':00' : startTime;
-      const cleanEnd = endTime.includes(':') && endTime.split(':').length === 2 ? endTime + ':00' : endTime;
+      // Validate Allowed Booking Types per room
+      let allowedTypes: string[] = [];
+      if (roomRecord.allowed_booking_types) {
+        try {
+          allowedTypes = typeof roomRecord.allowed_booking_types === 'string'
+            ? JSON.parse(roomRecord.allowed_booking_types)
+            : roomRecord.allowed_booking_types;
+        } catch {
+          allowedTypes = [];
+        }
+      }
+      if (allowedTypes && allowedTypes.length > 0) {
+        const isAllowed = allowedTypes.some(
+          (t: string) => t.trim().toLowerCase() === String(bookingType).trim().toLowerCase()
+        );
+        if (!isAllowed) {
+          validationErrorMsg = `Validation Error: The selected room '${roomRecord.name}' is restricted to specific booking types (${allowedTypes.join(', ')}). '${bookingType}' is not permitted for this space.`;
+        }
+      }
 
-      if (cleanStart < roomRecord.operating_hours_start || cleanEnd > roomRecord.operating_hours_end || cleanStart >= cleanEnd) {
-        validationErrorMsg = `Validation Error: Bookings must fall within the room's configured operating hours (${roomRecord.operating_hours_start.slice(0, 5)} - ${roomRecord.operating_hours_end.slice(0, 5)}).`;
-      } else {
-        // Validate Min/Max Duration limits
-        const [sH, sM] = startTime.split(':').map(Number);
-        const [eH, eM] = endTime.split(':').map(Number);
-        const durationMins = (eH * 60 + eM) - (sH * 60 + sM);
+      if (!validationErrorMsg) {
+        // Validate Operating Hours
+        const cleanStart = startTime.includes(':') && startTime.split(':').length === 2 ? startTime + ':00' : startTime;
+        const cleanEnd = endTime.includes(':') && endTime.split(':').length === 2 ? endTime + ':00' : endTime;
 
-        if (durationMins < roomRecord.min_duration_minutes) {
-          validationErrorMsg = `Validation Error: Booking duration (${durationMins} mins) is below the room's minimum threshold (${roomRecord.min_duration_minutes} mins).`;
-        } else if (durationMins > roomRecord.max_duration_minutes) {
-          validationErrorMsg = `Validation Error: Booking duration (${durationMins} mins) exceeds the room's maximum threshold (${roomRecord.max_duration_minutes} mins).`;
+        if (cleanStart < roomRecord.operating_hours_start || cleanEnd > roomRecord.operating_hours_end || cleanStart >= cleanEnd) {
+          validationErrorMsg = `Validation Error: Bookings must fall within the room's configured operating hours (${roomRecord.operating_hours_start.slice(0, 5)} - ${roomRecord.operating_hours_end.slice(0, 5)}).`;
+        } else {
+          // Validate Min/Max Duration limits
+          const [sH, sM] = startTime.split(':').map(Number);
+          const [eH, eM] = endTime.split(':').map(Number);
+          const durationMins = (eH * 60 + eM) - (sH * 60 + sM);
+
+          if (durationMins < roomRecord.min_duration_minutes) {
+            validationErrorMsg = `Validation Error: Booking duration (${durationMins} mins) is below the room's minimum threshold (${roomRecord.min_duration_minutes} mins).`;
+          } else if (durationMins > roomRecord.max_duration_minutes) {
+            validationErrorMsg = `Validation Error: Booking duration (${durationMins} mins) exceeds the room's maximum threshold (${roomRecord.max_duration_minutes} mins).`;
+          }
         }
       }
     }
@@ -339,29 +456,39 @@ router.post('/bookings', async (req, res) => {
     }
 
     // -------------------------------------------------------------
-    // STAGE 4: SAVE AS PENDING_REVIEW (OR INSTANT REJECT)
+    // STAGE 4: SAVE AS PENDING_REVIEW OR AUTO-APPROVE CUBE BOOKINGS
     // -------------------------------------------------------------
     let finalStatus = 'PENDING_REVIEW';
     let finalRejectionReason = null;
+    let decisionReason = null;
+    let approvedBy = null;
+    let approvedAt = null;
 
-    // Overlapping bookings are no longer auto-rejected. They are saved as PENDING_REVIEW
-    // so administrators can review them and decide whether to reject or override.
-    if (conflictStatus === 'CONFLICT_DETECTED') {
-      finalStatus = 'PENDING_REVIEW';
-      finalRejectionReason = null;
+    // Check Auto-Approval Policy for Cube bookings by professional residents / startups when no conflict exists
+    const isCubeRoom = roomRecord.name.toLowerCase().includes('cube');
+    const autoApproveTypes = ['startup teams', 'cohort startup', 'professionals in residence', 'entrepreneurs in residence', 'cohort members', 'startup'];
+    const isEligibleBookingType = autoApproveTypes.some(t => t.toLowerCase() === String(bookingType).trim().toLowerCase());
+
+    if (conflictStatus === 'NO_CONFLICT' && isCubeRoom && isEligibleBookingType) {
+      finalStatus = 'APPROVED';
+      decisionReason = 'Auto-approved by system policy for Cube space booking by resident/startup without schedule conflict.';
+      approvedBy = 1;
+      approvedAt = new Date().toISOString();
     }
 
     const insBooking = await query(
       `INSERT INTO bookings (
         booking_id, requester_name, requester_email, requester_phone, organization_name,
         room_id, booking_type, event_title, event_description, date, start_time, end_time,
-        expected_attendance, status, conflict_status, conflicting_booking_id, rejection_reason
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        expected_attendance, status, conflict_status, conflicting_booking_id, rejection_reason,
+        decision_reason, approved_by, approved_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
        RETURNING *`,
       [
         nextRefId, name, cleanEmail, phone, organization || '',
         roomRecord.id, bookingType, eventTitle, eventDescription, date, startTime, endTime,
-        parseInt(expectedAttendance), finalStatus, conflictStatus, conflictingBookingId, finalRejectionReason
+        parseInt(expectedAttendance), finalStatus, conflictStatus, conflictingBookingId, finalRejectionReason,
+        decisionReason, approvedBy, approvedAt
       ]
     );
 
@@ -377,12 +504,12 @@ router.post('/bookings', async (req, res) => {
 
     const savedBooking = mapBooking(finalBookingRes.rows[0]);
 
-    if (finalStatus === 'REJECTED_BY_STAFF') {
+    if (finalStatus === 'APPROVED') {
       await logAudit(
-        `Instant Rejected Booking Request due to Schedule Overlap: ${nextRefId}. Status: REJECTED_BY_STAFF. Conflict Status: CONFLICT_DETECTED`,
+        `Auto-Approved Cube Booking Request (${roomRecord.name}): ${nextRefId}. Status: APPROVED.`,
         'booking',
         nextRefId,
-        'System (Validator)'
+        'System (Auto-Approval Policy)'
       );
     } else {
       await logAudit(
@@ -395,8 +522,8 @@ router.post('/bookings', async (req, res) => {
 
     // Immediate confirmation/rejection email to requester (per FRD FR-01A-05)
     try {
-      if (finalStatus === 'REJECTED_BY_STAFF') {
-        await sendBookingStatusEmail(savedBooking, 'REJECTED', { rejectionReason: finalRejectionReason });
+      if (finalStatus === 'APPROVED') {
+        await sendBookingStatusEmail(savedBooking, 'APPROVED');
       } else {
         await sendBookingStatusEmail(savedBooking, 'SUBMITTED');
       }
@@ -407,9 +534,9 @@ router.post('/bookings', async (req, res) => {
     res.json({
       success: true,
       booking: savedBooking,
-      message: finalStatus === 'REJECTED_BY_STAFF'
-        ? 'Your booking request has been instant rejected by the system due to a schedule conflict (overlap detected).'
-        : 'Your booking request has been submitted successfully and is awaiting staff approval.'
+      message: finalStatus === 'APPROVED'
+        ? 'Your Cube booking request has been automatically approved as a resident/startup!'
+        : 'Your booking request has been submitted successfully and is currently pending approval.'
     });
 
   } catch (err) {
@@ -685,7 +812,17 @@ router.post('/bookings/:id/override', requireAuth, requirePermission('BOOKING_OV
       targetRoomId = roomRes.rows[0].id;
     }
 
-    const cleanDate = date || booking.date.toISOString().split('T')[0];
+    const cleanDate = date || (typeof booking.date === 'string' ? booking.date : booking.date.toISOString().split('T')[0]);
+    if (cleanDate) {
+      const parts = cleanDate.split('-').map(Number);
+      if (parts.length === 3) {
+        const reqDateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+        const dayOfWeek = reqDateObj.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          return res.status(400).json({ error: 'Validation Error: Bookings are only allowed on working days (Monday to Friday). Saturday and Sunday bookings are not permitted.' });
+        }
+      }
+    }
     const cleanStart = startTime || booking.start_time;
     const cleanEnd = endTime || booking.end_time;
 

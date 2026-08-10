@@ -25,10 +25,26 @@ import {
   ChevronRight,
   Sparkles,
   FileText,
-  Rocket
+  Rocket,
+  Upload,
+  Download,
+  ExternalLink,
+  FileCheck,
+  ArrowLeft,
+  CheckSquare,
+  User
 } from 'lucide-react';
 import { FormField, Cohort, Applicant, ApplicantStatus, CohortSession, TeamCheckIn, PerformanceWarning, CohortAssignment, MilestoneSubmission, AuditRecord } from '../../../../types';
+import { 
+  COHORT_STAGES, 
+  getStageByStatus, 
+  getStageIndexByStatus, 
+  normalizeApplicantStatus 
+} from '../../../../constants/cohortStages';
 import { CohortDashboardView } from './CohortDashboardView';
+import { StartupDirectoryTab } from '../../../startups/components/StartupDirectoryTab';
+import { ApplicationDetailsPage } from './ApplicationDetailsPage';
+import { SessionDetailModal } from '../../components/SessionDetailModal';
 
 interface CohortManagementPageProps {
   currentUser: any;
@@ -41,6 +57,8 @@ interface CohortManagementPageProps {
   setSelectedCohortId?: (id: number) => void;
   cohortsList?: Cohort[];
   auditLogs?: AuditRecord[];
+  currentPath?: string;
+  onNavigate?: (path: string) => void;
 }
 
 export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({ 
@@ -53,7 +71,9 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   selectedCohortId,
   setSelectedCohortId,
   cohortsList = [],
-  auditLogs = []
+  auditLogs = [],
+  currentPath,
+  onNavigate
 }) => {
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const headers = {
@@ -133,6 +153,36 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   const [applicantParent, setApplicantParent] = useState<Applicant | null>(null);
   const [selectedCohort, setSelectedCohort] = useState<Cohort | null>(null);
   const [selectedSession, setSelectedSession] = useState<CohortSession | null>(null);
+  const [sessionDetailModalSession, setSessionDetailModalSession] = useState<CohortSession | null>(null);
+  const [showScheduleSessionModal, setShowScheduleSessionModal] = useState(false);
+  const [fetchedRouteSession, setFetchedRouteSession] = useState<any | null>(null);
+  const [loadingRouteSession, setLoadingRouteSession] = useState(false);
+
+  // Extract Session Route parameter if on /admin/sessions/:id
+  const sessionRouteMatch = currentPath ? currentPath.match(/^\/admin\/sessions\/(\d+)/) : null;
+  const routeSessionId = sessionRouteMatch ? parseInt(sessionRouteMatch[1], 10) : null;
+
+  useEffect(() => {
+    if (routeSessionId) {
+      const existing = sessions.find(s => s.id === routeSessionId);
+      if (existing) {
+        setFetchedRouteSession(existing);
+      } else {
+        setLoadingRouteSession(true);
+        fetchWithAuth(`/api/sessions/${routeSessionId}/attendance`)
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.session) {
+              setFetchedRouteSession(data.session);
+            }
+          })
+          .catch(err => console.error(err))
+          .finally(() => setLoadingRouteSession(false));
+      }
+    } else {
+      setFetchedRouteSession(null);
+    }
+  }, [routeSessionId, sessions]);
 
   // Active Startup Profile Modal (Pivot History & Notes tabs)
   const [selectedStartupForModal, setSelectedStartupForModal] = useState<Applicant | null>(null);
@@ -196,6 +246,21 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   // Active Attendance Marking Sheet
   const [attendanceSheet, setAttendanceSheet] = useState<Record<number, 'PRESENT' | 'ABSENT' | 'EXCUSED'>>({});
 
+  // Independent Cohort Assignments State
+  const [cohortAssignments, setCohortAssignments] = useState<any[]>([]);
+  const [loadingCohortAssignments, setLoadingCohortAssignments] = useState(false);
+  const [newAsgTitle, setNewAsgTitle] = useState('');
+  const [newAsgDesc, setNewAsgDesc] = useState('');
+  const [newAsgDueDate, setNewAsgDueDate] = useState('');
+  const [newAsgFile, setNewAsgFile] = useState<File | null>(null);
+  const [newAsgFileUrl, setNewAsgFileUrl] = useState('');
+  const [uploadingAsgFile, setUploadingAsgFile] = useState(false);
+  const [publishingAsg, setPublishingAsg] = useState(false);
+  const [selectedAsgForSubmissions, setSelectedAsgForSubmissions] = useState<any | null>(null);
+  const [asgSubmissions, setAsgSubmissions] = useState<any[]>([]);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [deletingAsgId, setDeletingAsgId] = useState<number | null>(null);
+
   // Search/Filters in Intake Sheet
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -203,6 +268,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   // Triggering new cohort form
   const [showCreateCohortForm, setShowCreateCohortForm] = useState(false);
   const [newCohortName, setNewCohortName] = useState('');
+  const [newCohortStatus, setNewCohortStatus] = useState<'ACTIVE' | 'DRAFT'>('ACTIVE');
 
   // Fetch all database tables
   const loadCohortModuleData = async () => {
@@ -217,7 +283,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       // 2. Fetch Applicants
       const applicantsRes = await fetchWithAuth('/api/applicants');
       const applicantsData = await applicantsRes.json();
-      setApplicants(applicantsData);
+      setApplicants(Array.isArray(applicantsData) ? applicantsData : []);
 
       // 3. Fetch Cohorts
       const cohortsRes = await fetchWithAuth('/api/cohorts');
@@ -274,7 +340,132 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       .then(data => Array.isArray(data) && setWarnings(data))
       .catch(() => setWarnings([]));
 
-  }, [selectedCohort?.id]);
+    // Fetch cohort assignments
+    fetchCohortAssignments(cohortId);
+
+  }, [selectedCohort?.id, activeSubTab]);
+
+  const fetchCohortAssignments = async (cohortIdOverride?: number) => {
+    const cId = cohortIdOverride || selectedCohort?.id;
+    setLoadingCohortAssignments(true);
+    try {
+      const endpoint = cId ? `/api/cohorts/${cId}/assignments` : '/api/assignments';
+      const res = await fetchWithAuth(endpoint);
+      if (res.ok) {
+        const data = await res.json();
+        setCohortAssignments(data.assignments || []);
+      }
+    } catch (err) {
+      console.error('Failed to load assignments:', err);
+    } finally {
+      setLoadingCohortAssignments(false);
+    }
+  };
+
+  // Create Independent Cohort Assignment
+  const handleCreateIndependentAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAsgTitle.trim() || !newAsgDueDate) {
+      triggerError('Please provide an assignment title and due date.');
+      return;
+    }
+    setPublishingAsg(true);
+    try {
+      let finalAttachmentUrl = newAsgFileUrl.trim();
+      
+      // Upload file if selected
+      if (newAsgFile) {
+        setUploadingAsgFile(true);
+        const reader = new FileReader();
+        const fileData = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = (err) => reject(err);
+          reader.readAsDataURL(newAsgFile);
+        });
+
+        const uploadRes = await fetchWithAuth('/api/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: newAsgFile.name, fileData })
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(uploadData.error || 'Reference file upload failed.');
+        finalAttachmentUrl = uploadData.url;
+        setUploadingAsgFile(false);
+      }
+
+      const targetCohortId = selectedCohort?.id || 1;
+      const res = await fetchWithAuth(`/api/cohorts/${targetCohortId}/assignments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newAsgTitle.trim(),
+          description: newAsgDesc.trim(),
+          due_date: newAsgDueDate,
+          attachment_url: finalAttachmentUrl || null,
+          cohort_id: targetCohortId
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to publish independent assignment.');
+
+      triggerSuccess(`Independent assignment "${newAsgTitle}" published for all cohort startups!`);
+      setNewAsgTitle('');
+      setNewAsgDesc('');
+      setNewAsgDueDate('');
+      setNewAsgFile(null);
+      setNewAsgFileUrl('');
+      fetchCohortAssignments(targetCohortId);
+    } catch (err: any) {
+      triggerError(err.message || 'Failed to publish assignment.');
+    } finally {
+      setPublishingAsg(false);
+      setUploadingAsgFile(false);
+    }
+  };
+
+  // View startup submissions for a specific assignment
+  const handleToggleSubmissions = async (asg: any) => {
+    if (selectedAsgForSubmissions?.id === asg.id) {
+      setSelectedAsgForSubmissions(null);
+      return;
+    }
+    setSelectedAsgForSubmissions(asg);
+    setLoadingSubmissions(true);
+    try {
+      const res = await fetchWithAuth(`/api/assignments/${asg.id}/submissions`);
+      if (res.ok) {
+        const data = await res.json();
+        setAsgSubmissions(data.submissions || []);
+      }
+    } catch (err) {
+      console.error('Failed to load submissions:', err);
+    } finally {
+      setLoadingSubmissions(false);
+    }
+  };
+
+  // Delete assignment
+  const handleDeleteAssignment = async (asgId: number) => {
+    try {
+      setDeletingAsgId(null);
+      setCohortAssignments(prev => prev.filter(a => a.id !== asgId));
+      if (selectedAsgForSubmissions?.id === asgId) setSelectedAsgForSubmissions(null);
+
+      const res = await fetchWithAuth(`/api/assignments/${asgId}`, { method: 'DELETE' });
+      if (res.ok) {
+        triggerSuccess('Assignment deleted successfully.');
+        fetchCohortAssignments();
+      } else {
+        triggerError('Failed to delete assignment.');
+        fetchCohortAssignments();
+      }
+    } catch (err) {
+      triggerError('Failed to delete assignment.');
+      fetchCohortAssignments();
+    }
+  };
 
   // Sync attendance sheet when selected session changes
   useEffect(() => {
@@ -390,11 +581,35 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   };
 
   // --- SUBTAB 2: INTAKE EVALUATION SHEET ---
+  useEffect(() => {
+    if (currentPath && currentPath.startsWith('/admissions/applications/')) {
+      const parts = currentPath.split('/');
+      const idStr = parts[parts.length - 1];
+      const appId = parseInt(idStr);
+      if (!isNaN(appId) && (!selectedApplicant || selectedApplicant.id !== appId)) {
+        fetchWithAuth(`/api/applicants/${appId}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.id) {
+              setSelectedApplicant(data);
+              if (data.parent) setApplicantParent(data.parent);
+            }
+          })
+          .catch(err => console.error(err));
+      }
+    }
+  }, [currentPath]);
+
   const handleSelectApplicant = async (app: Applicant) => {
     setSelectedApplicant(app);
     setApplicantParent(null);
 
-    // If has parent, fetch parent application status history
+    if (onNavigate) {
+      onNavigate(`/admissions/applications/${app.id}`);
+    } else if (typeof window !== 'undefined' && window.history.pushState) {
+      window.history.pushState({}, '', `/admissions/applications/${app.id}`);
+    }
+
     if (app.parent_applicant_id) {
       try {
         const res = await fetchWithAuth(`/api/applicants/${app.id}`);
@@ -460,7 +675,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       const res = await fetchWithAuth('/api/cohorts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newCohortName, status: 'ACTIVE' }) // Create active right away for easy testing
+        body: JSON.stringify({ name: newCohortName.trim(), status: newCohortStatus || 'ACTIVE' })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to initiate cohort.');
@@ -469,7 +684,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       setSelectedCohort(data.cohort);
       setNewCohortName('');
       setShowCreateCohortForm(false);
-      triggerSuccess(`Cohort Incubator Program '${data.cohort.name}' initiated.`);
+      triggerSuccess(`Cohort Incubator Program '${data.cohort.name}' created successfully.`);
     } catch (err: any) {
       triggerError(err.message);
     }
@@ -493,7 +708,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       // Reload applicants to see graduation/status changes
       const applicantsRes = await fetchWithAuth('/api/applicants');
       const applicantsData = await applicantsRes.json();
-      setApplicants(applicantsData);
+      setApplicants(Array.isArray(applicantsData) ? applicantsData : []);
     } catch (err: any) {
       triggerError(err.message);
     }
@@ -695,7 +910,8 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   };
 
   // Computed arrays for selected cohort
-  const confirmedCohortStartups = applicants.filter(a => {
+  const safeApplicantsList = Array.isArray(applicants) ? applicants : [];
+  const confirmedCohortStartups = safeApplicantsList.filter(a => {
     const cId = selectedCohort?.id;
     const matchesCohort = !cId || String(a.cohort_id) === String(cId) || (!a.cohort_id && String(cId) === '1');
     const ps = typeof a.program_status === 'string' && a.program_status !== '{}' ? a.program_status : '';
@@ -709,28 +925,12 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   });
 
   // Filter intake list
-  const getIntakeStepIndex = (status: any) => {
-    const s = typeof status === 'string' ? status : String(status || '');
-    if (s === 'APPLIED' || s === 'SUBMITTED') return 0;
-    if (s === 'UNDER_REVIEW' || s === 'IN_REVIEW') return 1;
-    if (s === 'SHORTLISTED_FOR_PRESENTATION' || s === 'SHORTLISTED') return 2;
-    if (s === 'PRESENTATION_CONDUCTED') return 3;
-    if (['ACCEPTED', 'CONDITIONAL_ACCEPTED', 'REJECTED', 'WAITLISTED', 'BACKUP_CANDIDATE'].includes(s)) return 4;
-    if (s === 'CONFIRMED') return 5;
-    if (s === 'ORIENTATION_CONDUCTED') return 6;
-    if (s === 'ENROLLED') return 7;
-    return 0;
-  };
-
-  const filteredApplicants = applicants.filter(app => {
+  const filteredApplicants = safeApplicantsList.filter(app => {
     const matchesSearch = app.startup_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           app.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           app.tracking_token.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'ALL' || 
-      app.status === statusFilter ||
-      (statusFilter === 'APPLIED' && app.status === 'SUBMITTED') ||
-      (statusFilter === 'UNDER_REVIEW' && app.status === 'IN_REVIEW') ||
-      (statusFilter === 'SHORTLISTED_FOR_PRESENTATION' && (app.status as string) === 'SHORTLISTED');
+    const normStatus = normalizeApplicantStatus(app.status);
+    const matchesStatus = statusFilter === 'ALL' || normStatus === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -776,6 +976,51 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   };
   const { title: displayTitle, desc: displayDesc } = getHeaderInfo();
 
+  if (routeSessionId) {
+    const targetSession = fetchedRouteSession || sessions.find(s => s.id === routeSessionId);
+
+    if (!targetSession && loadingRouteSession) {
+      return (
+        <div className="bg-white border border-gray-100 rounded-2xl p-12 text-center text-gray-500 font-bold shadow-3xs">
+          Loading session details...
+        </div>
+      );
+    }
+
+    if (!targetSession) {
+      return (
+        <div className="bg-white border border-gray-100 rounded-2xl p-8 shadow-3xs space-y-4 text-left">
+          <button 
+            type="button" 
+            onClick={() => onNavigate('/staff/dashboard', 'cohort_sessions')}
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-primary transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to sessions
+          </button>
+          <p className="text-sm font-bold text-gray-700">Session #{routeSessionId} was not found or was deleted.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        <SessionDetailModal
+          session={targetSession}
+          cohortStartups={confirmedCohortStartups}
+          jwtToken={jwtToken}
+          isFullPage={true}
+          onBack={() => onNavigate('/staff/dashboard', 'cohort_sessions')}
+          onUpdateSession={(updated) => {
+            setSessions(prev => prev.map(s => s.id === updated.id ? updated : s));
+            setFetchedRouteSession(updated);
+          }}
+          triggerSuccess={triggerSuccess}
+          triggerError={triggerError}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6" id="cohort-management-dashboard">
       
@@ -795,6 +1040,15 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
             <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">{displayDesc}</p>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowCreateCohortForm(true)}
+          className="bg-primary hover:bg-[#5A0F0F] text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-3xs transition-all cursor-pointer flex items-center gap-2 shrink-0"
+        >
+          <Plus className="h-4 w-4" />
+          <span>+ Create New Cohort</span>
+        </button>
       </div>
 
       {/* Global alert messages */}
@@ -825,6 +1079,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
           assignments={assignments}
           milestoneSubmissions={milestoneSubmissions}
           auditLogs={auditLogs}
+          onCreateCohort={() => setShowCreateCohortForm(true)}
           onNavigateSubTab={(subTab, filterStatus) => {
             setActiveSubTab(subTab);
             if (filterStatus) {
@@ -1016,417 +1271,158 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       {/* SUBTAB 2: INTAKE & ADMISSIONS EVALUATION SHEET */}
       {/* ----------------------------------------------------------------------------------- */}
       {(activeSubTab === 'intake' || activeSubTab === 'cohort_applications' || activeSubTab === 'cohort_intake') && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6" id="subtab-intake-review">
-          
-          {/* Main applicants list table */}
-          <div className="xl:col-span-2 space-y-6 text-left">
-            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-3xs space-y-5">
-              
-              {/* Filters header bar */}
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-100 pb-4">
-                <div>
-                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block font-mono">Admission applications</span>
-                  <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Intake Admissions Evaluator</h3>
-                </div>
-
-                <div className="flex items-center gap-3 w-full md:w-auto font-black text-[10px] uppercase tracking-wider">
-                  <div className="relative flex-1 md:w-60">
-                    <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search name, token..."
-                      className="w-full bg-gray-50 border border-gray-150 rounded-xl pl-9 pr-4 py-2 text-xs font-bold placeholder-gray-400 focus:outline-none"
-                    />
+        <div id="subtab-intake-review">
+          {selectedApplicant ? (
+            <ApplicationDetailsPage
+              applicantId={selectedApplicant.id}
+              onBack={() => {
+                setSelectedApplicant(null);
+                if (onNavigate) {
+                  onNavigate('/staff/dashboard');
+                } else if (typeof window !== 'undefined' && window.history.pushState) {
+                  window.history.pushState({}, '', '/staff/dashboard');
+                }
+              }}
+              currentUser={currentUser}
+              fetchWithAuth={fetchWithAuth}
+              triggerSuccess={triggerSuccess}
+              triggerError={triggerError}
+              formSettings={formSettings}
+              selectedCohort={selectedCohort}
+            />
+          ) : (
+            <div className="space-y-6 text-left w-full">
+              <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-3xs space-y-5">
+                
+                {/* Filters header bar */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-100 pb-4">
+                  <div>
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block font-mono">Admission applications</span>
+                    <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Intake Admissions Evaluator</h3>
                   </div>
 
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="bg-gray-50 border border-gray-150 text-xs text-gray-800 rounded-xl px-3 py-2 cursor-pointer focus:outline-none font-bold"
-                  >
-                    <option value="ALL">All Statuses</option>
-                    <option value="APPLIED">1. Applied</option>
-                    <option value="UNDER_REVIEW">2. Under Review</option>
-                    <option value="SHORTLISTED_FOR_PRESENTATION">3. Shortlisted for Pitch</option>
-                    <option value="PRESENTATION_CONDUCTED">4. Pitch Conducted</option>
-                    <option value="CONDITIONAL_ACCEPTED">5. Conditional Accept</option>
-                    <option value="ACCEPTED">6. Accepted / Offer Issued</option>
-                    <option value="CONFIRMED">7. Seat Confirmed</option>
-                    <option value="ORIENTATION_CONDUCTED">8. Orientation Conducted</option>
-                    <option value="ENROLLED">9. Enrolled</option>
-                    <option value="WAITLISTED">10. Waitlisted</option>
-                    <option value="BACKUP_CANDIDATE">11. Backup List</option>
-                    <option value="REJECTED">12. Rejected</option>
-                  </select>
-                </div>
-              </div>
+                  <div className="flex items-center gap-3 w-full md:w-auto font-black text-[10px] uppercase tracking-wider">
+                    <div className="relative flex-1 md:w-60">
+                      <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search name, token..."
+                        className="w-full bg-gray-50 border border-gray-150 rounded-xl pl-9 pr-4 py-2 text-xs font-bold placeholder-gray-400 focus:outline-none"
+                      />
+                    </div>
 
-              {/* Table list */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-gray-500 border-collapse">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-100 text-[10px] font-black uppercase tracking-wider text-gray-400">
-                      <th className="py-3 px-4">Startup / Founder</th>
-                      <th className="py-3 px-4">CNIC Number</th>
-                      <th className="py-3 px-4">Program Status</th>
-                      <th className="py-3 px-4">Intake Status</th>
-                      <th className="py-3 px-4 text-right">Profile review</th>
-                    </tr>
-                  </thead>
-                  <tbody className="font-semibold text-gray-700">
-                    {filteredApplicants.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="py-12 text-center text-gray-400">
-                          No startup intake applications match the active filters.
-                        </td>
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="bg-gray-50 border border-gray-150 text-xs text-gray-800 rounded-xl px-3 py-2 cursor-pointer focus:outline-none font-bold"
+                    >
+                      <option value="ALL">All Statuses</option>
+                      {COHORT_STAGES.map((st) => (
+                        <option key={st.key} value={st.key}>
+                          {st.label} ({st.shortLabel})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Table list */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-gray-500 border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100 text-[10px] font-black uppercase tracking-wider text-gray-400">
+                        <th className="py-3.5 px-4">Startup / Founder</th>
+                        <th className="py-3.5 px-4">CNIC Number</th>
+                        <th className="py-3.5 px-4">Program Status</th>
+                        <th className="py-3.5 px-4">Intake Status</th>
+                        <th className="py-3.5 px-4 text-right">Action</th>
                       </tr>
-                    ) : (
-                      filteredApplicants.map((app) => (
-                        <tr 
-                          key={app.id} 
-                          className={`border-b border-gray-50 hover:bg-gray-50/55 cursor-pointer transition-colors ${selectedApplicant?.id === app.id ? 'bg-rose-50/15 border-rose-100/50' : ''}`}
-                          onClick={() => handleSelectApplicant(app)}
-                        >
-                          <td className="py-3.5 px-4">
-                            <div className="font-extrabold text-gray-800 leading-tight">{app.startup_name}</div>
-                            <div className="text-[10px] font-bold text-gray-400 mt-0.5">{app.name} • <span className="font-mono text-[9px]">{app.tracking_token}</span></div>
-                          </td>
-                          <td className="py-3.5 px-4 font-mono text-[11px] text-gray-500">
-                            {app.cnic}
-                          </td>
-                          <td className="py-3.5 px-4">
-                            {(() => {
-                              const ps = typeof app.program_status === 'string' && app.program_status !== '{}' ? app.program_status : (app.status === 'CONFIRMED' || app.cohort_id ? 'ACTIVE' : 'NOT_ENROLLED');
-                              const badgeStyle = 
-                                ps === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                ps === 'GRADUATED' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                                ps === 'PAUSED' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                                ps === 'KICKED_OUT' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                                'bg-gray-100 text-gray-600 border-gray-200';
-                              return (
-                                <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md border ${badgeStyle}`}>
-                                  {ps.replace(/_/g, ' ')}
-                                </span>
-                              );
-                            })()}
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md border ${
-                              (app.status === 'APPLIED' || app.status === 'SUBMITTED') ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                              (app.status === 'UNDER_REVIEW' || app.status === 'IN_REVIEW') ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                              (app.status === 'SHORTLISTED_FOR_PRESENTATION' || (app.status as string) === 'SHORTLISTED') ? 'bg-purple-50 text-purple-700 border-purple-100' :
-                              app.status === 'PRESENTATION_CONDUCTED' ? 'bg-cyan-50 text-cyan-700 border-cyan-100' :
-                              app.status === 'CONDITIONAL_ACCEPTED' ? 'bg-teal-50 text-teal-700 border-teal-100' :
-                              app.status === 'ACCEPTED' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
-                              app.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                              app.status === 'ORIENTATION_CONDUCTED' ? 'bg-lime-50 text-lime-700 border-lime-100' :
-                              app.status === 'ENROLLED' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
-                              app.status === 'WAITLISTED' ? 'bg-orange-50 text-orange-700 border-orange-100' :
-                              app.status === 'BACKUP_CANDIDATE' ? 'bg-violet-50 text-violet-700 border-violet-100' :
-                              'bg-rose-50 text-rose-700 border-rose-100'
-                            }`}>
-                              {typeof app.status === 'string' ? app.status.replace(/_/g, ' ') : (app.status ? String(app.status) : 'SUBMITTED')}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleSelectApplicant(app)}
-                              className="text-[10px] font-black uppercase tracking-wider text-primary hover:text-[#5A0F0F] bg-rose-50/50 hover:bg-rose-50 border border-rose-100 px-3 py-1 rounded-xl transition-all cursor-pointer"
-                            >
-                              Details
-                            </button>
+                    </thead>
+                    <tbody className="font-semibold text-gray-700">
+                      {filteredApplicants.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-gray-400">
+                            No startup intake applications match the active filters.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        filteredApplicants.map((app) => (
+                          <tr 
+                            key={app.id} 
+                            className="border-b border-gray-50 hover:bg-gray-50/70 cursor-pointer transition-colors"
+                            onClick={() => handleSelectApplicant(app)}
+                          >
+                            <td className="py-3.5 px-4">
+                              <div className="font-extrabold text-gray-800 leading-tight">{app.startup_name}</div>
+                              <div className="text-[10px] font-bold text-gray-400 mt-0.5">{app.name} • <span className="font-mono text-[9px]">{app.tracking_token}</span></div>
+                            </td>
+                            <td className="py-3.5 px-4 font-mono text-[11px] text-gray-500">
+                              {app.cnic}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {(() => {
+                                const ps = typeof app.program_status === 'string' && app.program_status !== '{}' ? app.program_status : (app.status === 'CONFIRMED' || app.cohort_id ? 'ACTIVE' : 'NOT_ENROLLED');
+                                const badgeStyle = 
+                                  ps === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                  ps === 'GRADUATED' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
+                                  ps === 'PAUSED' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                  ps === 'KICKED_OUT' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                  'bg-gray-100 text-gray-600 border-gray-200';
+                                return (
+                                  <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md border ${badgeStyle}`}>
+                                    {ps.replace(/_/g, ' ')}
+                                  </span>
+                                );
+                              })()}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-md border ${
+                                (app.status === 'APPLIED' || app.status === 'SUBMITTED') ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                                (app.status === 'UNDER_REVIEW' || app.status === 'IN_REVIEW') ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                                (app.status === 'SHORTLISTED_FOR_PRESENTATION' || (app.status as string) === 'SHORTLISTED') ? 'bg-purple-50 text-purple-700 border-purple-100' :
+                                app.status === 'PRESENTATION_CONDUCTED' ? 'bg-cyan-50 text-cyan-700 border-cyan-100' :
+                                app.status === 'CONDITIONAL_ACCEPTED' ? 'bg-teal-50 text-teal-700 border-teal-100' :
+                                app.status === 'ACCEPTED' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                                app.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                app.status === 'ORIENTATION_CONDUCTED' ? 'bg-lime-50 text-lime-700 border-lime-100' :
+                                app.status === 'ENROLLED' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
+                                app.status === 'WAITLISTED' ? 'bg-orange-50 text-orange-700 border-orange-100' :
+                                app.status === 'BACKUP_CANDIDATE' ? 'bg-violet-50 text-violet-700 border-violet-100' :
+                                'bg-rose-50 text-rose-700 border-rose-100'
+                              }`}>
+                                {typeof app.status === 'string' ? app.status.replace(/_/g, ' ') : (app.status ? String(app.status) : 'SUBMITTED')}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectApplicant(app);
+                                }}
+                                className="text-[10px] font-black uppercase tracking-wider text-primary hover:text-white hover:bg-primary border border-rose-200 px-3 py-1 rounded-xl transition-all cursor-pointer shadow-3xs"
+                              >
+                                Details →
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
-
-          {/* Sliding Details sidebar for Selected Applicant */}
-          <div className="xl:col-span-1">
-            <AnimatePresence mode="wait">
-              {selectedApplicant ? (
-                <motion.div
-                  key={selectedApplicant.id}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  className="bg-white border border-gray-100 rounded-2xl p-6 shadow-3xs text-left space-y-6"
-                  id="intake-detail-panel"
-                >
-                  {/* Title card */}
-                  <div className="flex justify-between items-start border-b border-gray-100 pb-4">
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block font-mono">Profile Details</span>
-                      <h3 className="text-sm font-black text-gray-900 tracking-tight">{selectedApplicant.startup_name}</h3>
-                      <p className="text-xs text-gray-400 font-bold font-mono">{selectedApplicant.tracking_token}</p>
-                    </div>
-                    <button
-                      onClick={() => setSelectedApplicant(null)}
-                      className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-700 rounded-lg transition-all cursor-pointer"
-                    >
-                      <X className="h-4.5 w-4.5" />
-                    </button>
-                  </div>
-
-                  {/* Section: Founder & Contact Identity */}
-                  <div className="space-y-3.5 text-xs">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block font-mono">Founder Particulars</span>
-                    <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-150 space-y-2.5 font-bold text-gray-700">
-                      <div>
-                        <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block font-mono">Full name</span>
-                        <span>{selectedApplicant.name}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block font-mono">Contact channel</span>
-                        <span>{selectedApplicant.email} • {selectedApplicant.phone}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block font-mono">CNIC Card number</span>
-                        <span>{selectedApplicant.cnic}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Section: Parent history Lineage Link */}
-                  {selectedApplicant.parent_applicant_id && (
-                    <div className="space-y-3.5 text-xs">
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block font-mono">Lineage Parent Record</span>
-                      <div className="p-3.5 bg-[#FFF9E6] border border-[#FFE7A3] rounded-2xl space-y-2 text-gray-800">
-                        <p className="font-extrabold text-amber-900 text-[11px] flex items-center gap-1.5">
-                          <AlertOctagon className="h-4 w-4 text-amber-700" />
-                          Previous Application Match
-                        </p>
-                        <div className="pl-5 text-[11px] font-medium leading-relaxed">
-                          <p>We found a matching founder with email or CNIC from past intake cycles.</p>
-                          {applicantParent ? (
-                            <p className="mt-1 flex items-center gap-1">
-                              <ChevronRight className="h-3 w-3 shrink-0" />
-                              Past Token: <strong className="font-mono text-gray-950">{applicantParent.tracking_token}</strong> ({applicantParent.status})
-                            </p>
-                          ) : (
-                            <p className="mt-1 animate-pulse">Scanning past registries...</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Questionnaire answers list */}
-                  <div className="space-y-3.5 text-xs">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block font-mono">Business Answers & dynamic fields</span>
-                    <div className="space-y-3.5">
-                      <div>
-                        <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block font-mono">Venture Description</span>
-                        <p className="text-gray-700 font-bold bg-gray-50 border border-gray-150 p-3 rounded-xl leading-relaxed mt-1">
-                          {selectedApplicant.startup_description}
-                        </p>
-                      </div>
-
-                      {selectedApplicant.form_data && Object.keys(selectedApplicant.form_data).map((key) => {
-                        const questionLabel = formSettings.fields.find(f => f.id === key)?.label || key;
-                        const answerVal = selectedApplicant.form_data[key];
-                        return (
-                          <div key={key}>
-                            <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block font-mono">{questionLabel}</span>
-                            <div className="text-gray-700 font-bold bg-gray-50 border border-gray-150 p-3 rounded-xl leading-relaxed mt-1 break-all">
-                              {answerVal || <em className="text-gray-400 font-normal">Blank / Unanswered</em>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="h-px bg-gray-100" />
-
-                  {/* Vertical Stage Progress Tracker UI */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest font-mono">Stage Progress Tracker</span>
-                      <span className="text-[10px] font-mono font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
-                        Step {getIntakeStepIndex(selectedApplicant.status) + 1} of 8
-                      </span>
-                    </div>
-
-                    <div className="bg-gray-50 border border-gray-150 rounded-2xl p-4 space-y-0.5">
-                      {(() => {
-                        const currentIdx = getIntakeStepIndex(selectedApplicant.status);
-                        const steps = [
-                          { key: 'APPLIED', label: '1. APPLIED', desc: 'Application Form Submitted' },
-                          { key: 'UNDER_REVIEW', label: '2. UNDER REVIEW', desc: 'Desk Screening & Review' },
-                          { key: 'SHORTLISTED_FOR_PRESENTATION', label: '3. SHORTLISTED FOR PITCH', desc: 'Invited to Panel Presentation' },
-                          { key: 'PRESENTATION_CONDUCTED', label: '4. PITCH CONDUCTED', desc: 'Panel Evaluation Completed' },
-                          { 
-                            key: 'DECISION', 
-                            label: `5. ${['ACCEPTED', 'CONDITIONAL_ACCEPTED', 'REJECTED', 'WAITLISTED', 'BACKUP_CANDIDATE'].includes(selectedApplicant.status) ? (typeof selectedApplicant.status === 'string' ? selectedApplicant.status.replace(/_/g, ' ') : String(selectedApplicant.status)) : 'DECISION PENDING'}`, 
-                            desc: 'Admissions Decision Outcome' 
-                          },
-                          { key: 'CONFIRMED', label: '6. SEAT CONFIRMED', desc: 'Founder Accepted & Seat Reserved' },
-                          { key: 'ORIENTATION_CONDUCTED', label: '7. ORIENTATION CONDUCTED', desc: 'Induction & Onboarding' },
-                          { key: 'ENROLLED', label: '8. ENROLLED', desc: 'Active Cohort Venture' },
-                        ];
-
-                        return steps.map((step, idx) => {
-                          const isCompleted = idx < currentIdx;
-                          const isCurrent = idx === currentIdx;
-                          const isLast = idx === steps.length - 1;
-
-                          return (
-                            <div key={step.key} className="flex items-start gap-3 relative pb-3.5 last:pb-0">
-                              {!isLast && (
-                                <div 
-                                  className={`absolute left-[11px] top-[22px] bottom-0 w-[2px] ${
-                                    isCompleted ? 'bg-emerald-500' : 'bg-gray-200'
-                                  }`} 
-                                />
-                              )}
-
-                              <div className="shrink-0 z-10">
-                                {isCompleted ? (
-                                  <div className="h-6 w-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-3xs">
-                                    <Check className="h-3.5 w-3.5 stroke-[3]" />
-                                  </div>
-                                ) : isCurrent ? (
-                                  <div className="h-6 w-6 rounded-full bg-primary text-white flex items-center justify-center shadow-3xs ring-4 ring-primary/20">
-                                    <span className="h-2 w-2 rounded-full bg-white animate-ping" />
-                                  </div>
-                                ) : (
-                                  <div className="h-6 w-6 rounded-full bg-gray-100 border border-gray-300 text-gray-400 flex items-center justify-center text-[10px] font-mono font-bold">
-                                    {idx + 1}
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="flex-1 pt-0.5">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className={`text-xs font-black tracking-tight ${
-                                    isCurrent ? 'text-gray-900 font-extrabold' : isCompleted ? 'text-emerald-950 font-bold' : 'text-gray-400'
-                                  }`}>
-                                    {step.label}
-                                  </span>
-
-                                  {isCurrent && (
-                                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${
-                                      selectedApplicant.status === 'REJECTED' ? 'bg-rose-100 text-rose-800 border-rose-200' :
-                                      selectedApplicant.status === 'CONFIRMED' || selectedApplicant.status === 'ENROLLED' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' :
-                                      'bg-primary/10 text-primary border-primary/20'
-                                    }`}>
-                                      Current Stage
-                                    </span>
-                                  )}
-                                </div>
-                                <p className={`text-[10px] leading-tight mt-0.5 ${
-                                  isCurrent ? 'text-gray-600 font-medium' : isCompleted ? 'text-emerald-700/80' : 'text-gray-400'
-                                }`}>
-                                  {step.desc}
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                  </div>
-
-                  <div className="h-px bg-gray-100" />
-
-                  {/* Section: Status Decider & Operations */}
-                  <div className="space-y-4">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block font-mono">Decisions & Operations</span>
-                    
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-wider block font-mono">
-                        Intake Stage Status
-                      </label>
-                      <select
-                        value={selectedApplicant.status}
-                        onChange={(e) => handleUpdateApplicantStatus(e.target.value as ApplicantStatus)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 focus:outline-none focus:border-primary font-mono cursor-pointer"
-                      >
-                        <option value="APPLIED">1. APPLIED (Submitted)</option>
-                        <option value="UNDER_REVIEW">2. UNDER REVIEW (Screening)</option>
-                        <option value="SHORTLISTED_FOR_PRESENTATION">3. SHORTLISTED FOR PRESENTATION</option>
-                        <option value="PRESENTATION_CONDUCTED">4. PRESENTATION CONDUCTED</option>
-                        <option value="CONDITIONAL_ACCEPTED">5. CONDITIONAL ACCEPTED</option>
-                        <option value="ACCEPTED">6. ACCEPTED (Offer Seat)</option>
-                        <option value="CONFIRMED">7. CONFIRMED (Seat Confirmed)</option>
-                        <option value="ORIENTATION_CONDUCTED">8. ORIENTATION CONDUCTED</option>
-                        <option value="ENROLLED">9. ENROLLED (In Program)</option>
-                        <option value="WAITLISTED">10. WAITLISTED</option>
-                        <option value="BACKUP_CANDIDATE">11. BACKUP CANDIDATE</option>
-                        <option value="REJECTED">12. REJECTED (Not Selected)</option>
-                      </select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs font-bold uppercase tracking-wider font-mono pt-1">
-                      <button
-                        onClick={() => handleUpdateApplicantStatus('UNDER_REVIEW')}
-                        className={`py-1.5 px-2 border rounded-xl text-[10px] cursor-pointer transition-all ${selectedApplicant.status === 'UNDER_REVIEW' || selectedApplicant.status === 'IN_REVIEW' ? 'bg-amber-50 border-amber-300 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
-                      >
-                        Under Review
-                      </button>
-                      <button
-                        onClick={() => handleUpdateApplicantStatus('SHORTLISTED_FOR_PRESENTATION')}
-                        className={`py-1.5 px-2 border rounded-xl text-[10px] cursor-pointer transition-all ${selectedApplicant.status === 'SHORTLISTED_FOR_PRESENTATION' ? 'bg-purple-50 border-purple-300 text-purple-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
-                      >
-                        Shortlisted
-                      </button>
-                      <button
-                        onClick={() => handleUpdateApplicantStatus('ACCEPTED')}
-                        className={`py-1.5 px-2 border rounded-xl text-[10px] cursor-pointer transition-all ${selectedApplicant.status === 'ACCEPTED' ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-black' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
-                      >
-                        Offer Seat
-                      </button>
-                      <button
-                        onClick={() => handleUpdateApplicantStatus('REJECTED')}
-                        className={`py-1.5 px-2 border rounded-xl text-[10px] cursor-pointer transition-all ${selectedApplicant.status === 'REJECTED' ? 'bg-rose-50 border-rose-300 text-rose-700' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
-                      >
-                        Not Selected
-                      </button>
-                    </div>
-
-                    <div className="h-px bg-gray-50" />
-
-                    <div className="flex items-center justify-between pt-1 text-xs">
-                      <div>
-                        <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 block font-mono">Orientation session</span>
-                        <span className={`text-[11px] font-black uppercase ${selectedApplicant.orientation_conducted ? 'text-emerald-600' : 'text-gray-400'}`}>
-                          {selectedApplicant.orientation_conducted ? 'Conducted / Attended' : 'Pending / No attendance'}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleToggleOrientation}
-                        className="bg-gray-50 hover:bg-gray-150 text-gray-800 text-[10px] font-black uppercase tracking-wider py-1.5 px-4 rounded-xl border border-gray-150 cursor-pointer transition-all"
-                      >
-                        Toggle Mark
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              ) : (
-                <div className="h-full bg-gray-50 border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center p-8 py-20 text-center text-gray-400">
-                  <Sliders className="h-10 w-10 text-gray-300 mb-2.5 animate-pulse" />
-                  <p className="text-xs font-bold uppercase tracking-wider">No Startup Selected</p>
-                  <p className="text-[11px] text-gray-400 max-w-xs mt-1">Select an application profile from the intake evaluation sheet to audit core answers, evaluation panel scoring, and admissions decisions.</p>
-                </div>
-              )}
-            </AnimatePresence>
-          </div>
+          )}
         </div>
       )}
 
       {/* ----------------------------------------------------------------------------------- */}
       {/* SUBTAB 3: INCUBATOR PROGRAM COHORT ACTIVE DASHBOARD */}
       {/* ----------------------------------------------------------------------------------- */}
-      {(activeSubTab === 'active_cohort' || activeSubTab === 'cohort_sessions' || activeSubTab === 'cohort_assignments' || activeSubTab === 'cohort_attendance' || activeSubTab === 'cohort_warnings') && (
+      {(activeSubTab === 'active_cohort' || activeSubTab === 'cohort_sessions' || activeSubTab === 'cohort_warnings') && (
         <div className="space-y-6" id="subtab-active-incubator">
           
           {/* Cohort Selector and Graduation Card */}
@@ -1531,194 +1527,245 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
             </div>
           )}
 
-          {/* Core Modules grid layout: workshops & attendance logs, weekly logs, warnings */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
-            {/* COLUMN LEFT (8 spans): Workshop Schedules & Attendance */}
-            <div className="lg:col-span-8 space-y-6">
-              
-              {/* Workshops calendar */}
-              <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-3xs text-left space-y-5">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4.5 w-4.5 text-primary" />
-                    <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Workshops & Guest sessions</h3>
-                  </div>
+          {/* SCHEDULE SESSION MODAL */}
+          {showScheduleSessionModal && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+              <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 text-left">
+                <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                  <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Schedule New Session</h3>
+                  <button 
+                    onClick={() => setShowScheduleSessionModal(false)}
+                    className="p-1 text-gray-400 hover:text-gray-700 rounded-lg cursor-pointer"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                  
-                  {/* List of sessions (7 spans) */}
-                  <div className="md:col-span-7 space-y-3">
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block font-mono">Scheduled lectures</span>
-                    {sessions.length === 0 ? (
-                      <div className="p-8 text-center text-gray-400 border border-dashed border-gray-200 rounded-xl text-xs">
-                        No workshop sessions have been scheduled.
-                      </div>
-                    ) : (
-                      <div className="space-y-3 overflow-y-auto max-h-[360px] pr-1">
-                        {sessions.map((sess) => (
-                          <div
-                            key={sess.id}
-                            onClick={() => setSelectedSession(sess)}
-                            className={`p-3.5 border rounded-xl transition-all cursor-pointer text-xs flex justify-between items-center gap-3 ${
-                              selectedSession?.id === sess.id 
-                                ? 'bg-rose-50/15 border-primary shadow-3xs' 
-                                : 'bg-gray-50/40 border-gray-150 hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <h4 className="font-extrabold text-gray-800">{sess.title}</h4>
-                                {sess.topic_category && (
-                                  <span className="bg-primary/5 text-primary text-[8px] font-black uppercase px-1.5 py-0.5 rounded border border-primary/5">
-                                    {sess.topic_category}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[10px] text-gray-400 font-bold">
-                                {sess.date} • {sess.start_time.substring(0, 5)} - {sess.end_time.substring(0, 5)} {sess.venue && `• ${sess.venue}`}
-                              </p>
-                              <div className="flex gap-2 flex-wrap items-center">
-                                {sess.mentor_name && (
-                                  <p className="text-[9px] text-primary font-black uppercase font-mono">Mentor: {sess.mentor_name}</p>
-                                )}
-                                {sess.recording_url && (
-                                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[8px] font-black uppercase px-1 rounded">
-                                    Recording Active
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteSession(sess.id);
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-rose-600 rounded-lg"
-                              title="Delete Session"
-                            >
-                              <Trash className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                <form onSubmit={(e) => {
+                  handleScheduleSession(e);
+                  setShowScheduleSessionModal(false);
+                }} className="space-y-3 font-black text-[10px] uppercase tracking-wider">
+                  <div className="space-y-1">
+                    <label className="text-gray-500">Lecture Title</label>
+                    <input
+                      type="text"
+                      required
+                      value={sessionTitle}
+                      onChange={(e) => setSessionTitle(e.target.value)}
+                      placeholder="e.g. Scaling Tech Infrastructure"
+                      className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none"
+                    />
                   </div>
 
-                  {/* Add Session form (5 spans) */}
-                  <div className="md:col-span-5 bg-gray-50/40 p-4 border border-gray-150 rounded-xl space-y-3.5 text-xs">
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block font-mono">Session Scheduler</span>
-                    
-                    <form onSubmit={handleScheduleSession} className="space-y-3 font-black text-[10px] uppercase tracking-wider">
-                      <div className="space-y-1">
-                        <label className="text-gray-500">Lecture Title</label>
-                        <input
-                          type="text"
-                          required
-                          value={sessionTitle}
-                          onChange={(e) => setSessionTitle(e.target.value)}
-                          placeholder="e.g. Scaling Tech Infrastructure"
-                          className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none"
-                        />
-                      </div>
+                  <div className="space-y-1">
+                    <label className="text-gray-500">Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={sessionDate}
+                      onChange={(e) => setSessionDate(e.target.value)}
+                      className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none"
+                    />
+                  </div>
 
-                      <div className="space-y-1">
-                        <label className="text-gray-500">Date</label>
-                        <input
-                          type="date"
-                          required
-                          value={sessionDate}
-                          onChange={(e) => setSessionDate(e.target.value)}
-                          className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none"
-                        />
-                      </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-gray-500">Start Time</label>
+                      <input
+                        type="time"
+                        required
+                        value={sessionStartTime}
+                        onChange={(e) => setSessionStartTime(e.target.value)}
+                        className="w-full bg-white border border-gray-150 rounded-lg px-2 py-2 text-xs font-bold focus:outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-gray-500">End Time</label>
+                      <input
+                        type="time"
+                        required
+                        value={sessionEndTime}
+                        onChange={(e) => setSessionEndTime(e.target.value)}
+                        className="w-full bg-white border border-gray-150 rounded-lg px-2 py-2 text-xs font-bold focus:outline-none"
+                      />
+                    </div>
+                  </div>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <label className="text-gray-500">Start Time</label>
-                          <input
-                            type="time"
-                            required
-                            value={sessionStartTime}
-                            onChange={(e) => setSessionStartTime(e.target.value)}
-                            className="w-full bg-white border border-gray-150 rounded-lg px-2 py-2 text-xs font-bold focus:outline-none"
-                          />
+                  <div className="space-y-1">
+                    <label className="text-gray-500">Mentor / Expert Name</label>
+                    <input
+                      type="text"
+                      value={sessionMentor}
+                      onChange={(e) => setSessionMentor(e.target.value)}
+                      placeholder="e.g. Dr. Qaseeb Niaz"
+                      className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-gray-500">Category</label>
+                      <select
+                        value={sessionCategory}
+                        onChange={(e) => setSessionCategory(e.target.value)}
+                        className="w-full bg-white border border-gray-150 rounded-lg px-2 py-2 text-xs font-bold focus:outline-none"
+                      >
+                        <option value="Masterclass">Masterclass</option>
+                        <option value="Guest Lecture">Guest Lecture</option>
+                        <option value="Technical Workshop">Technical Workshop</option>
+                        <option value="Orientation">Orientation</option>
+                        <option value="Fire-side Chat">Fire-side Chat</option>
+                        <option value="Pitch Clinic">Pitch Clinic</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-gray-500">Venue</label>
+                      <input
+                        type="text"
+                        value={sessionVenue}
+                        onChange={(e) => setSessionVenue(e.target.value)}
+                        placeholder="e.g. Auditorium 1"
+                        className="w-full bg-white border border-gray-150 rounded-lg px-2 py-2 text-xs font-bold focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-gray-500">Recording / Resource URL (Optional)</label>
+                    <input
+                      type="url"
+                      value={sessionRecordingUrl}
+                      onChange={(e) => setSessionRecordingUrl(e.target.value)}
+                      placeholder="e.g. https://loom.com/..."
+                      className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowScheduleSessionModal(false)}
+                      className="px-4 py-2 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-primary hover:bg-[#5A0F0F] text-white py-2 px-5 rounded-lg font-bold text-xs uppercase tracking-wider cursor-pointer shadow-3xs transition-all"
+                    >
+                      Schedule Session
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* SESSIONS VIEW (FULL WIDTH) */}
+          {activeSubTab === 'cohort_sessions' && (
+            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-3xs text-left space-y-5">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  <div>
+                    <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Workshops & Guest sessions</h3>
+                    <p className="text-[10px] text-gray-400 font-bold">Schedule and manage cohort lectures, masterclasses, and workshops</p>
+                  </div>
+                  <span className="bg-primary/10 text-primary text-[10px] font-black px-2.5 py-0.5 rounded-full font-mono ml-2">
+                    {sessions.length} {sessions.length === 1 ? 'Session' : 'Sessions'}
+                  </span>
+                </div>
+
+                {hasPermission('cohort:session_manage') && (
+                  <button
+                    type="button"
+                    onClick={() => setShowScheduleSessionModal(true)}
+                    className="bg-primary hover:bg-[#5A0F0F] text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-3xs transition-all"
+                  >
+                    <Plus className="h-4 w-4" />
+                    New session
+                  </button>
+                )}
+              </div>
+
+              {sessions.length === 0 ? (
+                <div className="p-12 text-center text-gray-400 border border-dashed border-gray-200 rounded-xl text-xs">
+                  No workshop sessions have been scheduled for this cohort.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {sessions.map((sess) => (
+                    <div
+                      key={sess.id}
+                      onClick={() => onNavigate(`/admin/sessions/${sess.id}`)}
+                      className="p-4 border border-gray-150 rounded-xl bg-gray-50/40 hover:bg-white hover:border-primary/40 hover:shadow-2xs transition-all cursor-pointer text-xs flex justify-between items-start gap-3 group"
+                    >
+                      <div className="space-y-2 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-extrabold text-gray-900 text-sm group-hover:text-primary transition-colors">{sess.title}</h4>
+                          {sess.topic_category && (
+                            <span className="bg-primary/5 text-primary text-[9px] font-black uppercase px-2 py-0.5 rounded border border-primary/10">
+                              {sess.topic_category}
+                            </span>
+                          )}
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-gray-500">End Time</label>
-                          <input
-                            type="time"
-                            required
-                            value={sessionEndTime}
-                            onChange={(e) => setSessionEndTime(e.target.value)}
-                            className="w-full bg-white border border-gray-150 rounded-lg px-2 py-2 text-xs font-bold focus:outline-none"
-                          />
-                        </div>
-                      </div>
 
-                      <div className="space-y-1">
-                        <label className="text-gray-500">Mentor / Expert Name</label>
-                        <input
-                          type="text"
-                          value={sessionMentor}
-                          onChange={(e) => setSessionMentor(e.target.value)}
-                          placeholder="e.g. Dr. Qaseeb Niaz"
-                          className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none"
-                        />
-                      </div>
+                        <p className="text-xs text-gray-500 font-semibold flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                          <span>{sess.date} • {sess.start_time?.substring(0, 5)} - {sess.end_time?.substring(0, 5)}</span>
+                          {sess.venue && <span className="text-gray-400 font-normal">({sess.venue})</span>}
+                        </p>
 
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <label className="text-gray-500">Category</label>
-                          <select
-                            value={sessionCategory}
-                            onChange={(e) => setSessionCategory(e.target.value)}
-                            className="w-full bg-white border border-gray-150 rounded-lg px-2 py-2 text-xs font-bold focus:outline-none"
-                          >
-                            <option value="Masterclass">Masterclass</option>
-                            <option value="Guest Lecture">Guest Lecture</option>
-                            <option value="Technical Workshop">Technical Workshop</option>
-                            <option value="Orientation">Orientation</option>
-                            <option value="Fire-side Chat">Fire-side Chat</option>
-                            <option value="Pitch Clinic">Pitch Clinic</option>
-                          </select>
+                        <div className="flex gap-2 flex-wrap items-center">
+                          {sess.mentor_name && (
+                            <span className="text-[10px] text-gray-600 font-bold flex items-center gap-1">
+                              <User className="h-3 w-3 text-gray-400" />
+                              Mentor: {sess.mentor_name}
+                            </span>
+                          )}
+                          {sess.recording_url && (
+                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[8px] font-black uppercase px-1.5 py-0.5 rounded font-mono">
+                              Recording Active
+                            </span>
+                          )}
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-gray-500">Venue</label>
-                          <input
-                            type="text"
-                            value={sessionVenue}
-                            onChange={(e) => setSessionVenue(e.target.value)}
-                            placeholder="e.g. Auditorium 1"
-                            className="w-full bg-white border border-gray-150 rounded-lg px-2 py-2 text-xs font-bold focus:outline-none"
-                          />
-                        </div>
-                      </div>
 
-                      <div className="space-y-1">
-                        <label className="text-gray-500">Recording / Resource URL (Optional)</label>
-                        <input
-                          type="url"
-                          value={sessionRecordingUrl}
-                          onChange={(e) => setSessionRecordingUrl(e.target.value)}
-                          placeholder="e.g. https://loom.com/..."
-                          className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none"
-                        />
+                        <div className="pt-2.5 border-t border-gray-100 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            <UserCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                            <span>{sess.attendance_summary || 'Attendance not marked yet'}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <CheckSquare className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <span>{sess.assignments_summary || 'No assignments yet'}</span>
+                          </div>
+                        </div>
                       </div>
 
                       <button
-                        type="submit"
-                        className="w-full bg-primary hover:bg-[#5A0F0F] text-white py-2.5 px-3 rounded-lg font-bold text-[10px] uppercase tracking-wider cursor-pointer shadow-3xs"
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSession(sess.id);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                        title="Delete Session"
                       >
-                        Schedule Session
+                        <Trash className="h-4 w-4" />
                       </button>
-                    </form>
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
+            </div>
+          )}
+
+          {/* Core Modules grid layout for active_cohort / cohort_warnings */}
+          {activeSubTab !== 'cohort_sessions' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* COLUMN LEFT (8 spans): Attendance & Weekly logs */}
+            <div className="lg:col-span-8 space-y-6">
 
               {/* Attendance Sheet */}
               <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-3xs text-left space-y-4">
@@ -2058,6 +2105,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
             </div>
 
           </div>
+          )}
         </div>
       )}
 
@@ -2177,55 +2225,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
       {/* SUBTAB: ACTIVE STARTUPS */}
       {activeSubTab === 'cohort_startups' && (
-        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-3xs space-y-6 text-left">
-          <div className="flex justify-between items-center border-b border-gray-100 pb-4">
-            <div>
-              <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Active Cohort Startups ({confirmedCohortStartups.length})</h3>
-              <p className="text-[11px] text-gray-400 font-bold mt-0.5">Explore active ventures, inspect pitch decks, review pivot history logs, and write mentor feedback.</p>
-            </div>
-          </div>
-
-          {confirmedCohortStartups.length === 0 ? (
-            <div className="p-12 text-center text-gray-400 border border-dashed border-gray-200 rounded-2xl space-y-2">
-              <Rocket className="h-8 w-8 text-gray-300 mx-auto" />
-              <p className="text-xs font-bold uppercase tracking-wider">No Confirmed Startups In Selected Cohort</p>
-              <p className="text-[11px] text-gray-400">Select another active cohort or approve candidates from the Review Applications queue.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {confirmedCohortStartups.map((s) => (
-                <div key={s.id} className="p-4 bg-gray-50/50 border border-gray-150 rounded-2xl space-y-3 hover:border-primary/40 transition-all">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-extrabold text-gray-900 text-sm">{s.startup_name}</h4>
-                      <p className="text-[10px] text-gray-400 font-bold">Founder: {s.name}</p>
-                    </div>
-                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[8px] font-black uppercase px-2 py-0.5 rounded-md">
-                      CONFIRMED SEAT
-                    </span>
-                  </div>
-
-                  <div className="space-y-1 text-[11px] text-gray-500 font-medium">
-                    <p><strong className="text-gray-700">Email:</strong> {s.email}</p>
-                    <p><strong className="text-gray-700">UCP Status:</strong> {s.ucp_affiliation || 'External'}</p>
-                    <p><strong className="text-gray-700">Tracking Code:</strong> <span className="font-mono text-primary font-bold">{s.tracking_token}</span></p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedStartupForModal(s);
-                      setStartupModalTab('overview');
-                    }}
-                    className="w-full bg-white hover:bg-gray-100 text-gray-800 text-xs font-bold py-2 px-3 rounded-xl border border-gray-200 transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
-                  >
-                    View Startup Profile & History ↗
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <StartupDirectoryTab isStaff={true} cohortsList={cohorts} />
       )}
 
       {/* SUBTAB: ASSIGNMENTS */}
@@ -2233,57 +2233,285 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
         <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-3xs space-y-6 text-left">
           <div className="flex justify-between items-center border-b border-gray-100 pb-4">
             <div>
-              <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Assignments & Deliverables</h3>
-              <p className="text-[11px] text-gray-400 font-bold mt-0.5">Post batch deliverables, pitch deck milestones, and monitor startup submissions.</p>
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-[#8B1A1A]" />
+                <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Independent & Cohort Deliverables</h3>
+              </div>
+              <p className="text-[11px] text-gray-400 font-bold mt-0.5">
+                Create independent assignments or batch milestones for all startups in {selectedCohort?.name || 'the active cohort'}.
+                Published assignments automatically appear on every founder's workspace.
+              </p>
             </div>
+            <button
+              onClick={() => fetchCohortAssignments()}
+              className="text-[10px] font-bold text-gray-500 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 transition-all cursor-pointer"
+            >
+              Refresh List
+            </button>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-5 bg-gray-50/50 p-4 border border-gray-150 rounded-xl space-y-3 font-bold text-xs">
-              <span className="text-[9px] font-black uppercase text-gray-400 block font-mono tracking-widest">+ Post New Deliverable Assignment</span>
+            {/* LEFT COLUMN: CREATE INDEPENDENT ASSIGNMENT FORM */}
+            <form onSubmit={handleCreateIndependentAssignment} className="lg:col-span-5 bg-gray-50/50 p-4 border border-gray-150 rounded-xl space-y-3 font-bold text-xs">
+              <span className="text-[10px] font-black uppercase text-[#8B1A1A] block font-mono tracking-widest flex items-center gap-1.5">
+                <Plus className="h-3.5 w-3.5" /> Post Independent Cohort Assignment
+              </span>
+              
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-500 uppercase block">Assignment Title</label>
+                <label className="text-[10px] text-gray-500 uppercase block font-semibold">Assignment Title <span className="text-red-500">*</span></label>
                 <input
                   type="text"
-                  placeholder="e.g. Financial Model v1 & Unit Economics Sheet"
-                  className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  required
+                  placeholder="e.g. Validated Lean Canvas & Financial Model"
+                  value={newAsgTitle}
+                  onChange={(e) => setNewAsgTitle(e.target.value)}
+                  className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-primary font-medium"
                 />
               </div>
+
               <div className="space-y-1">
-                <label className="text-[10px] text-gray-500 uppercase block">Due Date</label>
+                <label className="text-[10px] text-gray-500 uppercase block font-semibold">Instructions / Guidelines</label>
+                <textarea
+                  rows={3}
+                  placeholder="Describe the milestone requirements, format, and evaluation criteria..."
+                  value={newAsgDesc}
+                  onChange={(e) => setNewAsgDesc(e.target.value)}
+                  className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-primary font-medium resize-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] text-gray-500 uppercase block font-semibold">Submission Due Date <span className="text-red-500">*</span></label>
                 <input
                   type="date"
-                  className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  required
+                  value={newAsgDueDate}
+                  onChange={(e) => setNewAsgDueDate(e.target.value)}
+                  className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-primary font-medium"
                 />
               </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] text-gray-500 uppercase block font-semibold">Reference Attachment / Template</label>
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="file"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        setNewAsgFile(e.target.files[0]);
+                      }
+                    }}
+                    className="text-[10px] text-gray-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer"
+                  />
+                  <span className="text-[9px] text-gray-400 font-mono text-center">or paste link below</span>
+                  <input
+                    type="url"
+                    placeholder="https://drive.google.com/..."
+                    value={newAsgFileUrl}
+                    onChange={(e) => setNewAsgFileUrl(e.target.value)}
+                    className="w-full bg-white border border-gray-150 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary font-mono text-[10px]"
+                  />
+                </div>
+              </div>
+
               <button
-                type="button"
-                onClick={() => triggerSuccess('Assignment Published to Cohort Portal.')}
-                className="w-full bg-primary text-white py-2.5 rounded-lg text-[10px] uppercase font-bold tracking-wider cursor-pointer shadow-3xs"
+                type="submit"
+                disabled={publishingAsg || uploadingAsgFile}
+                className="w-full bg-[#8B1A1A] hover:bg-[#5A0F0F] text-white py-2.5 rounded-lg text-[10px] uppercase font-bold tracking-wider cursor-pointer shadow-3xs transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                Publish Assignment
+                {publishingAsg || uploadingAsgFile ? (
+                  <>
+                    <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Publishing Assignment...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-3.5 w-3.5" />
+                    Publish to All Cohort Founders
+                  </>
+                )}
               </button>
-            </div>
+            </form>
 
+            {/* RIGHT COLUMN: PUBLISHED ASSIGNMENTS DIRECTORY */}
             <div className="lg:col-span-7 space-y-3">
-              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block font-mono">Active Cohort Assignments</span>
-              <div className="p-4 bg-gray-50/40 border border-gray-150 rounded-xl text-xs space-y-2">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-extrabold text-gray-800">1. Elevator Pitch & Deck PDF</h4>
-                  <span className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded">Due: Sep 15, 2026</span>
-                </div>
-                <p className="text-[11px] text-gray-500">Submit 10-slide investor pitch deck with problem statement, market sizing, and TAM breakdown.</p>
-                <p className="text-[10px] font-bold text-emerald-700">Submissions: {confirmedCohortStartups.length} / {confirmedCohortStartups.length} Founders</p>
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block font-mono">
+                  Active Cohort Assignments ({cohortAssignments.length})
+                </span>
               </div>
 
-              <div className="p-4 bg-gray-50/40 border border-gray-150 rounded-xl text-xs space-y-2">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-extrabold text-gray-800">2. Customer Validation Survey & Interviews</h4>
-                  <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded">Due: Oct 02, 2026</span>
+              {loadingCohortAssignments ? (
+                <div className="p-8 text-center text-gray-400 font-mono text-xs">
+                  Loading cohort assignments...
                 </div>
-                <p className="text-[11px] text-gray-500">Provide record of at least 25 structured customer interviews and survey feedback analysis.</p>
-                <p className="text-[10px] font-bold text-primary">Submissions: 3 / {confirmedCohortStartups.length} Founders</p>
-              </div>
+              ) : cohortAssignments.length === 0 ? (
+                <div className="p-8 text-center text-gray-400 border border-dashed border-gray-200 rounded-xl text-xs space-y-1">
+                  <FileText className="h-6 w-6 text-gray-300 mx-auto mb-1" />
+                  <p className="font-bold text-gray-500">No independent assignments created yet.</p>
+                  <p className="text-[11px] text-gray-400">Use the form on the left to publish an independent assignment to all cohort startups.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {cohortAssignments.map((asg) => {
+                    const isExpanded = selectedAsgForSubmissions?.id === asg.id;
+                    return (
+                      <div key={asg.id} className="p-4 bg-gray-50/50 border border-gray-150 rounded-xl text-xs space-y-3 transition-all hover:border-gray-300">
+                        <div className="flex justify-between items-start gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${
+                                asg.session_title 
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              }`}>
+                                {asg.session_title ? `Workshop: ${asg.session_title}` : 'Independent Assignment'}
+                              </span>
+                            </div>
+                            <h4 className="font-extrabold text-gray-900 text-sm mt-1">{asg.title}</h4>
+                          </div>
+                          <span className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded shrink-0 font-mono">
+                            Due: {asg.due_date}
+                          </span>
+                        </div>
+
+                        {asg.description && (
+                          <p className="text-[11px] text-gray-600 leading-relaxed">{asg.description}</p>
+                        )}
+
+                        {asg.attachment_url && (
+                          <div className="pt-1">
+                            <a
+                              href={asg.attachment_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:underline bg-white px-2.5 py-1 rounded border border-gray-200 shadow-3xs"
+                            >
+                              <Download className="h-3 w-3 text-primary" /> Download Reference Material
+                            </a>
+                          </div>
+                        )}
+
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-200/60 text-[11px]">
+                          <span className="font-bold text-emerald-700 flex items-center gap-1 font-mono">
+                            <FileCheck className="h-3.5 w-3.5 text-emerald-600" />
+                            Submissions: {asg.submissions_count || 0} / {confirmedCohortStartups.length} Founders
+                          </span>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSubmissions(asg)}
+                              className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer border ${
+                                isExpanded
+                                  ? 'bg-primary text-white border-primary'
+                                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
+                              }`}
+                            >
+                              {isExpanded ? 'Hide Submissions' : 'View Submissions'}
+                            </button>
+                            {deletingAsgId === asg.id ? (
+                              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-lg animate-fadeIn">
+                                <span className="text-[10px] text-rose-700 font-bold">Delete?</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDeleteAssignment(asg.id);
+                                  }}
+                                  className="text-[10px] bg-rose-600 text-white font-bold px-2 py-0.5 rounded hover:bg-rose-700 cursor-pointer shadow-2xs"
+                                >
+                                  Yes
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setDeletingAsgId(null);
+                                  }}
+                                  className="text-[10px] bg-gray-200 text-gray-700 font-bold px-2 py-0.5 rounded hover:bg-gray-300 cursor-pointer"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setDeletingAsgId(asg.id);
+                                }}
+                                className="text-gray-400 hover:text-rose-600 p-1 rounded transition-colors cursor-pointer"
+                                title="Delete Assignment"
+                              >
+                                <Trash className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* EXPANDED SUBMISSIONS LIST */}
+                        {isExpanded && (
+                          <div className="mt-3 bg-white border border-gray-200 rounded-lg p-3 space-y-2 text-left">
+                            <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                              <span className="text-[10px] font-black uppercase text-gray-500 font-mono">Startup Submission Roster</span>
+                              <span className="text-[9px] text-gray-400 font-mono">Realtime Sync</span>
+                            </div>
+
+                            {loadingSubmissions ? (
+                              <div className="text-center py-4 text-[10px] text-gray-400 font-mono">
+                                Loading startup submissions...
+                              </div>
+                            ) : asgSubmissions.length === 0 ? (
+                              <div className="text-center py-4 text-[10px] text-gray-400">
+                                No startup records found for this cohort.
+                              </div>
+                            ) : (
+                              <div className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
+                                {asgSubmissions.map((sub) => (
+                                  <div key={sub.applicant_id} className="py-2 flex items-center justify-between text-[11px]">
+                                    <div>
+                                      <p className="font-bold text-gray-800">{sub.startup_name}</p>
+                                      <p className="text-[10px] text-gray-400">Lead: {sub.founder_name}</p>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      {sub.is_submitted ? (
+                                        <>
+                                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-black px-1.5 py-0.5 rounded">
+                                            Submitted
+                                          </span>
+                                          {sub.file_url && (
+                                            <a
+                                              href={sub.file_url}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all text-[9px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1"
+                                            >
+                                              <ExternalLink className="h-2.5 w-2.5" /> View File
+                                            </a>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-black px-1.5 py-0.5 rounded">
+                                          Pending
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -2530,6 +2758,91 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* SESSION DETAIL TABBED MODAL */}
+      {sessionDetailModalSession && (
+        <SessionDetailModal
+          session={sessionDetailModalSession}
+          cohortStartups={confirmedCohortStartups}
+          jwtToken={jwtToken}
+          onClose={() => setSessionDetailModalSession(null)}
+          onUpdateSession={(updated) => {
+            setSessions(prev => prev.map(s => s.id === updated.id ? updated : s));
+            setSessionDetailModalSession(updated);
+          }}
+          triggerSuccess={triggerSuccess}
+          triggerError={triggerError}
+        />
+      )}
+
+      {/* CREATE COHORT POPUP FORM */}
+      {showCreateCohortForm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 text-left border border-gray-100">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
+                  <FolderPlus className="h-4.5 w-4.5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Create New Cohort</h3>
+                  <p className="text-[10px] text-gray-400 font-bold">Initiate a new incubation program batch</p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowCreateCohortForm(false)} 
+                className="p-1 text-gray-400 hover:text-gray-700 rounded-lg cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCohort} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-500 block font-mono">Cohort Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newCohortName}
+                  onChange={(e) => setNewCohortName(e.target.value)}
+                  placeholder="e.g. Cohort 02 (Fall 2026)"
+                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-3 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-primary font-bold"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-500 block font-mono">Initial Program Status</label>
+                <select
+                  value={newCohortStatus}
+                  onChange={(e) => setNewCohortStatus(e.target.value as 'ACTIVE' | 'DRAFT')}
+                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-3 text-xs text-gray-800 focus:outline-none focus:border-primary font-bold cursor-pointer"
+                >
+                  <option value="ACTIVE">ACTIVE (Open for Intake & Active Sessions)</option>
+                  <option value="DRAFT">DRAFT (Internal Preparation Mode)</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateCohortForm(false)}
+                  className="w-1/2 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 bg-primary hover:bg-[#5A0F0F] text-white py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-3xs flex items-center justify-center gap-1.5"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Create Cohort</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

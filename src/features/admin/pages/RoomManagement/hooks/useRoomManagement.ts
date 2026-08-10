@@ -9,6 +9,19 @@ interface UseRoomManagementParams {
   onDeleteRoom: (roomId: string) => Promise<void>;
 }
 
+export const ALL_BOOKING_CATEGORIES = [
+  'Student societies',
+  'Startup teams',
+  'Faculty members',
+  'Department representatives',
+  'Cohort members',
+  'Entrepreneurs in residence',
+  'Professionals in residence',
+  'Meeting / Event',
+  'Cohort Startup',
+  'Department'
+];
+
 export function useRoomManagement({
   rooms,
   onRefresh,
@@ -27,6 +40,7 @@ export function useRoomManagement({
   const [roomMinDur, setRoomMinDur] = useState('30');
   const [roomMaxDur, setRoomMaxDur] = useState('180');
   const [roomPurpose, setRoomPurpose] = useState('');
+  const [roomAllowedBookingTypes, setRoomAllowedBookingTypes] = useState<string[]>([]);
 
   // UI States
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -78,6 +92,20 @@ export function useRoomManagement({
     }
   };
 
+  const toggleBookingType = (type: string) => {
+    setRoomAllowedBookingTypes(prev => {
+      const exists = prev.some(t => t.trim().toLowerCase() === type.trim().toLowerCase());
+      if (exists) {
+        return prev.filter(t => t.trim().toLowerCase() !== type.trim().toLowerCase());
+      } else {
+        return [...prev, type];
+      }
+    });
+  };
+
+  const selectAllBookingTypes = () => setRoomAllowedBookingTypes([...ALL_BOOKING_CATEGORIES]);
+  const deselectAllBookingTypes = () => setRoomAllowedBookingTypes([]);
+
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!roomName.trim()) return;
@@ -92,11 +120,13 @@ export function useRoomManagement({
         operatingHours: roomHours,
         minBookingDuration: roomMinDur,
         maxBookingDuration: roomMaxDur,
-        purpose: roomPurpose
+        purpose: roomPurpose,
+        allowedBookingTypes: roomAllowedBookingTypes
       });
       setSuccessMsg(`New space '${roomName}' registered in central facility registry.`);
       setRoomName('');
       setRoomPurpose('');
+      setRoomAllowedBookingTypes([...ALL_BOOKING_CATEGORIES]);
       setShowAddModal(false);
       onRefresh();
     } catch (err: any) {
@@ -120,7 +150,8 @@ export function useRoomManagement({
         operatingHours: roomHours,
         minBookingDuration: roomMinDur,
         maxBookingDuration: roomMaxDur,
-        purpose: roomPurpose
+        purpose: roomPurpose,
+        allowedBookingTypes: roomAllowedBookingTypes
       });
       setSuccessMsg(`Room attributes successfully updated for '${roomName}'.`);
       setEditingRoom(null);
@@ -140,6 +171,11 @@ export function useRoomManagement({
     setRoomMinDur(room.minBookingDuration.toString());
     setRoomMaxDur(room.maxBookingDuration.toString());
     setRoomPurpose(room.purpose);
+    setRoomAllowedBookingTypes(
+      room.allowedBookingTypes && room.allowedBookingTypes.length > 0
+        ? [...room.allowedBookingTypes]
+        : [...ALL_BOOKING_CATEGORIES]
+    );
     clearMessages();
   };
 
@@ -165,6 +201,7 @@ export function useRoomManagement({
     setRoomMinDur('30');
     setRoomMaxDur('180');
     setRoomPurpose('');
+    setRoomAllowedBookingTypes([...ALL_BOOKING_CATEGORIES]);
     setShowAddModal(true);
     clearMessages();
   };
@@ -188,6 +225,11 @@ export function useRoomManagement({
     setRoomMaxDur,
     roomPurpose,
     setRoomPurpose,
+    roomAllowedBookingTypes,
+    setRoomAllowedBookingTypes,
+    toggleBookingType,
+    selectAllBookingTypes,
+    deselectAllBookingTypes,
     errorMsg,
     setErrorMsg,
     successMsg,

@@ -13,12 +13,19 @@ import banRoutes from './modules/bans/bans.routes.ts';
 import auditRoutes from './modules/audit/audit.routes.ts';
 import chatbotRoutes from './modules/chatbot/chatbot.routes.ts';
 import cohortRoutes from './modules/cohorts/cohorts.routes.ts';
+import startupRoutes from './modules/startups/startups.routes.ts';
+
+import uploadRoutes from './modules/upload/upload.routes.ts';
 
 const PORT = 3000;
 
 export async function startServer() {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // Serve static uploaded files
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
   // Attach auth simulation middleware
   app.use(authMiddleware as express.RequestHandler);
@@ -33,6 +40,8 @@ export async function startServer() {
   app.use('/api', auditRoutes);
   app.use('/api', chatbotRoutes);
   app.use('/api', cohortRoutes);
+  app.use('/api', startupRoutes);
+  app.use('/api', uploadRoutes);
 
   // --- INTEGRATION WITH VITE FOR WEB SERVING ---
   if (process.env.NODE_ENV !== 'production') {

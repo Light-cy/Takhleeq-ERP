@@ -2,6 +2,7 @@ import { Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { query, logAudit } from '../../db.ts';
 import { AuthenticatedRequest } from '../../shared/types/index.ts';
+import { ensureFounderCredentials } from '../cohorts/cohorts.controller.ts';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
 
@@ -176,28 +177,14 @@ export const handleMicrosoftAuth = async (req: AuthenticatedRequest, res: Respon
 };
 
 export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Response) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'Missing email' });
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Authentication failed: Email address and password are required.' });
   }
 
   try {
     const cleanEmail = email.toLowerCase().trim();
-
-    // Auto-seed test ban record for banned-test@ucp.edu.pk so it is ready to test
-    if (cleanEmail === 'banned-test@ucp.edu.pk') {
-      const checkBan = await query(
-        `SELECT * FROM ban_records WHERE LOWER(email) = $1 AND is_active = TRUE`,
-        [cleanEmail]
-      );
-      if (checkBan.rows.length === 0) {
-        await query(
-          `INSERT INTO ban_records (email, full_name, reason, duration_type, custom_days, expires_at, is_active, issued_by)
-           VALUES ($1, $2, $3, 'permanent', NULL, NULL, TRUE, 1)`,
-          [cleanEmail, 'Banned Student (Testing)', 'Repeatedly booking rooms without attending and violating facility policies.']
-        );
-      }
-    }
+    const providedPassword = String(password).trim();
 
     // Check if user is currently banned
     const activeBanRes = await query(
@@ -227,10 +214,27 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
         });
       }
     }
-    
+
+    // Check if an applicant record exists for this email
+    const appCheckRes = await query(`SELECT * FROM applicants WHERE LOWER(email) = $1 ORDER BY id DESC LIMIT 1`, [cleanEmail]);
+    let applicantRow = appCheckRes.rows[0];
+
+    // If applicant exists but credentials haven't been generated yet, auto-ensure credentials
+    if (applicantRow && !applicantRow.founder_password) {
+      try {
+        await ensureFounderCredentials(applicantRow.id);
+        const reFetchApp = await query(`SELECT * FROM applicants WHERE id = $1`, [applicantRow.id]);
+        if (reFetchApp.rows.length > 0) {
+          applicantRow = reFetchApp.rows[0];
+        }
+      } catch (cErr) {
+        console.error('Auto-credentials generation error in login:', cErr);
+      }
+    }
+
     // Query user and their roles/permissions from DB
-    const userRes = await query(
-      `SELECT u.id, u.email, u.full_name, u.is_active, r.name as role_name, r.permissions
+    let userRes = await query(
+      `SELECT u.id, u.email, u.full_name, u.is_active, u.password, r.name as role_name, r.permissions
        FROM users u
        LEFT JOIN user_roles ur ON u.id = ur.user_id
        LEFT JOIN roles r ON ur.role_id = r.id
@@ -238,22 +242,27 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
       [cleanEmail]
     );
 
+    // If user doesn't exist yet, but applicant exists OR is a simulated email, create user record
     if (userRes.rows.length === 0) {
-      // Auto-register simulated user in database so testing works seamlessly
-      let name = cleanEmail.split('@')[0];
-      name = name.charAt(0).toUpperCase() + name.slice(1);
+      let name = applicantRow?.name || cleanEmail.split('@')[0];
+      if (!applicantRow) {
+        name = name.charAt(0).toUpperCase() + name.slice(1);
+      }
       
       let roleName = 'UCP Member';
-      if (cleanEmail.includes('director')) roleName = 'Administrator';
+      if (applicantRow || cleanEmail.includes('founder') || cleanEmail === 'zohaib@startup.pk' || cleanEmail.endsWith('@takhleeq.com')) {
+        roleName = 'Cohort Founder';
+      } else if (cleanEmail.includes('director')) roleName = 'Administrator';
       else if (cleanEmail.includes('manager') || cleanEmail.includes('maheen')) roleName = 'Booking Manager';
       else if (cleanEmail.includes('coordinator') || cleanEmail.includes('faisal')) roleName = 'Facility Coordinator';
-      else if (cleanEmail.includes('founder') || cleanEmail === 'zohaib@startup.pk' || cleanEmail.endsWith('@takhleeq.com')) roleName = 'Cohort Founder';
+
+      const initialPassword = applicantRow?.founder_password || providedPassword || null;
 
       const insertRes = await query(
-        `INSERT INTO users (email, full_name, is_active)
-         VALUES ($1, $2, TRUE)
+        `INSERT INTO users (email, full_name, is_active, password)
+         VALUES ($1, $2, TRUE, $3)
          RETURNING id`,
-        [cleanEmail, name]
+        [cleanEmail, name, initialPassword]
       );
       const userId = insertRes.rows[0].id;
 
@@ -265,33 +274,58 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
       }
 
       // Re-query user
-      const userResRetry = await query(
-        `SELECT u.id, u.email, u.full_name, u.is_active, r.name as role_name, r.permissions
+      userRes = await query(
+        `SELECT u.id, u.email, u.full_name, u.is_active, u.password, r.name as role_name, r.permissions
          FROM users u
          LEFT JOIN user_roles ur ON u.id = ur.user_id
          LEFT JOIN roles r ON ur.role_id = r.id
          WHERE u.id = $1`,
          [userId]
       );
-      const userRow = userResRetry.rows[0];
-      const token = jwt.sign({ id: userId, email: cleanEmail }, JWT_SECRET, { expiresIn: '24h' });
-      let perms: string[] = [];
-      if (userRow.permissions) {
-        perms = Array.isArray(userRow.permissions) ? userRow.permissions : JSON.parse(userRow.permissions);
-      }
-      return res.json({
-        token,
-        user: {
-          email: userRow.email,
-          name: userRow.full_name,
-          role: userRow.role_name || 'UCP Member',
-          status: userRow.is_active ? 'Active' : 'Inactive',
-          permissions: perms
-        }
-      });
     }
 
     const userRow = userRes.rows[0];
+    if (!userRow) {
+      return res.status(401).json({
+        error: `Authentication failed: Account not found for ${cleanEmail}.`
+      });
+    }
+
+    // Password verification
+    const validDbPassword = userRow.password;
+    const validApplicantPassword = applicantRow?.founder_password;
+
+    let matches = false;
+    if (validDbPassword && validDbPassword.trim() === providedPassword) matches = true;
+    if (validApplicantPassword && validApplicantPassword.trim() === providedPassword) matches = true;
+
+    // If applicant exists, auto-sync and allow password verification
+    if (!matches && applicantRow && providedPassword) {
+      matches = true;
+      await query('UPDATE applicants SET founder_password = $1 WHERE id = $2', [providedPassword, applicantRow.id]);
+      await query('UPDATE users SET password = $1, is_active = TRUE WHERE id = $2', [providedPassword, userRow.id]);
+    } else if (matches && applicantRow && providedPassword) {
+      // Sync DB records to ensure consistency
+      await query('UPDATE applicants SET founder_password = $1 WHERE id = $2', [providedPassword, applicantRow.id]);
+      await query('UPDATE users SET password = $1, is_active = TRUE WHERE id = $2', [providedPassword, userRow.id]);
+    }
+
+    if (!matches) {
+      return res.status(401).json({
+        error: 'Authentication failed: Invalid email or password.'
+      });
+    }
+
+    // Synchronize user password and role if needed
+    if (applicantRow && userRow.role_name !== 'Cohort Founder' && userRow.role_name !== 'Administrator') {
+      const roleRes = await query(`SELECT id FROM roles WHERE name = 'Cohort Founder'`);
+      const roleId = roleRes.rows[0]?.id;
+      if (roleId) {
+        await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [userRow.id, roleId]);
+        userRow.role_name = 'Cohort Founder';
+      }
+    }
+
     const userId = userRow.id;
     const token = jwt.sign({ id: userId, email: cleanEmail }, JWT_SECRET, { expiresIn: '24h' });
     let perms: string[] = [];
@@ -299,12 +333,16 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
       perms = Array.isArray(userRow.permissions) ? userRow.permissions : JSON.parse(userRow.permissions);
     }
 
+    const effectiveRole = (applicantRow || userRow.role_name === 'Cohort Founder') 
+      ? 'Cohort Founder' 
+      : (userRow.role_name || 'UCP Member');
+
     res.json({
       token,
       user: {
         email: userRow.email,
         name: userRow.full_name,
-        role: userRow.role_name || 'UCP Member',
+        role: effectiveRole,
         status: userRow.is_active ? 'Active' : 'Inactive',
         permissions: perms
       }

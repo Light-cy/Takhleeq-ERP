@@ -53,7 +53,16 @@ export function TrackPage({ bookings, currentUserEmail, jwtToken, onRefresh, onN
   // Get auto personal history for simulated logged in email
   const personalHistory = bookings.filter(b => b.email.toLowerCase() === currentUserEmail.toLowerCase());
 
-  // Re-run search if bookings update
+  // Parse initial token query parameter from URL (e.g., /track?token=TBK-2026-001)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenParam = urlParams.get('token') || urlParams.get('id');
+    if (tokenParam) {
+      setSearchQuery(tokenParam);
+    }
+  }, []);
+
+  // Re-run search if bookings or searchQuery update
   useEffect(() => {
     if (searchQuery.trim()) {
       const query = searchQuery.trim().toLowerCase();
@@ -63,7 +72,7 @@ export function TrackPage({ bookings, currentUserEmail, jwtToken, onRefresh, onN
       );
       setSearchResult(filtered);
     }
-  }, [bookings]);
+  }, [bookings, searchQuery]);
 
   const handleCancelSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
