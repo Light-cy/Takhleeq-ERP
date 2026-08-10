@@ -286,6 +286,16 @@ function initializeLocalDB() {
       updated = true;
     }
 
+    if (!db.checkins || !Array.isArray(db.checkins)) {
+      db.checkins = [];
+      updated = true;
+    }
+
+    if (!db.checkin_checklist_items || !Array.isArray(db.checkin_checklist_items)) {
+      db.checkin_checklist_items = [];
+      updated = true;
+    }
+
     if (updated) {
       console.log("Migrated local_db.json roles, permissions, and booking types automatically.");
       try {
@@ -795,6 +805,170 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: warn ? [warn] : [] };
   }
 
+  // 8. 1-on-1 Check-ins Interceptors
+  if (q.includes('from checkins') && !q.includes('insert into checkins') && !q.includes('update checkins') && !q.includes('delete from checkins')) {
+    db.checkins = db.checkins || [];
+    let list = [...db.checkins];
+
+    if (q.includes('where c.id = $1') || q.includes('where id = $1')) {
+      const chkId = parseInt(params[0]);
+      list = list.filter((c: any) => c.id === chkId);
+    } else if (q.includes('where c.startup_profile_id = $1') || q.includes('where startup_profile_id = $1')) {
+      const spId = parseInt(params[0]);
+      list = list.filter((c: any) => c.startup_profile_id === spId);
+      if (q.includes('id != $2')) {
+        const excludeId = parseInt(params[1]);
+        list = list.filter((c: any) => c.id !== excludeId);
+      }
+    } else if (q.includes('where c.cohort_id = $1') || q.includes('where cohort_id = $1')) {
+      const cid = parseInt(params[0]);
+      list = list.filter((c: any) => c.cohort_id === cid);
+    }
+
+    // Sort by scheduled_at / created_at DESC if requested
+    list.sort((a: any, b: any) => new Date(b.scheduled_at || b.created_at).getTime() - new Date(a.scheduled_at || a.created_at).getTime());
+
+    if (q.includes('limit 1')) {
+      list = list.slice(0, 1);
+    }
+
+    // Enrich with startup_name & cohort_name
+    const enriched = list.map((c: any) => {
+      let startup_name = 'Unknown Startup';
+      let applicant_id = null;
+      let founder_name = '';
+      let founder_email = '';
+
+      const sp = (db.startup_profiles || []).find((s: any) => s.id === c.startup_profile_id);
+      if (sp) {
+        startup_name = sp.startup_name;
+        applicant_id = sp.applicant_id;
+        const app = (db.applicants || []).find((a: any) => a.id === sp.applicant_id);
+        if (app) {
+          founder_name = app.name;
+          founder_email = app.email;
+        }
+      }
+
+      let cohort_name = 'Unassigned Cohort';
+      const ch = (db.cohorts || []).find((x: any) => x.id === c.cohort_id);
+      if (ch) cohort_name = ch.name;
+
+      return {
+        ...c,
+        startup_name,
+        applicant_id,
+        founder_name,
+        founder_email,
+        cohort_name
+      };
+    });
+
+    return { rows: enriched };
+  }
+
+  if (q.includes('insert into checkins')) {
+    db.checkins = db.checkins || [];
+    const id = Math.max(...db.checkins.map((c: any) => c.id), 0) + 1;
+    const newCheckin = {
+      id,
+      startup_profile_id: parseInt(params[0]),
+      cohort_id: parseInt(params[1]),
+      scheduled_at: params[2] || new Date().toISOString(),
+      notes: params[3] || null,
+      attendance_status: params[4] || 'unmarked',
+      created_by_user_id: params[5] ? parseInt(params[5]) : null,
+      created_by_email: params[6] || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    db.checkins.push(newCheckin);
+    saveLocalDB(db);
+    return { rows: [newCheckin] };
+  }
+
+  if (q.includes('update checkins set')) {
+    const chkId = parseInt(params[params.length - 1]);
+    const chk = (db.checkins || []).find((c: any) => c.id === chkId);
+    if (chk) {
+      chk.notes = params[0] !== undefined ? params[0] : chk.notes;
+      chk.attendance_status = params[1] || chk.attendance_status;
+      chk.scheduled_at = params[2] || chk.scheduled_at;
+      chk.updated_at = new Date().toISOString();
+      saveLocalDB(db);
+    }
+    return { rows: chk ? [chk] : [] };
+  }
+
+  if (q.includes('delete from checkins where id = $1')) {
+    const chkId = parseInt(params[0]);
+    db.checkins = (db.checkins || []).filter((c: any) => c.id !== chkId);
+    db.checkin_checklist_items = (db.checkin_checklist_items || []).filter((i: any) => i.checkin_id !== chkId);
+    saveLocalDB(db);
+    return { rows: [] };
+  }
+
+  // 9. Checkin Checklist Items Interceptors
+  if (q.includes('from checkin_checklist_items') && !q.includes('insert into') && !q.includes('update') && !q.includes('delete')) {
+    db.checkin_checklist_items = db.checkin_checklist_items || [];
+    let list = [...db.checkin_checklist_items];
+    if (q.includes('where checkin_id = $1')) {
+      const chkId = parseInt(params[0]);
+      list = list.filter((i: any) => i.checkin_id === chkId);
+      if (q.includes('is_completed = false')) {
+        list = list.filter((i: any) => !i.is_completed);
+      }
+    } else if (q.includes('where id = $1')) {
+      const itemId = parseInt(params[0]);
+      list = list.filter((i: any) => i.id === itemId);
+    }
+    list.sort((a: any, b: any) => a.id - b.id);
+    return { rows: list };
+  }
+
+  if (q.includes('insert into checkin_checklist_items')) {
+    db.checkin_checklist_items = db.checkin_checklist_items || [];
+    const id = Math.max(...db.checkin_checklist_items.map((i: any) => i.id), 0) + 1;
+    const newItem = {
+      id,
+      checkin_id: parseInt(params[0]),
+      originating_checkin_id: params[1] ? parseInt(params[1]) : parseInt(params[0]),
+      description: params[2],
+      is_completed: params[3] === true || params[3] === 'true',
+      created_at: new Date().toISOString()
+    };
+    db.checkin_checklist_items.push(newItem);
+    saveLocalDB(db);
+    return { rows: [newItem] };
+  }
+
+  if (q.includes('update checkin_checklist_items set')) {
+    const itemId = parseInt(params[params.length - 1]);
+    const item = (db.checkin_checklist_items || []).find((i: any) => i.id === itemId);
+    if (item) {
+      if (params[0] !== undefined && params[0] !== null) {
+        item.is_completed = params[0] === true || params[0] === 'true';
+      }
+      if (params[1] !== undefined && params[1] !== null) {
+        item.description = params[1];
+      }
+      saveLocalDB(db);
+    }
+    return { rows: item ? [item] : [] };
+  }
+
+  if (q.includes('delete from checkin_checklist_items')) {
+    if (q.includes('where checkin_id = $1')) {
+      const chkId = parseInt(params[0]);
+      db.checkin_checklist_items = (db.checkin_checklist_items || []).filter((i: any) => i.checkin_id !== chkId);
+    } else if (q.includes('where id = $1')) {
+      const itemId = parseInt(params[0]);
+      db.checkin_checklist_items = (db.checkin_checklist_items || []).filter((i: any) => i.id !== itemId);
+    }
+    saveLocalDB(db);
+    return { rows: [] };
+  }
+
   // --- EXISTING QUERIES BELOW ---
 
   // 1. SELECT * FROM rooms ORDER BY id ASC
@@ -970,6 +1144,19 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   }
 
   // 15. SELECT b.*, r.name as room_name, u.full_name as approver_name... WHERE b.id = $1
+  if (q.includes('select b.*, r.name as room_name') && q.includes("b.status = 'pending_review'")) {
+    const list = db.bookings
+      .filter((b: any) => b.status === 'PENDING_REVIEW')
+      .map((b: any) => {
+        const room = db.rooms.find((r: any) => r.id === b.room_id);
+        return {
+          ...b,
+          room_name: room ? room.name : ''
+        };
+      });
+    return { rows: list };
+  }
+
   if (q.includes('select b.*, r.name as room_name') && q.includes('where b.id = $1')) {
     const id = parseInt(params[0]);
     const b = db.bookings.find((b: any) => b.id === id);
@@ -2422,6 +2609,34 @@ async function ensureDBReady() {
               field_name VARCHAR(100) NOT NULL,
               old_value TEXT,
               new_value TEXT,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        // 13. checkins table (ON DELETE RESTRICT on startup_profile_id and cohort_id)
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS checkins (
+              id SERIAL PRIMARY KEY,
+              startup_profile_id INTEGER NOT NULL REFERENCES startup_profiles(id) ON DELETE RESTRICT,
+              cohort_id INTEGER NOT NULL REFERENCES cohorts(id) ON DELETE RESTRICT,
+              scheduled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              notes TEXT,
+              attendance_status VARCHAR(50) DEFAULT 'unmarked',
+              created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_by_email VARCHAR(255),
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        // 14. checkin_checklist_items table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS checkin_checklist_items (
+              id SERIAL PRIMARY KEY,
+              checkin_id INTEGER NOT NULL REFERENCES checkins(id) ON DELETE CASCADE,
+              originating_checkin_id INTEGER REFERENCES checkins(id) ON DELETE SET NULL,
+              description TEXT NOT NULL,
+              is_completed BOOLEAN DEFAULT FALSE,
               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
         `);

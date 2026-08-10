@@ -2,24 +2,33 @@ import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, Building2, User, Mail, Phone, Lock, Eye, EyeOff, ShieldAlert, 
   CheckCircle2, AlertTriangle, TrendingUp, Calendar, DollarSign, History, 
-  FileText, Sparkles, RefreshCw, Save, ShieldX, Ban, PlayCircle, Award
+  FileText, Sparkles, RefreshCw, Save, ShieldX, Ban, PlayCircle, Award,
+  AlertCircle, CheckCircle, Send, RotateCcw, Plus, X
 } from 'lucide-react';
 import { Industry } from '../../../types/startup.types';
 import { STARTUP_PROGRESS_STAGES, getStartupStageInfo } from '../../../constants/startupStages';
-import { fetchStartupFullDetails, adminUpdateStartupProfile } from '../api/startupsApi';
+import { 
+  fetchStartupFullDetails, 
+  adminUpdateStartupProfile,
+  issueStartupWarning,
+  resolveStartupWarning
+} from '../api/startupsApi';
+import { StartupCheckinsTab } from '../../checkins/components/StartupCheckinsTab';
 
 interface Props {
   startupId: number;
   industries: Industry[];
   onBack: () => void;
   onProfileUpdated?: () => void;
+  onNavigate?: (path: string) => void;
 }
 
 export const StartupDetailView: React.FC<Props> = ({
   startupId,
   industries,
   onBack,
-  onProfileUpdated
+  onProfileUpdated,
+  onNavigate
 }) => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -27,7 +36,7 @@ export const StartupDetailView: React.FC<Props> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'management' | 'attendance' | 'financials' | 'stage' | 'pivots' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'checkins' | 'management' | 'attendance' | 'financials' | 'warnings' | 'stage' | 'pivots' | 'audit'>('overview');
 
   // Password toggle
   const [showPassword, setShowPassword] = useState(false);
@@ -36,6 +45,18 @@ export const StartupDetailView: React.FC<Props> = ({
   // Form Fields
   const [formData, setFormData] = useState<any>({});
   const [adminNotes, setAdminNotes] = useState('');
+
+  // Warning Issue Form State
+  const [showWarningForm, setShowWarningForm] = useState(false);
+  const [warningSeverity, setWarningSeverity] = useState<'YELLOW' | 'RED'>('YELLOW');
+  const [warningCategory, setWarningCategory] = useState('Attendance & Absenteeism');
+  const [warningReason, setWarningReason] = useState('');
+  const [issuingWarning, setIssuingWarning] = useState(false);
+
+  // Warning Resolution State
+  const [warningResolvingId, setWarningResolvingId] = useState<number | null>(null);
+  const [warningResolutionNotes, setWarningResolutionNotes] = useState('');
+  const [resolvingWarning, setResolvingWarning] = useState(false);
 
   useEffect(() => {
     loadFullDetails();
@@ -94,6 +115,58 @@ export const StartupDetailView: React.FC<Props> = ({
     }
   };
 
+  const handleIssueWarningSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!warningReason.trim()) {
+      setErrorMsg('Please specify the exact reason for issuing this warning.');
+      return;
+    }
+    setIssuingWarning(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const result = await issueStartupWarning(startupId, {
+        severity: warningSeverity,
+        category: warningCategory,
+        reason: warningReason.trim()
+      });
+      setSuccessMsg(result.message || `Issued ${warningSeverity} warning and dispatched email to founder.`);
+      setWarningReason('');
+      setShowWarningForm(false);
+      await loadFullDetails();
+      if (onProfileUpdated) onProfileUpdated();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to issue warning');
+    } finally {
+      setIssuingWarning(false);
+    }
+  };
+
+  const handleResolveWarningSubmit = async (warningId: number) => {
+    if (!warningResolutionNotes.trim()) {
+      setErrorMsg('Please enter resolution notes before marking warning as resolved/revoked.');
+      return;
+    }
+    setResolvingWarning(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const result = await resolveStartupWarning(warningId, {
+        status: 'RESOLVED',
+        resolution_notes: warningResolutionNotes.trim()
+      });
+      setSuccessMsg(result.message || 'Warning marked as resolved and email notification sent to founder.');
+      setWarningResolvingId(null);
+      setWarningResolutionNotes('');
+      await loadFullDetails();
+      if (onProfileUpdated) onProfileUpdated();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to resolve warning');
+    } finally {
+      setResolvingWarning(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="bg-white p-12 border border-gray-200 rounded-3xl text-center space-y-3">
@@ -115,7 +188,8 @@ export const StartupDetailView: React.FC<Props> = ({
     );
   }
 
-  const { profile, attendance, financials, stage_history, pivots, audit_logs } = data;
+  const { profile, attendance, financials, stage_history, pivots, audit_logs, warnings = [] } = data;
+  const activeWarnings = warnings.filter((w: any) => w.status === 'ACTIVE');
   const currentStageInfo = getStartupStageInfo(profile.current_progress_stage);
 
   return (
@@ -150,6 +224,32 @@ export const StartupDetailView: React.FC<Props> = ({
             <span>{successMsg}</span>
           </div>
           <button onClick={() => setSuccessMsg(null)} className="text-emerald-500 hover:text-emerald-800 font-black">Dismiss</button>
+        </div>
+      )}
+
+      {/* Active Warning Banner */}
+      {activeWarnings.length > 0 && (
+        <div className="p-4 bg-amber-500/10 border-2 border-amber-500/40 rounded-2xl text-xs font-bold text-amber-900 flex items-center justify-between gap-4 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 animate-bounce" />
+            <div>
+              <p className="font-black text-amber-950 uppercase tracking-wide">
+                ⚠️ Active Performance Warning In Effect ({activeWarnings.length})
+              </p>
+              <p className="text-[11px] font-medium text-amber-800 mt-0.5">
+                {activeWarnings[0].severity} Warning issued by {activeWarnings[0].issued_by}: "{activeWarnings[0].reason}"
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setActiveTab('warnings');
+              setShowWarningForm(false);
+            }}
+            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer shadow-xs"
+          >
+            Review & Resolve Warnings &rarr;
+          </button>
         </div>
       )}
 
@@ -215,66 +315,72 @@ export const StartupDetailView: React.FC<Props> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           
           {/* Quick Status Control */}
-          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-2">
-            <label className="text-xs font-black text-gray-700 uppercase tracking-wide block">Account & Program Status</label>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => handleAdminSave({ program_status: 'ACTIVE' })}
-                disabled={saving || profile.program_status === 'ACTIVE'}
-                className="flex-1 py-2 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer"
-              >
-                <PlayCircle className="h-3.5 w-3.5" />
-                Active
-              </button>
-              <button
-                onClick={() => handleAdminSave({ program_status: 'PAUSED' })}
-                disabled={saving || profile.program_status === 'PAUSED'}
-                className="flex-1 py-2 px-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer"
-              >
-                <Ban className="h-3.5 w-3.5" />
-                Block/Pause
-              </button>
-              <button
-                onClick={() => handleAdminSave({ program_status: 'KICKED_OUT' })}
-                disabled={saving || profile.program_status === 'KICKED_OUT'}
-                className="flex-1 py-2 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer"
-              >
-                <ShieldX className="h-3.5 w-3.5" />
-                Kick Out
-              </button>
+          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-2 flex flex-col justify-between">
+            <div>
+              <label className="text-xs font-black text-gray-700 uppercase tracking-wide block mb-2">Account & Program Status</label>
+              <div className="grid grid-cols-3 gap-1">
+                <button
+                  onClick={() => handleAdminSave({ program_status: 'ACTIVE' })}
+                  disabled={saving || profile.program_status === 'ACTIVE'}
+                  className="py-2 px-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
+                >
+                  <PlayCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>Active</span>
+                </button>
+                <button
+                  onClick={() => handleAdminSave({ program_status: 'PAUSED' })}
+                  disabled={saving || profile.program_status === 'PAUSED'}
+                  className="py-2 px-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
+                >
+                  <Ban className="h-3.5 w-3.5 shrink-0" />
+                  <span>Pause</span>
+                </button>
+                <button
+                  onClick={() => handleAdminSave({ program_status: 'KICKED_OUT' })}
+                  disabled={saving || profile.program_status === 'KICKED_OUT'}
+                  className="py-2 px-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
+                >
+                  <ShieldX className="h-3.5 w-3.5 shrink-0" />
+                  <span>Kick Out</span>
+                </button>
+              </div>
             </div>
-            <p className="text-[10px] text-gray-500 font-medium">Instantly updates status and sends email explanation to founder.</p>
+            <p className="text-[10px] text-gray-500 font-medium mt-1">Updates status & sends explanation email.</p>
           </div>
 
           {/* Quick Password Reset */}
-          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-2">
-            <label className="text-xs font-black text-gray-700 uppercase tracking-wide block">Change Founder Password</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="New Founder Password..."
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                className="flex-1 bg-white border border-gray-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold focus:outline-none focus:border-primary"
-              />
-              <button
-                onClick={() => handleAdminSave({ founder_password: newPassword })}
-                disabled={saving || !newPassword.trim()}
-                className="px-3 py-1.5 bg-primary text-white hover:bg-primary-dark font-bold text-xs rounded-xl transition-all disabled:opacity-40 cursor-pointer shrink-0"
-              >
-                Save & Email
-              </button>
+          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-2 flex flex-col justify-between">
+            <div>
+              <label className="text-xs font-black text-gray-700 uppercase tracking-wide block mb-2">Change Founder Password</label>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <input
+                  type="text"
+                  placeholder="New password..."
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  className="w-full min-w-0 bg-white border border-gray-300 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold focus:outline-none focus:border-primary placeholder:text-gray-400 placeholder:font-sans placeholder:text-[11px]"
+                />
+                <button
+                  onClick={() => handleAdminSave({ founder_password: newPassword })}
+                  disabled={saving || !newPassword.trim()}
+                  className="shrink-0 px-2.5 py-1.5 bg-primary text-white hover:bg-primary-dark font-bold text-[11px] rounded-xl transition-all disabled:opacity-40 cursor-pointer whitespace-nowrap"
+                >
+                  Save & Email
+                </button>
+              </div>
             </div>
-            <p className="text-[10px] text-gray-500 font-medium">Founder's current password: <span className="font-mono font-bold text-gray-800">{profile.founder_password || 'Not set'}</span></p>
+            <p className="text-[10px] text-gray-500 font-medium mt-1 truncate">
+              Current password: <span className="font-mono font-bold text-gray-800">{profile.founder_password || 'Not set'}</span>
+            </p>
           </div>
 
           {/* Quick Stage Progression */}
-          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-2">
-            <label className="text-xs font-black text-gray-700 uppercase tracking-wide block">Advance Progress Stage</label>
-            <div className="flex items-center gap-2">
+          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-2 flex flex-col justify-between">
+            <div>
+              <label className="text-xs font-black text-gray-700 uppercase tracking-wide block mb-2">Advance Progress Stage</label>
               <select
                 value={formData.current_progress_stage}
                 onChange={e => {
@@ -283,14 +389,35 @@ export const StartupDetailView: React.FC<Props> = ({
                   handleAdminSave({ current_progress_stage: val });
                 }}
                 disabled={saving}
-                className="w-full bg-white border border-gray-300 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:border-primary"
+                className="w-full bg-white border border-gray-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:border-primary truncate"
               >
                 {STARTUP_PROGRESS_STAGES.map(stg => (
                   <option key={stg.key} value={stg.key}>{stg.label}</option>
                 ))}
               </select>
             </div>
-            <p className="text-[10px] text-gray-500 font-medium">Current step: {currentStageInfo.name}</p>
+            <p className="text-[10px] text-gray-500 font-medium mt-1 truncate">Current: {currentStageInfo.name}</p>
+          </div>
+
+          {/* Quick Issue Warning Action */}
+          <div className="bg-amber-500/10 p-4 rounded-2xl border border-amber-300/60 space-y-2 flex flex-col justify-between">
+            <div>
+              <label className="text-xs font-black text-amber-900 uppercase tracking-wide block mb-2 flex items-center justify-between">
+                <span>Performance Notice</span>
+                {activeWarnings.length > 0 && <span className="text-[10px] bg-rose-600 text-white px-1.5 py-0.5 rounded-full font-bold">{activeWarnings.length} Active</span>}
+              </label>
+              <button
+                onClick={() => {
+                  setActiveTab('warnings');
+                  setShowWarningForm(true);
+                }}
+                className="w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs whitespace-nowrap"
+              >
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <span>Issue Warning & Email</span>
+              </button>
+            </div>
+            <p className="text-[10px] text-amber-800 font-medium mt-1">Flag attendance, performance or policies.</p>
           </div>
 
         </div>
@@ -305,6 +432,14 @@ export const StartupDetailView: React.FC<Props> = ({
           }`}
         >
           📋 Dossier Overview
+        </button>
+        <button
+          onClick={() => setActiveTab('checkins')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === 'checkins' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          🤝 1-on-1 Check-ins
         </button>
         <button
           onClick={() => setActiveTab('management')}
@@ -331,6 +466,20 @@ export const StartupDetailView: React.FC<Props> = ({
           💵 Income & Financials
         </button>
         <button
+          onClick={() => setActiveTab('warnings')}
+          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'warnings' ? 'bg-amber-600 text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <AlertTriangle className="h-3.5 w-3.5" />
+          Warnings ({warnings.length})
+          {activeWarnings.length > 0 && (
+            <span className="bg-rose-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+              {activeWarnings.length} Active
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => setActiveTab('stage')}
           className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
             activeTab === 'stage' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
@@ -355,6 +504,17 @@ export const StartupDetailView: React.FC<Props> = ({
           🛡️ Audit Trail ({audit_logs?.length || 0})
         </button>
       </div>
+
+      {/* TAB: CHECK-INS */}
+      {activeTab === 'checkins' && (
+        <StartupCheckinsTab
+          startupId={profile.id}
+          startupName={profile.startup_name}
+          cohortId={profile.cohort_id}
+          cohortName={profile.cohort_name}
+          onNavigate={onNavigate}
+        />
+      )}
 
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
@@ -747,6 +907,268 @@ export const StartupDetailView: React.FC<Props> = ({
               <p className="text-xl font-black text-gray-900 uppercase">{financials.funding_status}</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* TAB 5: STAGE HISTORY */}
+      {/* TAB: WARNINGS & NOTICES */}
+      {activeTab === 'warnings' && (
+        <div className="space-y-6">
+          
+          {/* Header & Issue Button Bar */}
+          <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-black text-gray-900 uppercase tracking-tight flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+                Performance & Attendance Warnings Management
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Issue official performance or attendance warnings to this startup founder. An automated official email will be sent immediately upon issuance or resolution.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowWarningForm(!showWarningForm)}
+              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-black text-xs flex items-center gap-2 transition-all shadow-md shrink-0 cursor-pointer"
+            >
+              {showWarningForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {showWarningForm ? 'Cancel Form' : 'Raise New Warning & Email Founder'}
+            </button>
+          </div>
+
+          {/* Issue Warning Form Card */}
+          {showWarningForm && (
+            <form onSubmit={handleIssueWarningSubmit} className="bg-amber-500/5 border-2 border-amber-500/30 rounded-3xl p-6 shadow-md space-y-4 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center justify-between border-b border-amber-200 pb-3">
+                <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  Issue Official Startup Warning
+                </h4>
+                <span className="text-[10px] font-mono font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                  Dispatches Email Notification to Founder
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-gray-700 uppercase tracking-wide block">
+                    Warning Severity Level *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setWarningSeverity('YELLOW')}
+                      className={`p-3 rounded-2xl border text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        warningSeverity === 'YELLOW'
+                          ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                          : 'bg-white border-gray-200 text-gray-700 hover:bg-amber-50'
+                      }`}
+                    >
+                      <AlertTriangle className="h-4 w-4" />
+                      YELLOW (Notice)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWarningSeverity('RED')}
+                      className={`p-3 rounded-2xl border text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        warningSeverity === 'RED'
+                          ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
+                          : 'bg-white border-gray-200 text-gray-700 hover:bg-rose-50'
+                      }`}
+                    >
+                      <ShieldAlert className="h-4 w-4" />
+                      RED (Critical Warning)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-gray-700 uppercase tracking-wide block">
+                    Warning Category *
+                  </label>
+                  <select
+                    value={warningCategory}
+                    onChange={e => setWarningCategory(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2.5 text-xs font-bold text-gray-900 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="Attendance & Absenteeism">Attendance & Absenteeism (Unexcused absences)</option>
+                    <option value="Performance & Deliverables">Performance & Deliverables (Missing KPIs / Deadlines)</option>
+                    <option value="Weekly Progress Logs">Weekly Progress Logs (Failure to submit reports)</option>
+                    <option value="Policy & Conduct">Policy & Incubator Conduct Violation</option>
+                    <option value="Other">Other Administrative Notice</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-gray-700 uppercase tracking-wide block">
+                  Detailed Explanation / Reason for Warning *
+                </label>
+                <textarea
+                  rows={3}
+                  value={warningReason}
+                  onChange={e => setWarningReason(e.target.value)}
+                  placeholder="State clearly why this warning is being issued (e.g. Founder missed 3 consecutive mandatory mentoring sessions without prior approval)..."
+                  className="w-full bg-white border border-gray-300 rounded-2xl p-3 text-xs font-medium text-gray-900 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowWarningForm(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={issuingWarning || !warningReason.trim()}
+                  className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  <Send className="h-4 w-4" />
+                  {issuingWarning ? 'Dispatching Email...' : 'Issue Warning & Dispatch Email'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Active Warnings Section */}
+          <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                Active Warnings ({activeWarnings.length})
+              </h4>
+              <span className="text-[10px] font-mono text-gray-400">Requires Staff Resolution or Revocation</span>
+            </div>
+
+            {activeWarnings.length === 0 ? (
+              <div className="p-8 bg-emerald-50/50 border border-emerald-100 rounded-2xl text-center space-y-1">
+                <CheckCircle2 className="h-8 w-8 text-emerald-600 mx-auto" />
+                <p className="text-xs font-bold text-emerald-900">No Active Warnings</p>
+                <p className="text-[11px] text-emerald-700">This startup is currently in good standing with Takhleeq incubator policies.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {activeWarnings.map((w: any) => (
+                  <div
+                    key={w.id}
+                    className={`p-5 rounded-2xl border-2 space-y-3 transition-all ${
+                      w.severity === 'RED' ? 'bg-rose-50/60 border-rose-200' : 'bg-amber-50/60 border-amber-200'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-gray-200/60 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase font-mono border ${
+                          w.severity === 'RED' ? 'bg-rose-600 text-white border-rose-700' : 'bg-amber-500 text-white border-amber-600'
+                        }`}>
+                          {w.severity} WARNING
+                        </span>
+                        <span className="text-xs font-bold text-gray-900">{w.category || 'Administrative'}</span>
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-gray-500">
+                        Issued: {w.created_at ? new Date(w.created_at).toLocaleString() : 'N/A'} by {w.issued_by}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-gray-800 font-medium leading-relaxed bg-white/80 p-3 rounded-xl border border-gray-200/50">
+                      "{w.reason}"
+                    </p>
+
+                    {/* Inline Resolution Controls */}
+                    {warningResolvingId === w.id ? (
+                      <div className="bg-white p-4 rounded-xl border border-gray-300 space-y-3 animate-in fade-in">
+                        <label className="text-[11px] font-black text-gray-700 uppercase block">
+                          Resolution / Revocation Remarks for Founder *
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={warningResolutionNotes}
+                          onChange={e => setWarningResolutionNotes(e.target.value)}
+                          placeholder="Provide resolution details (e.g., Founder submitted makeup progress reports and attended makeup mentoring session)..."
+                          className="w-full border border-gray-300 rounded-xl p-2.5 text-xs text-gray-800 focus:outline-none focus:border-primary"
+                        />
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWarningResolvingId(null);
+                              setWarningResolutionNotes('');
+                            }}
+                            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleResolveWarningSubmit(w.id)}
+                            disabled={resolvingWarning || !warningResolutionNotes.trim()}
+                            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
+                          >
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            {resolvingWarning ? 'Resolving...' : 'Confirm Resolve & Email Founder'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWarningResolvingId(w.id);
+                            setWarningResolutionNotes('');
+                          }}
+                          className="px-3.5 py-1.5 bg-white border border-gray-300 hover:bg-emerald-50 hover:border-emerald-300 text-emerald-800 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                        >
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                          Resolve / Clear Warning
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Historical Resolved / Revoked Warnings */}
+          <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
+            <div className="border-b border-gray-100 pb-3">
+              <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                <History className="h-4 w-4 text-gray-500" />
+                Warning History & Resolved Records ({warnings.filter((w: any) => w.status !== 'ACTIVE').length})
+              </h4>
+            </div>
+
+            {warnings.filter((w: any) => w.status !== 'ACTIVE').length === 0 ? (
+              <p className="text-xs text-gray-400 py-4 text-center">No resolved warning records in history.</p>
+            ) : (
+              <div className="space-y-3">
+                {warnings.filter((w: any) => w.status !== 'ACTIVE').map((w: any) => (
+                  <div key={w.id} className="p-4 bg-gray-50 border border-gray-200 rounded-2xl space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded-md text-[10px] font-bold font-mono">
+                          {w.status}
+                        </span>
+                        <span className="font-bold text-gray-800">{w.severity} - {w.category}</span>
+                      </div>
+                      <span className="font-mono text-[10px] text-gray-400">
+                        Resolved: {w.resolved_at ? new Date(w.resolved_at).toLocaleDateString() : 'N/A'}
+                      </span>
+                    </div>
+                    <p className="text-gray-600"><strong>Original Warning:</strong> "{w.reason}"</p>
+                    {w.resolution_notes && (
+                      <p className="text-emerald-800 bg-emerald-50 p-2 rounded-lg border border-emerald-200 font-medium text-[11px]">
+                        <strong>Resolution Notes:</strong> {w.resolution_notes}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
       )}
 

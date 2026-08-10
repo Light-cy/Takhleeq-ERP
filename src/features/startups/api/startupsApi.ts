@@ -144,3 +144,32 @@ export async function adminUpdateStartupProfile(id: number, payload: any): Promi
   if (!json.success) throw new Error(json.error || 'Failed to update startup details');
   return json;
 }
+
+export async function issueStartupWarning(id: number, payload: {
+  reason: string;
+  severity: 'YELLOW' | 'RED';
+  category?: string;
+}): Promise<any> {
+  const res = await fetch(`/api/startup-profiles/${id}/warnings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error || 'Failed to issue performance warning');
+  return json;
+}
+
+export async function resolveStartupWarning(warningId: number, payload: {
+  status: 'RESOLVED' | 'REVOKED';
+  resolution_notes: string;
+}): Promise<any> {
+  const res = await fetch(`/api/startup-profiles/warnings/${warningId}/resolve`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error || 'Failed to resolve warning');
+  return json;
+}

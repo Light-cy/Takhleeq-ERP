@@ -14,7 +14,9 @@ import {
   createPivot,
   getPivots,
   getAuditLogs,
-  revertAuditEntry
+  revertAuditEntry,
+  issueStartupWarning,
+  resolveStartupWarning
 } from './startups.controller.ts';
 
 const router = Router();
@@ -35,6 +37,10 @@ router.get('/startup-profiles/:id', getStartupProfileById);
 router.get('/startup-profiles/:id/full-details', getStartupFullDetails);
 router.put('/startup-profiles/:id', updateStartupProfile);
 router.post('/startup-profiles/:id/admin-update', adminUpdateStartupProfile);
+
+// Warnings Management for Startups
+router.post('/startup-profiles/:id/warnings', issueStartupWarning);
+router.put('/startup-profiles/warnings/:warningId/resolve', resolveStartupWarning);
 
 // Progress Stage Tracking
 router.post('/startup-profiles/:id/stage', updateProgressStage);

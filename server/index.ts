@@ -14,6 +14,7 @@ import auditRoutes from './modules/audit/audit.routes.ts';
 import chatbotRoutes from './modules/chatbot/chatbot.routes.ts';
 import cohortRoutes from './modules/cohorts/cohorts.routes.ts';
 import startupRoutes from './modules/startups/startups.routes.ts';
+import checkinRoutes from './modules/checkins/checkins.routes.ts';
 
 import uploadRoutes from './modules/upload/upload.routes.ts';
 
@@ -41,6 +42,7 @@ export async function startServer() {
   app.use('/api', chatbotRoutes);
   app.use('/api', cohortRoutes);
   app.use('/api', startupRoutes);
+  app.use('/api', checkinRoutes);
   app.use('/api', uploadRoutes);
 
   // --- INTEGRATION WITH VITE FOR WEB SERVING ---

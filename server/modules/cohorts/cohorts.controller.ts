@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { query, logAudit } from '../../db.ts';
 import { AuthenticatedRequest } from '../../shared/types/index.ts';
-import { sendApplicantStatusEmail } from './cohort-email.service.ts';
+import { sendApplicantStatusEmail, sendPerformanceWarningEmail, sendWarningResolutionEmail } from './cohort-email.service.ts';
 import { syncAcceptedStartupsInternal } from '../startups/startups.controller.ts';
 
 // Helper to generate a friendly Pakistani tracking token like TK-STR-5129
@@ -1296,7 +1296,7 @@ export const getCohortWarnings = async (req: AuthenticatedRequest, res: Response
 export const issuePerformanceWarning = async (req: AuthenticatedRequest, res: Response) => {
   const admin = req.currentUser;
   const { id } = req.params; // cohort_id
-  const { applicant_id, reason, severity } = req.body; // severity: 'YELLOW' | 'RED'
+  const { applicant_id, reason, severity, category } = req.body; // severity: 'YELLOW' | 'RED'
 
   if (!applicant_id || !reason || !severity) {
     return res.status(400).json({ error: 'Missing performance warning parameters: applicant_id, reason, and severity are required.' });
@@ -1315,8 +1315,9 @@ export const issuePerformanceWarning = async (req: AuthenticatedRequest, res: Re
 
     const warning = result.rows[0];
 
-    const appRes = await query('SELECT startup_name FROM applicants WHERE id = $1', [parseInt(applicant_id)]);
-    const startupName = appRes.rows[0]?.startup_name || 'Startup';
+    const appRes = await query('SELECT name, email, startup_name, tracking_token FROM applicants WHERE id = $1', [parseInt(applicant_id)]);
+    const applicant = appRes.rows[0] || {};
+    const startupName = applicant.startup_name || 'Startup';
 
     await logAudit(
       `ISSUED ${severity} PERFORMANCE WARNING to '${startupName}': Reason: ${reason}`,
@@ -1326,6 +1327,24 @@ export const issuePerformanceWarning = async (req: AuthenticatedRequest, res: Re
       null,
       warning
     );
+
+    // Send Warning Email Notification
+    if (applicant.email) {
+      try {
+        await sendPerformanceWarningEmail({
+          founderName: applicant.name || 'Founder',
+          founderEmail: applicant.email,
+          startupName,
+          severity,
+          category: category || 'Attendance & Program Compliance',
+          reason: reason.trim(),
+          issuedBy: admin?.name || 'Takhleeq Management',
+          trackingToken: applicant.tracking_token
+        });
+      } catch (emailErr) {
+        console.error('Failed to dispatch warning email:', emailErr);
+      }
+    }
 
     res.status(201).json({ success: true, warning });
   } catch (err: any) {
@@ -1361,8 +1380,9 @@ export const resolvePerformanceWarning = async (req: AuthenticatedRequest, res: 
 
     const updated = result.rows[0];
 
-    const appRes = await query('SELECT startup_name FROM applicants WHERE id = $1', [prev.applicant_id]);
-    const startupName = appRes.rows[0]?.startup_name || 'Startup';
+    const appRes = await query('SELECT name, email, startup_name FROM applicants WHERE id = $1', [prev.applicant_id]);
+    const applicant = appRes.rows[0] || {};
+    const startupName = applicant.startup_name || 'Startup';
 
     await logAudit(
       `RESOLVED performance warning for '${startupName}': Status set to ${status}. Notes: ${resolution_notes}`,
@@ -1372,6 +1392,23 @@ export const resolvePerformanceWarning = async (req: AuthenticatedRequest, res: 
       { previousStatus: 'ACTIVE', severity: prev.severity },
       updated
     );
+
+    // Send Warning Resolution Email Notification
+    if (applicant.email) {
+      try {
+        await sendWarningResolutionEmail({
+          founderName: applicant.name || 'Founder',
+          founderEmail: applicant.email,
+          startupName,
+          severity: prev.severity,
+          status,
+          resolutionNotes: resolution_notes.trim(),
+          resolvedBy: admin?.name || 'Takhleeq Management'
+        });
+      } catch (emailErr) {
+        console.error('Failed to dispatch warning resolution email:', emailErr);
+      }
+    }
 
     res.json({ success: true, warning: updated });
   } catch (err: any) {

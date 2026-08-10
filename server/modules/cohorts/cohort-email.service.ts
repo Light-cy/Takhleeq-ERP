@@ -571,3 +571,304 @@ export async function sendStartupAdminUpdateEmail(params: StartupUpdateEmailPara
     return true;
   }
 }
+
+export interface WarningEmailParams {
+  founderName: string;
+  founderEmail: string;
+  startupName: string;
+  severity: 'YELLOW' | 'RED';
+  category?: string;
+  reason: string;
+  issuedBy?: string;
+  trackingToken?: string;
+}
+
+export async function sendPerformanceWarningEmail(params: WarningEmailParams): Promise<boolean> {
+  const fromEmail = process.env.SMTP_FROM || '"Takhleeq Operations" <notifications@takhleeq-erp.ucp.edu.pk>';
+  const mailTransporter = getTransporter();
+
+  const isRed = params.severity === 'RED';
+  const headerBg = isRed ? '#991b1b' : '#d97706';
+  const badgeBg = isRed ? '#fee2e2' : '#fef3c7';
+  const badgeBorder = isRed ? '#fca5a5' : '#fde68a';
+  const badgeText = isRed ? '#991b1b' : '#92400e';
+  const badgeTitle = isRed ? '🚨 OFFICIAL RED PERFORMANCE WARNING' : '⚠️ OFFICIAL YELLOW PERFORMANCE NOTICE';
+
+  const htmlBody = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px;">
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
+        <tr>
+          <td style="background-color: ${headerBg}; padding: 22px 30px; text-align: center;">
+            <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: bold;">Takhleeq Business Incubator</h1>
+            <p style="margin: 4px 0 0 0; color: #fef2f2; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">Official Performance Notice</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 25px 30px;">
+            <div style="background-color: ${badgeBg}; border: 1px solid ${badgeBorder}; padding: 14px 18px; border-radius: 8px; margin-bottom: 20px;">
+              <strong style="color: ${badgeText}; font-size: 14px; display: block;">${badgeTitle}</strong>
+              <span style="color: ${badgeText}; font-size: 12px;">Category: ${params.category || 'Incubation Compliance / Performance'} &bull; Issued by: ${params.issuedBy || 'Program Directorate'}</span>
+            </div>
+
+            <h3 style="margin: 0 0 10px 0; color: #111827; font-size: 16px;">Dear ${params.founderName},</h3>
+            <p style="margin: 0 0 15px 0; color: #374151; font-size: 14px; line-height: 1.6;">
+              This notification is issued to inform you that your startup <strong>${params.startupName}</strong> has been flagged for performance/compliance review by Takhleeq Management.
+            </p>
+
+            <div style="background-color: #f8fafc; border-left: 4px solid ${headerBg}; padding: 14px 18px; border-radius: 0 8px 8px 0; margin-bottom: 20px;">
+              <strong style="color: #0f172a; font-size: 13px; display: block; margin-bottom: 4px;">Reason / Incident Explanation:</strong>
+              <p style="margin: 0; color: #334155; font-size: 13px; line-height: 1.5; font-family: sans-serif;">
+                ${params.reason}
+              </p>
+            </div>
+
+            <p style="margin: 0 0 12px 0; color: #4b5563; font-size: 13px; line-height: 1.5;">
+              ${isRed 
+                ? '<strong>CRITICAL ACTION REQUIRED:</strong> Red warnings indicate severe non-compliance (e.g. repeated unexcused absences, missing weekly check-ins, or policy violation). Failure to rectify this immediately may result in program suspension or termination.'
+                : '<strong>REQUIRED ACTION:</strong> Please ensure full attendance in upcoming workshops, complete all pending weekly check-ins, and consult with your assigned program director to clear this notice.'}
+            </p>
+
+            <p style="margin: 15px 0 0 0; color: #6b7280; font-size: 12px;">
+              You can log in to your Founder Portal to view details and submit responses.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background-color: #f9fafb; padding: 15px 30px; text-align: center; border-top: 1px solid #f3f4f6;">
+            <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+              Takhleeq Innovation & Entrepreneurship Center &bull; University of Central Punjab
+            </p>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const subject = `${isRed ? '🚨 [RED WARNING]' : '⚠️ [YELLOW WARNING]'} Performance Notice for ${params.startupName}`;
+
+  if (mailTransporter) {
+    try {
+      await mailTransporter.sendMail({
+        from: fromEmail,
+        to: params.founderEmail,
+        subject,
+        html: htmlBody,
+      });
+      console.log(`[SMTP] Sent performance warning email to ${params.founderEmail}`);
+      return true;
+    } catch (err) {
+      console.error(`[SMTP Error] Failed to send warning email to ${params.founderEmail}:`, err);
+      return false;
+    }
+  } else {
+    console.log('\n┌─────────────────────────────────────────────────────────────┐');
+    console.log(`│ [SMTP SIMULATOR] Dispatching ${params.severity} Warning Email          │`);
+    console.log(`├─────────────────────────────────────────────────────────────┤`);
+    console.log(`│ TO:      ${params.founderEmail.padEnd(50)} │`);
+    console.log(`│ STARTUP: ${params.startupName.padEnd(50)} │`);
+    console.log(`│ SUBJECT: ${subject.padEnd(50)} │`);
+    console.log(`└─────────────────────────────────────────────────────────────┘\n`);
+    return true;
+  }
+}
+
+export interface WarningResolutionEmailParams {
+  founderName: string;
+  founderEmail: string;
+  startupName: string;
+  severity: string;
+  status: 'RESOLVED' | 'REVOKED';
+  resolutionNotes: string;
+  resolvedBy?: string;
+}
+
+export async function sendWarningResolutionEmail(params: WarningResolutionEmailParams): Promise<boolean> {
+  const fromEmail = process.env.SMTP_FROM || '"Takhleeq Operations" <notifications@takhleeq-erp.ucp.edu.pk>';
+  const mailTransporter = getTransporter();
+
+  const isResolved = params.status === 'RESOLVED';
+  const badgeBg = '#dcfce7';
+  const badgeBorder = '#86efac';
+  const badgeText = '#166534';
+  const badgeTitle = isResolved ? '✅ PERFORMANCE WARNING RESOLVED' : '↩️ PERFORMANCE WARNING REVOKED';
+
+  const htmlBody = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px;">
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
+        <tr>
+          <td style="background-color: #166534; padding: 22px 30px; text-align: center;">
+            <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: bold;">Takhleeq Business Incubator</h1>
+            <p style="margin: 4px 0 0 0; color: #bbf7d0; font-size: 11px; text-transform: uppercase;">Warning Resolution Notice</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 25px 30px;">
+            <div style="background-color: ${badgeBg}; border: 1px solid ${badgeBorder}; padding: 14px 18px; border-radius: 8px; margin-bottom: 20px;">
+              <strong style="color: ${badgeText}; font-size: 14px; display: block;">${badgeTitle}</strong>
+              <span style="color: ${badgeText}; font-size: 12px;">Startup: ${params.startupName} &bull; Status: ${params.status}</span>
+            </div>
+
+            <h3 style="margin: 0 0 10px 0; color: #111827; font-size: 16px;">Dear ${params.founderName},</h3>
+            <p style="margin: 0 0 15px 0; color: #374151; font-size: 14px; line-height: 1.6;">
+              We are pleased to inform you that your previous ${params.severity} performance warning for <strong>${params.startupName}</strong> has been officially marked as <strong>${params.status}</strong> by Takhleeq Management.
+            </p>
+
+            <div style="background-color: #f8fafc; border-left: 4px solid #166534; padding: 14px 18px; border-radius: 0 8px 8px 0; margin-bottom: 20px;">
+              <strong style="color: #0f172a; font-size: 13px; display: block; margin-bottom: 4px;">Resolution Remarks:</strong>
+              <p style="margin: 0; color: #334155; font-size: 13px; line-height: 1.5;">
+                ${params.resolutionNotes}
+              </p>
+            </div>
+
+            <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.5;">
+              Thank you for taking the necessary corrective measures. Please keep maintaining active participation in all incubator workshops and weekly check-ins.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background-color: #f9fafb; padding: 15px 30px; text-align: center; border-top: 1px solid #f3f4f6;">
+            <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+              Takhleeq Innovation & Entrepreneurship Center &bull; University of Central Punjab
+            </p>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const subject = `✅ Warning ${params.status}: ${params.startupName}`;
+
+  if (mailTransporter) {
+    try {
+      await mailTransporter.sendMail({
+        from: fromEmail,
+        to: params.founderEmail,
+        subject,
+        html: htmlBody,
+      });
+      console.log(`[SMTP] Sent warning resolution email to ${params.founderEmail}`);
+      return true;
+    } catch (err) {
+      console.error(`[SMTP Error] Failed to send warning resolution email to ${params.founderEmail}:`, err);
+      return false;
+    }
+  } else {
+    console.log('\n┌─────────────────────────────────────────────────────────────┐');
+    console.log(`│ [SMTP SIMULATOR] Dispatching Warning ${params.status} Email           │`);
+    console.log(`├─────────────────────────────────────────────────────────────┤`);
+    console.log(`│ TO:      ${params.founderEmail.padEnd(50)} │`);
+    console.log(`│ STARTUP: ${params.startupName.padEnd(50)} │`);
+    console.log(`│ SUBJECT: ${subject.padEnd(50)} │`);
+    console.log(`└─────────────────────────────────────────────────────────────┘\n`);
+    return true;
+  }
+}
+
+export async function sendCheckinNoShowEmail(params: {
+  founderName: string;
+  founderEmail: string;
+  startupName: string;
+  scheduledAt: string;
+  notes?: string;
+}): Promise<boolean> {
+  const mailTransporter = getTransporter();
+  const fromEmail = process.env.SMTP_FROM || 'no-reply@takhleeq.ucp.edu.pk';
+  
+  const formattedDate = new Date(params.scheduledAt).toLocaleString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const htmlBody = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px;">
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
+        <tr>
+          <td style="background-color: #991b1b; padding: 22px 30px; text-align: center;">
+            <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: bold;">Takhleeq Business Incubator</h1>
+            <p style="margin: 4px 0 0 0; color: #fca5a5; font-size: 11px; text-transform: uppercase;">1-on-1 Check-in Absence Notice</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 25px 30px;">
+            <div style="background-color: #fef2f2; border: 1px solid #fecaca; padding: 14px 18px; border-radius: 8px; margin-bottom: 20px;">
+              <strong style="color: #991b1b; font-size: 14px; display: block;">⚠️ Missed 1-on-1 Advisory Check-in</strong>
+              <span style="color: #7f1d1d; font-size: 12px;">Startup: ${params.startupName} &bull; Scheduled Time: ${formattedDate}</span>
+            </div>
+
+            <h3 style="margin: 0 0 10px 0; color: #111827; font-size: 16px;">Dear ${params.founderName},</h3>
+            <p style="margin: 0 0 15px 0; color: #374151; font-size: 14px; line-height: 1.6;">
+              This is an official notice to inform you that your scheduled 1-on-1 check-in meeting for <strong>${params.startupName}</strong> on <strong>${formattedDate}</strong> was marked as <strong>No-Show</strong> by Takhleeq Incubator staff.
+            </p>
+
+            ${params.notes ? `
+            <div style="background-color: #f8fafc; border-left: 4px solid #991b1b; padding: 14px 18px; border-radius: 0 8px 8px 0; margin-bottom: 20px;">
+              <strong style="color: #0f172a; font-size: 13px; display: block; margin-bottom: 4px;">Staff Notes:</strong>
+              <p style="margin: 0; color: #334155; font-size: 13px; line-height: 1.5;">
+                ${params.notes}
+              </p>
+            </div>
+            ` : ''}
+
+            <p style="margin: 0 0 12px 0; color: #4b5563; font-size: 13px; line-height: 1.5;">
+              Regular 1-on-1 check-ins are mandatory for tracking venture progression, resolving bottlenecks, and maintaining cohort enrollment status.
+            </p>
+            <p style="margin: 0; color: #111827; font-size: 13px; font-weight: bold;">
+              Please contact your assigned Takhleeq program manager immediately to explain your absence and reschedule your check-in session.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background-color: #f9fafb; padding: 15px 30px; text-align: center; border-top: 1px solid #f3f4f6;">
+            <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+              Takhleeq Innovation & Entrepreneurship Center &bull; University of Central Punjab
+            </p>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const subject = `⚠️ Missed Check-in Notice: ${params.startupName}`;
+
+  if (mailTransporter) {
+    try {
+      await mailTransporter.sendMail({
+        from: fromEmail,
+        to: params.founderEmail,
+        subject,
+        html: htmlBody,
+      });
+      console.log(`[SMTP] Sent check-in no-show email to ${params.founderEmail}`);
+      return true;
+    } catch (err) {
+      console.error(`[SMTP Error] Failed to send check-in no-show email to ${params.founderEmail}:`, err);
+      return false;
+    }
+  } else {
+    console.log('\n┌─────────────────────────────────────────────────────────────┐');
+    console.log(`│ [SMTP SIMULATOR] Dispatching Check-in No-Show Email          │`);
+    console.log(`├─────────────────────────────────────────────────────────────┤`);
+    console.log(`│ TO:      ${params.founderEmail.padEnd(50)} │`);
+    console.log(`│ STARTUP: ${params.startupName.padEnd(50)} │`);
+    console.log(`│ SUBJECT: ${subject.padEnd(50)} │`);
+    console.log(`└─────────────────────────────────────────────────────────────┘\n`);
+    return true;
+  }
+}
+

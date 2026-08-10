@@ -19,6 +19,8 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
   const [loginMode, setLoginMode] = useState<'founder' | 'microsoft'>('founder');
   const [founderEmail, setFounderEmail] = useState('');
   const [founderPassword, setFounderPassword] = useState('');
+  const [showDevBypass, setShowDevBypass] = useState(false);
+  const [selectedSimulatedEmail, setSelectedSimulatedEmail] = useState('');
 
   // Check if real Microsoft SSO is configured in environment
   const hasClientId = !!((import.meta as any).env?.VITE_MICROSOFT_CLIENT_ID || (import.meta as any).env?.AZURE_CLIENT_ID);
@@ -59,9 +61,38 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
     }
   };
 
+  const handleSimulatedQuickLogin = async (emailToLogin: string) => {
+    if (!emailToLogin) return;
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      const data = await authApi.loginSimulated(emailToLogin.trim());
+      onLoginSuccess(data.token, data.user);
+      if (data.user.role === 'Cohort Founder') {
+        onNavigate('/founder-dashboard');
+      } else if (data.user.role === 'UCP Member') {
+        if (isStaff) {
+          setErrorMessage('Access Denied: This UCP Member account does not have Back-office ERP staff clearance.');
+          setLoading(false);
+        } else {
+          onNavigate('/booking');
+        }
+      } else {
+        onNavigate('/staff/dashboard');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Developer bypass login failed.');
+      setLoading(false);
+    }
+  };
+
   const handleMicrosoftLoginClick = () => {
     setErrorMessage(null);
-    handleRealMicrosoftLogin();
+    if (!hasClientId) {
+      setShowDevBypass(true);
+    } else {
+      handleRealMicrosoftLogin();
+    }
   };
 
   // Real Microsoft SSO OAuth 2.0 Popup Flow
@@ -79,7 +110,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
     const redirectUri = encodeURIComponent(window.location.origin + '/microsoft-callback.html');
     const scope = encodeURIComponent('openid email profile User.Read');
     const responseType = 'token'; // implicit grant flow to obtain token on frontend
-    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&response_type=${responseType}&redirect_uri=${redirectUri}&scope=${scope}&response_mode=fragment`;
+    const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&response_type=${responseType}&redirect_uri=${redirectUri}&scope=${scope}&response_mode=fragment&prompt=select_account`;
 
     // Calculate center positioning for popup
     const width = 500;
@@ -327,28 +358,71 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess, simulat
               </button>
 
               {/* Conditional helpers/simulation bypass options */}
-              {hasClientId ? (
-                <div className="text-center pt-1 animate-fade-in">
-                  <button
-                    onClick={handleMicrosoftLoginClick}
-                    type="button"
-                    className="text-primary hover:text-[#5A0F0F] text-[11px] font-bold hover:underline transition-all cursor-pointer inline-flex items-center gap-1"
-                  >
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                    Or bypass via Developer Account Simulator
-                  </button>
-                </div>
-              ) : (
-                <div className="p-3 bg-amber-50/50 border border-amber-150 rounded-xl text-left text-[11px] text-amber-800 leading-normal flex gap-2 animate-fade-in">
-                  <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-bold text-[11.5px] mb-0.5 text-amber-900">Developer Simulation Active</p>
-                    <p className="text-gray-500 font-normal leading-relaxed text-[10px]">
-                      Configure <code className="font-mono bg-amber-100/50 px-1 py-0.5 rounded text-amber-950">VITE_MICROSOFT_CLIENT_ID</code> in environment to activate real Azure AD logins.
-                    </p>
+              <div className="text-center pt-1 animate-fade-in space-y-3">
+                <button
+                  onClick={() => {
+                    setShowDevBypass(!showDevBypass);
+                    setErrorMessage(null);
+                  }}
+                  type="button"
+                  className="text-primary hover:text-[#5A0F0F] text-[11px] font-bold hover:underline transition-all cursor-pointer inline-flex items-center gap-1"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  {showDevBypass ? "Hide Developer Account Simulator" : "Or bypass via Developer Account Simulator"}
+                </button>
+
+                {(showDevBypass || !hasClientId) && (
+                  <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl text-left space-y-3 animate-fade-in shadow-xs">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0" />
+                      <div>
+                        <p className="font-extrabold text-xs text-amber-950">Developer Account Bypass</p>
+                        <p className="text-[10px] text-amber-800">Use pre-configured system accounts if Microsoft SSO rejects your university domain.</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-amber-900 uppercase font-mono tracking-wider block">
+                        Select Test / Staff Account:
+                      </label>
+                      <select
+                        value={selectedSimulatedEmail}
+                        onChange={(e) => setSelectedSimulatedEmail(e.target.value)}
+                        className="w-full bg-white border border-amber-200 rounded-lg p-2 text-xs font-bold text-gray-800 focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="">-- Choose Account --</option>
+                        {accountsToDisplay.length > 0 ? (
+                          accountsToDisplay.map((acc, index) => (
+                            <option key={acc.email || index} value={acc.email}>
+                              {acc.name} ({acc.role}) - {acc.email}
+                            </option>
+                          ))
+                        ) : (
+                          <>
+                            <option value="admin@ucp.edu.pk">System Administrator (admin@ucp.edu.pk)</option>
+                            <option value="manager@ucp.edu.pk">Facility Manager (manager@ucp.edu.pk)</option>
+                            <option value="founder@startup.pk">Cohort Founder (founder@startup.pk)</option>
+                          </>
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const targetEmail = selectedSimulatedEmail || (accountsToDisplay[0]?.email || 'admin@ucp.edu.pk');
+                          handleSimulatedQuickLogin(targetEmail);
+                        }}
+                        disabled={loading}
+                        className="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-2 px-3 rounded-lg text-xs transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        {loading ? 'Authenticating...' : 'Sign In With Selected Test Account'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
 

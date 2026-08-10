@@ -12,9 +12,10 @@ import { StartupDetailView } from './StartupDetailView';
 interface Props {
   isStaff: boolean;
   cohortsList?: any[];
+  onNavigate?: (path: string) => void;
 }
 
-export const StartupDirectoryTab: React.FC<Props> = ({ isStaff, cohortsList = [] }) => {
+export const StartupDirectoryTab: React.FC<Props> = ({ isStaff, cohortsList = [], onNavigate }) => {
   const [profiles, setProfiles] = useState<StartupProfile[]>([]);
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,6 +102,7 @@ export const StartupDirectoryTab: React.FC<Props> = ({ isStaff, cohortsList = []
         industries={industries}
         onBack={() => setViewingStartupId(null)}
         onProfileUpdated={loadProfiles}
+        onNavigate={onNavigate}
       />
     );
   }

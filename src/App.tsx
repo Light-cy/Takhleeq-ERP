@@ -370,6 +370,7 @@ export default function App() {
             onNavigate={navigate} 
             onLoginSuccess={handleLoginSuccess} 
             isStaff={true} 
+            simulatedUsers={users}
           />
         );
       }
@@ -404,6 +405,48 @@ export default function App() {
       );
     }
 
+    if (currentPath.startsWith('/admin/checkins')) {
+      if (!jwtToken || !activeUser) {
+        return (
+          <LoginPage 
+            onNavigate={navigate} 
+            onLoginSuccess={handleLoginSuccess} 
+            isStaff={true} 
+            simulatedUsers={users}
+          />
+        );
+      }
+      return (
+        <StaffLayout
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          activeUser={activeUser}
+          hasPermission={hasPermission}
+          onNavigate={navigate}
+          onLogout={handleLogout}
+          jwtToken={jwtToken}
+          cohortsList={cohortsList}
+          selectedCohortId={selectedCohortId}
+          setSelectedCohortId={setSelectedCohortId}
+          currentPath={currentPath}
+        >
+          <CohortManagementPage 
+            currentUser={activeUser}
+            hasPermission={hasPermission}
+            onRefresh={fetchStateData}
+            jwtToken={jwtToken}
+            activeTab="cohort_startups"
+            selectedCohortId={selectedCohortId}
+            setSelectedCohortId={setSelectedCohortId}
+            cohortsList={cohortsList}
+            auditLogs={auditLogs}
+            currentPath={currentPath}
+            onNavigate={navigate}
+          />
+        </StaffLayout>
+      );
+    }
+
     if (currentPath.startsWith('/admin/sessions')) {
       if (!jwtToken || !activeUser) {
         return (
@@ -411,6 +454,7 @@ export default function App() {
             onNavigate={navigate} 
             onLoginSuccess={handleLoginSuccess} 
             isStaff={true} 
+            simulatedUsers={users}
           />
         );
       }
@@ -455,6 +499,7 @@ export default function App() {
             onNavigate={navigate} 
             onLoginSuccess={handleLoginSuccess} 
             isStaff={false} 
+            simulatedUsers={users}
           />
         );
         
@@ -464,6 +509,7 @@ export default function App() {
             onNavigate={navigate} 
             onLoginSuccess={handleLoginSuccess} 
             isStaff={true} 
+            simulatedUsers={users}
           />
         );
 
@@ -544,6 +590,7 @@ export default function App() {
               onNavigate={navigate} 
               onLoginSuccess={handleLoginSuccess} 
               isStaff={false} 
+              simulatedUsers={users}
             />
           );
         }
@@ -568,6 +615,7 @@ export default function App() {
               onNavigate={navigate} 
               onLoginSuccess={handleLoginSuccess} 
               isStaff={true} 
+              simulatedUsers={users}
             />
           );
         }
@@ -651,7 +699,7 @@ export default function App() {
               />
             )}
 
-            {(activeTab.startsWith('cohort') || activeTab === 'builder' || currentPath.startsWith('/admissions/applications')) && (
+            {(activeTab.startsWith('cohort') || activeTab === 'builder' || currentPath.startsWith('/admissions/applications') || currentPath.startsWith('/admin/checkins') || currentPath.startsWith('/admin/sessions')) && (
               <CohortManagementPage 
                 currentUser={activeUser}
                 hasPermission={hasPermission}

@@ -45,6 +45,7 @@ import { CohortDashboardView } from './CohortDashboardView';
 import { StartupDirectoryTab } from '../../../startups/components/StartupDirectoryTab';
 import { ApplicationDetailsPage } from './ApplicationDetailsPage';
 import { SessionDetailModal } from '../../components/SessionDetailModal';
+import { CheckinDetailPage } from '../../../checkins/pages/CheckinDetailPage';
 
 interface CohortManagementPageProps {
   currentUser: any;
@@ -975,6 +976,20 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
     }
   };
   const { title: displayTitle, desc: displayDesc } = getHeaderInfo();
+
+  if (currentPath && currentPath.startsWith('/admin/checkins/')) {
+    const parts = currentPath.split('/');
+    const checkinId = parseInt(parts[parts.length - 1]);
+    return (
+      <CheckinDetailPage
+        checkinId={checkinId}
+        onBack={() => {
+          if (onNavigate) onNavigate('/staff/dashboard', 'cohort_startups');
+        }}
+        onNavigate={onNavigate}
+      />
+    );
+  }
 
   if (routeSessionId) {
     const targetSession = fetchedRouteSession || sessions.find(s => s.id === routeSessionId);
@@ -1941,10 +1956,21 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                         {checkins.map((chk) => {
                           const sName = applicants.find(a => a.id === chk.applicant_id)?.startup_name || 'Startup';
                           return (
-                            <div key={chk.id} className="p-3.5 bg-gray-50/30 border border-gray-150 rounded-xl text-xs space-y-2">
+                            <div 
+                              key={chk.id} 
+                              onClick={() => {
+                                if (onNavigate) {
+                                  onNavigate(`/admin/checkins/${chk.id}`);
+                                } else {
+                                  window.history.pushState({}, '', `/admin/checkins/${chk.id}`);
+                                  window.dispatchEvent(new Event('popstate'));
+                                }
+                              }}
+                              className="p-3.5 bg-gray-50/30 border border-gray-150 hover:border-primary/50 rounded-xl text-xs space-y-2 cursor-pointer transition-all hover:bg-white hover:shadow-2xs group"
+                            >
                               <div className="flex justify-between items-start gap-2">
                                 <div>
-                                  <h4 className="font-extrabold text-gray-800">{sName}</h4>
+                                  <h4 className="font-extrabold text-gray-800 group-hover:text-primary transition-colors">{sName}</h4>
                                   <p className="text-[9px] text-gray-400 font-bold uppercase font-mono">Logged by: {chk.logged_by}</p>
                                 </div>
                                 <span className="text-xs font-black font-mono text-[#8B1A1A] bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-md">
@@ -2225,7 +2251,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
       {/* SUBTAB: ACTIVE STARTUPS */}
       {activeSubTab === 'cohort_startups' && (
-        <StartupDirectoryTab isStaff={true} cohortsList={cohorts} />
+        <StartupDirectoryTab isStaff={true} cohortsList={cohorts} onNavigate={onNavigate} />
       )}
 
       {/* SUBTAB: ASSIGNMENTS */}

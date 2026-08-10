@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { query } from '../../db.ts';
-import { sendStartupAdminUpdateEmail } from '../cohorts/cohort-email.service.ts';
+import { sendStartupAdminUpdateEmail, sendPerformanceWarningEmail, sendWarningResolutionEmail } from '../cohorts/cohort-email.service.ts';
 
 // Helper to determine if user is staff vs founder
 const isStaffUser = (req: Request): boolean => {
@@ -925,6 +925,13 @@ export const getStartupFullDetails = async (req: Request, res: Response) => {
       ORDER BY created_at DESC;
     `, [profileId]);
 
+    // Warnings
+    const warningsRes = await query(`
+      SELECT * FROM performance_warnings 
+      WHERE applicant_id = $1 
+      ORDER BY created_at DESC, id DESC;
+    `, [profile.applicant_id]);
+
     return res.json({
       success: true,
       data: {
@@ -946,12 +953,172 @@ export const getStartupFullDetails = async (req: Request, res: Response) => {
         },
         stage_history: stageHistoryRes.rows || [],
         pivots: pivotsRes.rows || [],
-        audit_logs: auditRes.rows || []
+        audit_logs: auditRes.rows || [],
+        warnings: warningsRes.rows || []
       }
     });
   } catch (err: any) {
     console.error('getStartupFullDetails error:', err);
     return res.status(500).json({ success: false, error: 'Failed to load startup full details' });
+  }
+};
+
+// 12. ISSUE WARNING TO A STARTUP PROFILE
+export const issueStartupWarning = async (req: Request, res: Response) => {
+  try {
+    if (!isStaffUser(req)) {
+      return res.status(403).json({ success: false, error: 'Only authorized staff can issue performance warnings' });
+    }
+
+    const { id } = req.params; // startup_profile_id
+    const profileId = parseInt(id);
+    const { reason, severity, category } = req.body; // severity: 'YELLOW' | 'RED'
+
+    if (!reason || !reason.trim() || !severity) {
+      return res.status(400).json({ success: false, error: 'Reason and severity (YELLOW/RED) are required' });
+    }
+
+    if (severity !== 'YELLOW' && severity !== 'RED') {
+      return res.status(400).json({ success: false, error: "Severity must be 'YELLOW' or 'RED'" });
+    }
+
+    const profileRes = await query(`
+      SELECT sp.*, a.id as applicant_id, a.name as founder_name, a.email as founder_email, a.tracking_token
+      FROM startup_profiles sp
+      LEFT JOIN applicants a ON sp.applicant_id = a.id
+      WHERE sp.id = $1;
+    `, [profileId]);
+
+    if (!profileRes.rows || profileRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Startup profile not found' });
+    }
+
+    const profile = profileRes.rows[0];
+    const staffUser = (req as any).user;
+    const issuedBy = staffUser?.name || staffUser?.email || 'Program Manager';
+
+    // Insert warning
+    const insertRes = await query(`
+      INSERT INTO performance_warnings (cohort_id, applicant_id, issued_by, reason, severity, status, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      RETURNING *;
+    `, [profile.cohort_id || null, profile.applicant_id, issuedBy, reason.trim(), severity]);
+
+    const newWarning = insertRes.rows[0];
+
+    // Log to audit log
+    const userEmail = staffUser?.email || 'admin@takhleeq.pk';
+    const userId = staffUser?.id || null;
+    await query(`
+      INSERT INTO startup_audit_logs (
+        startup_profile_id,
+        changed_by_user_id,
+        changed_by_email,
+        field_name,
+        old_value,
+        new_value
+      ) VALUES ($1, $2, $3, 'performance_warning', 'NONE', $4);
+    `, [profileId, userId, userEmail, `${severity} WARNING: ${reason.trim()}`]);
+
+    // Dispatch Email to Founder
+    let emailSent = false;
+    if (profile.founder_email) {
+      try {
+        emailSent = await sendPerformanceWarningEmail({
+          founderName: profile.founder_name || 'Founder',
+          founderEmail: profile.founder_email,
+          startupName: profile.startup_name,
+          severity,
+          category: category || 'Attendance & Performance Compliance',
+          reason: reason.trim(),
+          issuedBy,
+          trackingToken: profile.tracking_token
+        });
+      } catch (e) {
+        console.error('Failed to send warning email:', e);
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: `${severity} warning successfully issued to ${profile.startup_name}.${emailSent ? ' Warning email dispatched to founder.' : ''}`,
+      warning: newWarning,
+      emailSent
+    });
+  } catch (err: any) {
+    console.error('issueStartupWarning error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to issue performance warning' });
+  }
+};
+
+// 13. RESOLVE WARNING FOR A STARTUP PROFILE
+export const resolveStartupWarning = async (req: Request, res: Response) => {
+  try {
+    if (!isStaffUser(req)) {
+      return res.status(403).json({ success: false, error: 'Only authorized staff can resolve warnings' });
+    }
+
+    const { warningId } = req.params;
+    const { status, resolution_notes } = req.body; // RESOLVED or REVOKED
+
+    if (!status || !['RESOLVED', 'REVOKED'].includes(status)) {
+      return res.status(400).json({ success: false, error: "Status must be 'RESOLVED' or 'REVOKED'" });
+    }
+
+    if (!resolution_notes || !resolution_notes.trim()) {
+      return res.status(400).json({ success: false, error: 'Resolution notes are required' });
+    }
+
+    const warnRes = await query(`
+      SELECT pw.*, a.name as founder_name, a.email as founder_email, a.startup_name
+      FROM performance_warnings pw
+      LEFT JOIN applicants a ON pw.applicant_id = a.id
+      WHERE pw.id = $1;
+    `, [parseInt(warningId)]);
+
+    if (!warnRes.rows || warnRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Warning record not found' });
+    }
+
+    const warning = warnRes.rows[0];
+
+    const updateRes = await query(`
+      UPDATE performance_warnings
+      SET status = $1, resolution_notes = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      RETURNING *;
+    `, [status, resolution_notes.trim(), parseInt(warningId)]);
+
+    const updatedWarning = updateRes.rows[0];
+
+    // Dispatch email
+    let emailSent = false;
+    if (warning.founder_email) {
+      try {
+        const staffUser = (req as any).user;
+        emailSent = await sendWarningResolutionEmail({
+          founderName: warning.founder_name || 'Founder',
+          founderEmail: warning.founder_email,
+          startupName: warning.startup_name || 'Startup',
+          severity: warning.severity,
+          status,
+          resolutionNotes: resolution_notes.trim(),
+          resolvedBy: staffUser?.name || staffUser?.email || 'Takhleeq Management'
+        });
+      } catch (e) {
+        console.error('Failed to send warning resolution email:', e);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Warning #${warningId} marked as ${status}.${emailSent ? ' Notification email sent to founder.' : ''}`,
+      warning: updatedWarning,
+      emailSent
+    });
+  } catch (err: any) {
+    console.error('resolveStartupWarning error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to update warning status' });
   }
 };
 
