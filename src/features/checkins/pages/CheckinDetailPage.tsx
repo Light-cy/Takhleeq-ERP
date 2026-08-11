@@ -442,7 +442,7 @@ export const CheckinDetailPage: React.FC<CheckinDetailPageProps> = ({
                         />
                         <div className="space-y-0.5 min-w-0">
                           <span className={`font-medium leading-relaxed block break-words ${item.is_completed ? 'line-through text-emerald-800/70' : ''}`}>
-                            {item.description}
+                            {item.description || (item as any).text || (item as any).title || (item as any).item || 'Action Item'}
                           </span>
 
                           {isCarriedForward && (

@@ -2363,7 +2363,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
             <div className="lg:col-span-7 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block font-mono">
-                  Active Cohort Assignments ({cohortAssignments.length})
+                  Active Independent Cohort Assignments ({cohortAssignments.filter((a) => !a.session_id).length})
                 </span>
               </div>
 
@@ -2371,7 +2371,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 <div className="p-8 text-center text-gray-400 font-mono text-xs">
                   Loading cohort assignments...
                 </div>
-              ) : cohortAssignments.length === 0 ? (
+              ) : cohortAssignments.filter((a) => !a.session_id).length === 0 ? (
                 <div className="p-8 text-center text-gray-400 border border-dashed border-gray-200 rounded-xl text-xs space-y-1">
                   <FileText className="h-6 w-6 text-gray-300 mx-auto mb-1" />
                   <p className="font-bold text-gray-500">No independent assignments created yet.</p>
@@ -2379,19 +2379,15 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {cohortAssignments.map((asg) => {
+                  {cohortAssignments.filter((a) => !a.session_id).map((asg) => {
                     const isExpanded = selectedAsgForSubmissions?.id === asg.id;
                     return (
                       <div key={asg.id} className="p-4 bg-gray-50/50 border border-gray-150 rounded-xl text-xs space-y-3 transition-all hover:border-gray-300">
                         <div className="flex justify-between items-start gap-2">
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${
-                                asg.session_title 
-                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                              }`}>
-                                {asg.session_title ? `Workshop: ${asg.session_title}` : 'Independent Assignment'}
+                              <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded border bg-emerald-50 text-emerald-800 border-emerald-200">
+                                Independent Assignment
                               </span>
                             </div>
                             <h4 className="font-extrabold text-gray-900 text-sm mt-1">{asg.title}</h4>
@@ -2543,40 +2539,6 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
         </div>
       )}
 
-      {/* SUBTAB: MENTORSHIP */}
-      {activeSubTab === 'cohort_mentorship' && (
-        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-3xs space-y-6 text-left">
-          <div className="flex justify-between items-center border-b border-gray-100 pb-4">
-            <div>
-              <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Mentorship & Advisory Directory</h3>
-              <p className="text-[11px] text-gray-400 font-bold mt-0.5">Assigned industry experts, office hours schedule, and startup feedback logs.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <div className="p-4 bg-gray-50/50 border border-gray-150 rounded-xl space-y-2">
-              <span className="text-[8px] font-black uppercase text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/10">FinTech / Banking</span>
-              <h4 className="font-extrabold text-gray-900 text-sm">Mr. Zarrar Khan</h4>
-              <p className="text-[11px] text-gray-500">Ex-VP Product at JazzCash. Available for payment gateway integration and financial modeling.</p>
-              <p className="text-[10px] font-bold text-emerald-600">Office Hours: Every Tuesday 2:00 PM - 5:00 PM</p>
-            </div>
-
-            <div className="p-4 bg-gray-50/50 border border-gray-150 rounded-xl space-y-2">
-              <span className="text-[8px] font-black uppercase text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/10">AI & Cloud Architecture</span>
-              <h4 className="font-extrabold text-gray-900 text-sm">Dr. Usman Tariq</h4>
-              <p className="text-[11px] text-gray-500">Associate Professor & Cloud AI Consultant. Advises on LLM pipeline & infrastructure scale.</p>
-              <p className="text-[10px] font-bold text-emerald-600">Office Hours: Every Thursday 10:00 AM - 1:00 PM</p>
-            </div>
-
-            <div className="p-4 bg-gray-50/50 border border-gray-150 rounded-xl space-y-2">
-              <span className="text-[8px] font-black uppercase text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/10">Legal & Incorporation</span>
-              <h4 className="font-extrabold text-gray-900 text-sm">Adv. Syeda Ayesha</h4>
-              <p className="text-[11px] text-gray-500">Corporate Attorney specializing in SECP registration, founder vesting agreements, and IP.</p>
-              <p className="text-[10px] font-bold text-emerald-600">Office Hours: Every Friday 3:00 PM - 6:00 PM</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* SUBTAB: INVESTMENT READINESS */}
       {activeSubTab === 'cohort_investment' && (

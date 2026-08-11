@@ -325,20 +325,6 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                       </span>
                     </button>
 
-                    {/* Mentorship */}
-                    <button
-                      onClick={() => setActiveTab('cohort_mentorship')}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        activeTab === 'cohort_mentorship' 
-                          ? 'bg-primary text-white shadow-3xs' 
-                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <Users className="h-3.5 w-3.5" />
-                        Mentorship
-                      </span>
-                    </button>
 
                     {/* Performance (Collapsible Sub-Group) */}
                     <div className="space-y-0.5">

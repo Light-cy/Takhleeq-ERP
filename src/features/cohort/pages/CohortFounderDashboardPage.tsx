@@ -219,11 +219,11 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
       setCheckins(data.checkins || []);
       setWarnings(data.warnings || []);
 
-      // Pull form_data profile config or initialize with beautiful defaults
+      // Pull form_data profile config
       const pf = app.form_data?.profile || {};
 
       // 1. Description
-      setDescInput(app.startup_description || pf.description || 'No description logged.');
+      setDescInput(app.startup_description || pf.description || '');
       
       // 2. Website
       setWebsiteInput(pf.website || '');
@@ -237,7 +237,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
       // 5. Contact Info / Phone
       setContactInput(pf.contact_info || app.phone || '');
 
-      // 6. Assignments from backend or fallback profile JSON
+      // 6. Assignments from backend or profile
       if (data.assignments && Array.isArray(data.assignments) && data.assignments.length > 0) {
         const mappedAssignments: AssignmentItem[] = data.assignments.map((as: any) => ({
           id: String(as.id),
@@ -252,42 +252,29 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
         }));
         setAssignments(mappedAssignments);
       } else {
-        const savedAssignments: AssignmentItem[] = pf.assignments || [
-          { id: '1', title: 'Validated Lean Canvas Document', deadline: '2026-07-28', status: 'PENDING' },
-          { id: '2', title: 'Investor Pitch Deck (V1.0)', deadline: '2026-08-15', status: 'PENDING' },
-          { id: '3', title: 'Validated Financial & Pricing Model', deadline: '2026-09-02', status: 'PENDING' }
-        ];
+        const savedAssignments: AssignmentItem[] = pf.assignments || [];
         setAssignments(savedAssignments);
       }
 
-      // Initializing default team roster
-      const savedTeam: TeamMember[] = pf.team_roster || [
-        { id: 't1', name: app.name, role: 'CEO & Co-Founder', email: app.email },
-        { id: 't2', name: 'Amir Khan', role: 'CTO', email: 'amir@takhleeq.pk' }
-      ];
+      // Initializing team roster with real applicant info if empty
+      const savedTeam: TeamMember[] = pf.team_roster || (
+        app.name ? [{ id: 't1', name: app.name, role: 'Lead Founder / CEO', email: app.email || '' }] : []
+      );
       setTeamRoster(savedTeam);
 
-      // Initializing default shared notes (non-private!)
-      const savedNotes: SharedNote[] = pf.shared_notes || [
-        { id: 'n1', date: '2026-07-18', author: 'Usman Ghani (Lead Mentor)', content: 'Excellent progress on the customer discovery matrix. Focus on narrowing down your first 100 beachhead medical shops in Lahore.' },
-        { id: 'n2', date: '2026-07-15', author: 'Dr. Qaseeb Ahmed', content: 'Incubation blueprint slides have been dispatched. Please review and ensure your validated lean canvas is uploaded on time.' }
-      ];
+      // Initializing shared notes (no fake entries)
+      const savedNotes: SharedNote[] = pf.shared_notes || [];
       setSharedNotes(savedNotes);
 
-      // Initializing default notifications
-      const savedNotifications: NotificationItem[] = pf.notifications || [
-        { id: 'not1', date: new Date().toISOString(), message: 'Cohort incubation workspace is now live. Welcome to Takhleeq ERP!', type: 'success' },
-        { id: 'not2', date: new Date(Date.now() - 3600000).toISOString(), message: 'A new workshop "Value Proposition & Customer Discovery" has been added to your calendar.', type: 'info' }
-      ];
+      // Initializing notifications (no fake entries)
+      const savedNotifications: NotificationItem[] = pf.notifications || [];
       setNotifications(savedNotifications);
 
       // Rated sessions
       setRatedSessions(pf.rated_sessions || []);
 
       // Pivot History
-      const savedPivots: PivotRecord[] = pf.pivot_history || [
-        { id: 'p1', date: '2026-06-15', oldDirection: 'Direct-to-consumer pharmacy delivery service', newDirection: 'B2B express pharmaceutical dispatch & route optimizer', hypothesis: 'Customer surveys indicated razor-thin retail margins and heavy marketing costs. Moving to B2B clinics and pharmacies provides a 3x higher utility and predictable contract revenue.' }
-      ];
+      const savedPivots: PivotRecord[] = pf.pivot_history || [];
       setPivotHistory(savedPivots);
 
     } catch (err: any) {
@@ -995,49 +982,132 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                       sessions.map((sess) => {
                         const isPast = new Date(sess.date) < new Date();
                         return (
-                          <div key={sess.id} className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:bg-gray-50/50 transition-colors">
-                            <div className="space-y-1.5 text-left">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="bg-[#8B1A1A]/5 text-[#8B1A1A] text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded border border-[#8B1A1A]/5">
-                                  {sess.topic_category || 'Masterclass'}
-                                </span>
-                                {isPast && (
-                                  <span className="bg-gray-100 text-gray-500 text-[9px] font-bold px-2 py-0.5 rounded">
-                                    Concluded
+                          <div key={sess.id} className="p-4 space-y-3 hover:bg-gray-50/50 transition-colors">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                              <div className="space-y-1.5 text-left">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="bg-[#8B1A1A]/5 text-[#8B1A1A] text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded border border-[#8B1A1A]/5">
+                                    {sess.topic_category || 'Masterclass'}
+                                  </span>
+                                  {isPast && (
+                                    <span className="bg-gray-100 text-gray-500 text-[9px] font-bold px-2 py-0.5 rounded">
+                                      Concluded
+                                    </span>
+                                  )}
+                                </div>
+                                <h3 className="text-xs font-black text-gray-800 uppercase tracking-tight">{sess.title}</h3>
+                                <p className="text-[10px] text-gray-400 font-bold flex items-center gap-2">
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3 text-gray-400" /> 
+                                    {new Date(sess.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} @ {sess.start_time.substring(0, 5)} - {sess.end_time.substring(0, 5)}
+                                  </span>
+                                  <span className="text-gray-300">|</span>
+                                  <span>Mentor: {sess.mentor_name}</span>
+                                </p>
+                              </div>
+                              
+                              <div className="shrink-0 w-full sm:w-auto">
+                                {sess.recording_url ? (
+                                  <a 
+                                    href={sess.recording_url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="w-full sm:w-auto text-center inline-flex items-center justify-center gap-1 bg-[#8B1A1A]/5 hover:bg-[#8B1A1A]/10 text-[#8B1A1A] text-[10px] font-black uppercase tracking-wider px-3.5 py-2 rounded-xl border border-[#8B1A1A]/10 transition-all"
+                                  >
+                                    Watch Recording
+                                  </a>
+                                ) : sess.venue ? (
+                                  <span className="text-[10px] font-mono font-bold text-gray-500 bg-gray-50 border border-gray-150 px-2.5 py-1.5 rounded-xl block text-center">
+                                    Venue: {sess.venue}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-mono font-bold text-gray-400 bg-gray-50 px-2.5 py-1.5 rounded-xl block text-center">
+                                    Virtual Class
                                   </span>
                                 )}
                               </div>
-                              <h3 className="text-xs font-black text-gray-800 uppercase tracking-tight">{sess.title}</h3>
-                              <p className="text-[10px] text-gray-400 font-bold flex items-center gap-2">
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3 text-gray-400" /> 
-                                  {new Date(sess.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} @ {sess.start_time.substring(0, 5)} - {sess.end_time.substring(0, 5)}
-                                </span>
-                                <span className="text-gray-300">|</span>
-                                <span>Mentor: {sess.mentor_name}</span>
-                              </p>
                             </div>
-                            
-                            <div className="shrink-0 w-full sm:w-auto">
-                              {sess.recording_url ? (
-                                <a 
-                                  href={sess.recording_url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="w-full sm:w-auto text-center inline-flex items-center justify-center gap-1 bg-[#8B1A1A]/5 hover:bg-[#8B1A1A]/10 text-[#8B1A1A] text-[10px] font-black uppercase tracking-wider px-3.5 py-2 rounded-xl border border-[#8B1A1A]/10 transition-all"
-                                >
-                                  Watch Recording
-                                </a>
-                              ) : sess.venue ? (
-                                <span className="text-[10px] font-mono font-bold text-gray-500 bg-gray-50 border border-gray-150 px-2.5 py-1.5 rounded-xl block text-center">
-                                  Venue: {sess.venue}
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-mono font-bold text-gray-400 bg-gray-50 px-2.5 py-1.5 rounded-xl block text-center">
-                                  Virtual Class
-                                </span>
-                              )}
-                            </div>
+
+                            {/* Session-Specific Assignments */}
+                            {sess.assignments && sess.assignments.length > 0 && (
+                              <div className="pt-2 border-t border-gray-100 text-left space-y-2">
+                                <div className="flex items-center gap-1.5">
+                                  <FileText className="h-3.5 w-3.5 text-blue-700" />
+                                  <span className="text-[10px] font-black uppercase text-blue-900 tracking-wider font-mono">
+                                    Session Assignments ({sess.assignments.length})
+                                  </span>
+                                </div>
+                                <div className="space-y-2">
+                                  {sess.assignments.map((sAsg: any) => {
+                                    const isSubmitted = !!sAsg.submission;
+                                    return (
+                                      <div key={sAsg.id} className="p-3 bg-blue-50/40 border border-blue-100 rounded-xl space-y-2 text-xs">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                                          <div>
+                                            <div className="flex items-center gap-2">
+                                              <p className="font-extrabold text-gray-800">{sAsg.title}</p>
+                                              <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${
+                                                isSubmitted ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+                                              }`}>
+                                                {isSubmitted ? 'Submitted' : 'Pending'}
+                                              </span>
+                                            </div>
+                                            {sAsg.description && <p className="text-[11px] text-gray-500 mt-0.5">{sAsg.description}</p>}
+                                            <p className="text-[9px] font-mono text-rose-600 font-bold mt-0.5">Due: {sAsg.due_date}</p>
+                                          </div>
+
+                                          <div className="flex items-center gap-2 shrink-0">
+                                            {sAsg.attachment_url && (
+                                              <a
+                                                href={sAsg.attachment_url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:underline bg-white px-2.5 py-1 rounded border border-gray-200"
+                                              >
+                                                <Download className="h-3 w-3" /> Reference Template
+                                              </a>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {isSubmitted ? (
+                                          <div className="text-[10px] font-mono text-emerald-700 bg-emerald-50/80 p-2 rounded-lg border border-emerald-100 flex items-center justify-between">
+                                            <span>Submitted: <a href={sAsg.submission.file_url} target="_blank" rel="noreferrer" className="underline font-bold">{sAsg.submission.file_url.split('/').pop()}</a></span>
+                                            <span className="text-[9px] text-gray-400">{new Date(sAsg.submission.submitted_at).toLocaleDateString()}</span>
+                                          </div>
+                                        ) : (
+                                          <form
+                                            onSubmit={async (e) => {
+                                              e.preventDefault();
+                                              const form = e.target as HTMLFormElement;
+                                              const input = form.querySelector('input[type="url"]') as HTMLInputElement;
+                                              if (input && input.value.trim()) {
+                                                await triggerAssignmentUpload(String(sAsg.id), input.value.trim());
+                                                loadDashboardData();
+                                              }
+                                            }}
+                                            className="flex gap-2 items-center pt-1"
+                                          >
+                                            <input
+                                              type="url"
+                                              required
+                                              placeholder="Paste submission link (e.g. Google Drive / Figma / PDF)..."
+                                              className="flex-1 bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-[10px] font-mono focus:outline-none focus:border-primary"
+                                            />
+                                            <button
+                                              type="submit"
+                                              className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-lg transition-all shrink-0 cursor-pointer"
+                                            >
+                                              Submit
+                                            </button>
+                                          </form>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })
@@ -1126,12 +1196,12 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                   </div>
                 )}
 
-                {/* 3. ASSIGNMENTS TABLE */}
+                {/* 3. INDEPENDENT ASSIGNMENTS TABLE */}
                 <div className="bg-white border border-gray-100 rounded-2xl shadow-3xs overflow-hidden text-left" id="assignments-ledger-section">
                   <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <FileText className="h-4.5 w-4.5 text-[#8B1A1A]" />
-                      <h2 className="text-sm font-black text-gray-900 uppercase">Incubation Deliverables & Pitch Decks</h2>
+                      <h2 className="text-sm font-black text-gray-900 uppercase">Independent Cohort Deliverables & Milestones</h2>
                     </div>
                   </div>
 
@@ -1146,41 +1216,44 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 text-xs font-semibold">
-                        {assignments.map((as) => (
-                          <tr key={as.id} className="hover:bg-gray-50/30 transition-colors">
-                            <td className="px-5 py-4 space-y-1.5">
-                              <div className="flex items-center gap-2">
-                                <p className="font-extrabold text-gray-800 uppercase tracking-tight">{as.title}</p>
-                                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${
-                                  as.sessionTitle 
-                                    ? 'bg-blue-50 text-blue-700 border-blue-200' 
-                                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                }`}>
-                                  {as.sessionTitle ? `Session: ${as.sessionTitle}` : 'Cohort Assignment'}
-                                </span>
-                              </div>
-                              {as.description && (
-                                <p className="text-[11px] text-gray-500 font-normal leading-relaxed">{as.description}</p>
-                              )}
-                              {as.attachmentUrl && (
-                                <div>
-                                  <a
-                                    href={as.attachmentUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:underline bg-gray-50 px-2 py-0.5 rounded border border-gray-200"
-                                  >
-                                    <Download className="h-3 w-3" /> Reference Template
-                                  </a>
-                                </div>
-                              )}
-                              {as.fileName && (
-                                <p className="text-[10px] font-mono text-emerald-600 flex items-center gap-1 font-bold pt-0.5">
-                                  <CheckCircle2 className="h-3 w-3 shrink-0" />
-                                  Submitted: <a href={as.fileName} target="_blank" rel="noreferrer" className="underline">{as.fileName.split('/').pop()}</a> <span className="text-gray-400">({as.uploadedAt})</span>
-                                </p>
-                              )}
+                        {assignments.filter(as => !as.sessionTitle && !as.session_id).length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="px-5 py-8 text-center text-gray-400 font-bold text-xs">
+                              No independent cohort deliverables or pitch deck requests published yet.
                             </td>
+                          </tr>
+                        ) : (
+                          assignments.filter(as => !as.sessionTitle && !as.session_id).map((as) => (
+                            <tr key={as.id} className="hover:bg-gray-50/30 transition-colors">
+                              <td className="px-5 py-4 space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                  <p className="font-extrabold text-gray-800 uppercase tracking-tight">{as.title}</p>
+                                  <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded border bg-emerald-50 text-emerald-800 border-emerald-200">
+                                    Independent Deliverable
+                                  </span>
+                                </div>
+                                {as.description && (
+                                  <p className="text-[11px] text-gray-500 font-normal leading-relaxed">{as.description}</p>
+                                )}
+                                {as.attachmentUrl && (
+                                  <div>
+                                    <a
+                                      href={as.attachmentUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:underline bg-gray-50 px-2 py-0.5 rounded border border-gray-200"
+                                    >
+                                      <Download className="h-3 w-3" /> Reference Template
+                                    </a>
+                                  </div>
+                                )}
+                                {as.fileName && (
+                                  <p className="text-[10px] font-mono text-emerald-600 flex items-center gap-1 font-bold pt-0.5">
+                                    <CheckCircle2 className="h-3 w-3 shrink-0" />
+                                    Submitted: <a href={as.fileName} target="_blank" rel="noreferrer" className="underline">{as.fileName.split('/').pop()}</a> <span className="text-gray-400">({as.uploadedAt})</span>
+                                  </p>
+                                )}
+                              </td>
                             <td className="px-5 py-4 font-mono font-bold text-gray-500">
                               {as.deadline}
                             </td>
@@ -1240,7 +1313,8 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                               )}
                             </td>
                           </tr>
-                        ))}
+                        ))
+                        )}
                       </tbody>
                     </table>
                   </div>

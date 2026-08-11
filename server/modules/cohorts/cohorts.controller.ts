@@ -1468,7 +1468,31 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
         `SELECT * FROM cohort_sessions WHERE cohort_id = $1 ORDER BY date ASC, start_time ASC`,
         [cohortId]
       );
-      sessions = sessionsRes.rows;
+      
+      sessions = await Promise.all(
+        sessionsRes.rows.map(async (sess: any) => {
+          const sessAsgsRes = await query(
+            `SELECT * FROM assignments WHERE session_id = $1 ORDER BY created_at DESC`,
+            [sess.id]
+          );
+          const sessionAssignments = await Promise.all(
+            sessAsgsRes.rows.map(async (asg: any) => {
+              const subRes = await query(
+                `SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND applicant_id = $2`,
+                [asg.id, applicant.id]
+              );
+              return {
+                ...asg,
+                submission: subRes.rows[0] || null
+              };
+            })
+          );
+          return {
+            ...sess,
+            assignments: sessionAssignments
+          };
+        })
+      );
     }
 
     // 3. Fetch Attendance records

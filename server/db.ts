@@ -545,12 +545,54 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   }
 
   // 4. Cohort Sessions Interceptors
-  if (q.includes('select * from cohort_sessions') || q.includes('select * from cohort_sessions where cohort_id = $1')) {
+  if (q.includes('from cohort_sessions')) {
+    if (q.includes('update cohort_sessions')) {
+      const photoUrl = params[0];
+      const sid = parseInt(params[1]);
+      const sess = (db.cohort_sessions || []).find((s: any) => s.id === sid);
+      if (sess) {
+        sess.attendance_sheet_photo_url = photoUrl;
+        saveLocalDB(db);
+      }
+      return { rows: sess ? [sess] : [] };
+    }
+    if (q.includes('insert into cohort_sessions')) {
+      const id = Math.max(...(db.cohort_sessions || []).map((s: any) => s.id), 0) + 1;
+      const newSession = {
+        id,
+        cohort_id: parseInt(params[0]),
+        title: params[1],
+        date: params[2],
+        start_time: params[3],
+        end_time: params[4],
+        mentor_name: params[5] || null,
+        topic_category: params[6] || null,
+        venue: params[7] || null,
+        recording_url: params[8] || null,
+        attendance_sheet_photo_url: null,
+        created_at: new Date().toISOString()
+      };
+      db.cohort_sessions = db.cohort_sessions || [];
+      db.cohort_sessions.push(newSession);
+      saveLocalDB(db);
+      return { rows: [newSession] };
+    }
+    if (q.includes('delete from cohort_sessions')) {
+      const sid = parseInt(params[0]);
+      const idx = (db.cohort_sessions || []).findIndex((s: any) => s.id === sid);
+      let deleted = null;
+      if (idx !== -1) {
+        deleted = db.cohort_sessions.splice(idx, 1)[0];
+        saveLocalDB(db);
+      }
+      return { rows: deleted ? [deleted] : [] };
+    }
+
     let list: any[] = [];
-    if (params.length > 0 && q.includes('where id = $1')) {
+    if (params.length > 0 && (q.includes('where id = $1') || q.includes('id = $1'))) {
       const sid = parseInt(params[0]);
       list = (db.cohort_sessions || []).filter((s: any) => s.id === sid);
-    } else if (params.length > 0) {
+    } else if (params.length > 0 && (q.includes('where cohort_id = $1') || q.includes('cohort_id = $1'))) {
       const cid = parseInt(params[0]);
       list = (db.cohort_sessions || []).filter((s: any) => s.cohort_id === cid);
     } else {
@@ -583,47 +625,6 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     });
 
     return { rows: enriched };
-  }
-  if (q.includes('update cohort_sessions set attendance_sheet_photo_url')) {
-    const photoUrl = params[0];
-    const sid = parseInt(params[1]);
-    const sess = (db.cohort_sessions || []).find((s: any) => s.id === sid);
-    if (sess) {
-      sess.attendance_sheet_photo_url = photoUrl;
-      saveLocalDB(db);
-    }
-    return { rows: sess ? [sess] : [] };
-  }
-  if (q.includes('insert into cohort_sessions')) {
-    const id = Math.max(...(db.cohort_sessions || []).map((s: any) => s.id), 0) + 1;
-    const newSession = {
-      id,
-      cohort_id: parseInt(params[0]),
-      title: params[1],
-      date: params[2],
-      start_time: params[3],
-      end_time: params[4],
-      mentor_name: params[5] || null,
-      topic_category: params[6] || null,
-      venue: params[7] || null,
-      recording_url: params[8] || null,
-      attendance_sheet_photo_url: null,
-      created_at: new Date().toISOString()
-    };
-    db.cohort_sessions = db.cohort_sessions || [];
-    db.cohort_sessions.push(newSession);
-    saveLocalDB(db);
-    return { rows: [newSession] };
-  }
-  if (q.includes('delete from cohort_sessions where id = $1')) {
-    const sid = parseInt(params[0]);
-    const idx = (db.cohort_sessions || []).findIndex((s: any) => s.id === sid);
-    let deleted = null;
-    if (idx !== -1) {
-      deleted = db.cohort_sessions.splice(idx, 1)[0];
-      saveLocalDB(db);
-    }
-    return { rows: deleted ? [deleted] : [] };
   }
 
   // 5. Session Attendance Interceptors
@@ -664,12 +665,6 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   }
 
   // 5b. Assignments Interceptors
-  if (q.includes('delete from assignment_submissions')) {
-    const aid = parseInt(params[0]);
-    db.assignment_submissions = (db.assignment_submissions || []).filter((s: any) => s.assignment_id !== aid);
-    saveLocalDB(db);
-    return { rows: [] };
-  }
   if (q.includes('delete from assignments')) {
     const aid = parseInt(params[0]);
     const idx = (db.assignments || []).findIndex((a: any) => a.id === aid);
@@ -681,9 +676,65 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     }
     return { rows: deleted ? [deleted] : [] };
   }
-  if (q.includes('select * from assignments where session_id = $1')) {
+  if (q.includes('insert into assignments')) {
+    db.assignments = db.assignments || [];
+    const id = Math.max(...db.assignments.map((a: any) => a.id), 0) + 1;
+    let cohort_id: number | null = null;
+    let session_id: number | null = null;
+    let title = '';
+    let description: string | null = null;
+    let due_date = '';
+    let attachment_url: string | null = null;
+
+    if (q.includes('(cohort_id, session_id')) {
+      cohort_id = params[0] ? parseInt(params[0]) : null;
+      session_id = null;
+      title = params[1] || '';
+      description = params[2] || null;
+      due_date = params[3] || '';
+      attachment_url = params[4] || null;
+    } else if (q.includes('(session_id, cohort_id')) {
+      session_id = params[0] ? parseInt(params[0]) : null;
+      cohort_id = params[1] ? parseInt(params[1]) : null;
+      title = params[2] || '';
+      description = params[3] || null;
+      due_date = params[4] || '';
+      attachment_url = params[5] || null;
+    } else {
+      title = params[0] || '';
+      due_date = params[1] || '';
+    }
+
+    const newAsg = {
+      id,
+      cohort_id,
+      session_id,
+      title,
+      description,
+      due_date,
+      attachment_url,
+      created_at: new Date().toISOString()
+    };
+    db.assignments.push(newAsg);
+    saveLocalDB(db);
+    return { rows: [newAsg] };
+  }
+  if (q.includes('session_id = $1') || q.includes('a.session_id = $1')) {
     const sid = parseInt(params[0]);
-    return { rows: (db.assignments || []).filter((a: any) => a.session_id === sid) };
+    const list = (db.assignments || []).filter((a: any) => a.session_id === sid).map((asg: any) => {
+      const sub_count = (db.assignment_submissions || []).filter((s: any) => s.assignment_id === asg.id).length;
+      return { ...asg, sub_count };
+    });
+    return { rows: list };
+  }
+  if (q.includes('session_id is null') || q.includes('a.session_id is null')) {
+    db.assignments = db.assignments || [];
+    const targetCohortId = (params && params[0] && !isNaN(parseInt(params[0]))) ? parseInt(params[0]) : null;
+    let list = db.assignments.filter((a: any) => !a.session_id);
+    if (targetCohortId !== null) {
+      list = list.filter((a: any) => a.cohort_id === targetCohortId);
+    }
+    return { rows: list };
   }
   if (q.includes('select * from assignments where id = $1')) {
     const aid = parseInt(params[0]);
@@ -715,35 +766,52 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   }
 
   // 5c. Assignment Submissions Interceptors
-  if (q.includes('select * from assignment_submissions where assignment_id = $1')) {
+  if (q.includes('from assignment_submissions')) {
+    if (q.includes('delete from assignment_submissions')) {
+      const aid = parseInt(params[0]);
+      db.assignment_submissions = (db.assignment_submissions || []).filter((s: any) => s.assignment_id !== aid);
+      saveLocalDB(db);
+      return { rows: [] };
+    }
+    if (q.includes('insert into assignment_submissions')) {
+      db.assignment_submissions = db.assignment_submissions || [];
+      const asgId = parseInt(params[0]);
+      const appId = parseInt(params[1]);
+      const fileUrl = params[2];
+      let existing = db.assignment_submissions.find((s: any) => s.assignment_id === asgId && s.applicant_id === appId);
+      if (existing) {
+        existing.file_url = fileUrl;
+        existing.updated_at = new Date().toISOString();
+        saveLocalDB(db);
+        return { rows: [existing] };
+      } else {
+        const id = Math.max(...db.assignment_submissions.map((s: any) => s.id), 0) + 1;
+        const newSub = {
+          id,
+          assignment_id: asgId,
+          applicant_id: appId,
+          file_url: fileUrl,
+          submitted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        db.assignment_submissions.push(newSub);
+        saveLocalDB(db);
+        return { rows: [newSub] };
+      }
+    }
+    if (q.includes('count')) {
+      const aid = parseInt(params[0]);
+      const count = (db.assignment_submissions || []).filter((s: any) => s.assignment_id === aid).length;
+      return { rows: [{ count: count.toString() }] };
+    }
+    if (params.length >= 2 && q.includes('applicant_id = $2')) {
+      const asgId = parseInt(params[0]);
+      const appId = parseInt(params[1]);
+      const found = (db.assignment_submissions || []).find((s: any) => s.assignment_id === asgId && s.applicant_id === appId);
+      return { rows: found ? [found] : [] };
+    }
     const aid = parseInt(params[0]);
     return { rows: (db.assignment_submissions || []).filter((s: any) => s.assignment_id === aid) };
-  }
-  if (q.includes('insert into assignment_submissions')) {
-    db.assignment_submissions = db.assignment_submissions || [];
-    const asgId = parseInt(params[0]);
-    const appId = parseInt(params[1]);
-    const fileUrl = params[2];
-    let existing = db.assignment_submissions.find((s: any) => s.assignment_id === asgId && s.applicant_id === appId);
-    if (existing) {
-      existing.file_url = fileUrl;
-      existing.updated_at = new Date().toISOString();
-      saveLocalDB(db);
-      return { rows: [existing] };
-    } else {
-      const id = Math.max(...db.assignment_submissions.map((s: any) => s.id), 0) + 1;
-      const newSub = {
-        id,
-        assignment_id: asgId,
-        applicant_id: appId,
-        file_url: fileUrl,
-        submitted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      db.assignment_submissions.push(newSub);
-      saveLocalDB(db);
-      return { rows: [newSub] };
-    }
   }
 
   // 6. Team Check-ins Interceptors
@@ -929,12 +997,30 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   if (q.includes('insert into checkin_checklist_items')) {
     db.checkin_checklist_items = db.checkin_checklist_items || [];
     const id = Math.max(...db.checkin_checklist_items.map((i: any) => i.id), 0) + 1;
+    const chkId = parseInt(params[0]);
+    let origId = chkId;
+    let desc = '';
+
+    if (params.length === 2) {
+      // params = [checkinId, description]
+      desc = String(params[1] || '');
+    } else if (params.length >= 3) {
+      // check if second param is numeric originating_checkin_id
+      const p1Num = parseInt(params[1]);
+      if (!isNaN(p1Num) && String(params[1]) === String(p1Num)) {
+        origId = p1Num;
+        desc = String(params[2] || '');
+      } else {
+        desc = String(params[1] || '');
+      }
+    }
+
     const newItem = {
       id,
-      checkin_id: parseInt(params[0]),
-      originating_checkin_id: params[1] ? parseInt(params[1]) : parseInt(params[0]),
-      description: params[2],
-      is_completed: params[3] === true || params[3] === 'true',
+      checkin_id: chkId,
+      originating_checkin_id: origId,
+      description: desc,
+      is_completed: false,
       created_at: new Date().toISOString()
     };
     db.checkin_checklist_items.push(newItem);
@@ -1863,7 +1949,8 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
           founder_email: app?.email || '',
           founder_phone: app?.phone || '',
           founder_cnic: app?.cnic || '',
-          founder_tracking_token: app?.tracking_token || ''
+          founder_tracking_token: app?.tracking_token || '',
+          founder_password: app?.founder_password || ''
         }] };
       }
       return { rows: [] };
@@ -1883,7 +1970,8 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
           founder_email: app?.email || '',
           founder_phone: app?.phone || '',
           founder_cnic: app?.cnic || '',
-          founder_tracking_token: app?.tracking_token || ''
+          founder_tracking_token: app?.tracking_token || '',
+          founder_password: app?.founder_password || ''
         }] };
       }
       return { rows: [] };
@@ -1901,7 +1989,8 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
         founder_email: app?.email || '',
         founder_phone: app?.phone || '',
         founder_cnic: app?.cnic || '',
-        founder_tracking_token: app?.tracking_token || ''
+        founder_tracking_token: app?.tracking_token || '',
+        founder_password: app?.founder_password || ''
       };
     });
     return { rows };

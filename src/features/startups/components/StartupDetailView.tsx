@@ -373,7 +373,7 @@ export const StartupDetailView: React.FC<Props> = ({
               </div>
             </div>
             <p className="text-[10px] text-gray-500 font-medium mt-1 truncate">
-              Current password: <span className="font-mono font-bold text-gray-800">{profile.founder_password || 'Not set'}</span>
+              Current password: <span className="font-mono font-bold text-gray-800">{profile.founder_password || profile.founders?.find((f: any) => f.role === 'PRIMARY' || f.id === profile.applicant_id)?.founder_password || profile.founders?.[0]?.founder_password || 'Not set'}</span>
             </p>
           </div>
 
@@ -554,7 +554,9 @@ export const StartupDetailView: React.FC<Props> = ({
                   <div>
                     <p className="text-[11px] font-bold text-rose-800 uppercase">Portal Login Password</p>
                     <p className="font-mono font-black text-rose-950 text-sm mt-0.5">
-                      {showPassword ? profile.founder_password || 'Not set' : '••••••••••••'}
+                      {showPassword 
+                        ? (profile.founder_password || profile.founders?.find((f: any) => f.role === 'PRIMARY' || f.id === profile.applicant_id)?.founder_password || profile.founders?.[0]?.founder_password || 'Not set') 
+                        : '••••••••••••'}
                     </p>
                   </div>
                   <button

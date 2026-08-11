@@ -7,7 +7,7 @@
       "full_name": "Qaseeb Ahmed",
       "password": "Tk#304544",
       "is_active": true,
-      "last_login": "2026-08-09T16:25:25.140Z",
+      "last_login": "2026-08-10T11:16:04.723Z",
       "created_at": "2026-08-09T13:44:11.773Z"
     },
     {
@@ -17,7 +17,7 @@
       "full_name": "manager",
       "password": null,
       "is_active": true,
-      "last_login": "2026-08-09T14:02:57.805Z",
+      "last_login": "2026-08-10T10:46:56.851Z",
       "created_at": "2026-08-09T14:00:26.762Z"
     },
     {
@@ -49,6 +49,16 @@
       "is_active": true,
       "last_login": "2026-08-09T14:27:37.026Z",
       "created_at": "2026-08-09T14:27:37.026Z"
+    },
+    {
+      "id": 6,
+      "microsoft_id": null,
+      "email": "3895558a6f5cf6ab",
+      "full_name": "leon.jinooo@gmail.com",
+      "password": "leon jinooo",
+      "is_active": true,
+      "last_login": "2026-08-10T10:52:27.007Z",
+      "created_at": "2026-08-10T10:52:27.008Z"
     }
   ],
   "roles": [
@@ -162,6 +172,10 @@
     {
       "user_id": 4,
       "role_id": 1
+    },
+    {
+      "user_id": 6,
+      "role_id": 4
     }
   ],
   "cohorts": [
@@ -713,6 +727,102 @@
       "previous_value": null,
       "new_value": null,
       "timestamp": "2026-08-09T16:25:25.144Z"
+    },
+    {
+      "id": 38,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-10T09:36:12.525Z"
+    },
+    {
+      "id": 39,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-10T09:53:46.376Z"
+    },
+    {
+      "id": 40,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-10T10:05:04.399Z"
+    },
+    {
+      "id": 41,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-10T10:19:07.581Z"
+    },
+    {
+      "id": 42,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-10T10:39:53.726Z"
+    },
+    {
+      "id": 43,
+      "action": "User signed in via Microsoft SSO: Light Yagami (l8ght789@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "2",
+      "actor_email": "l8ght789@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-10T10:46:56.855Z"
+    },
+    {
+      "id": 44,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-10T10:47:31.968Z"
+    },
+    {
+      "id": 45,
+      "action": "User registered via Microsoft SSO: leon jinooo (leon.jinooo@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "6",
+      "actor_email": "leon.jinooo@gmail.com",
+      "previous_value": null,
+      "new_value": {
+        "email": "3895558a6f5cf6ab",
+        "name": "leon.jinooo@gmail.com",
+        "role": "UCP Member",
+        "status": "Active",
+        "permissions": []
+      },
+      "timestamp": "2026-08-10T10:52:27.011Z"
+    },
+    {
+      "id": 46,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-10T11:16:04.729Z"
     }
   ],
   "rooms": [
@@ -1294,6 +1404,46 @@
       "old_value": null,
       "new_value": null,
       "created_at": "2026-08-09T16:23:18.848Z"
+    }
+  ],
+  "checkins": [
+    {
+      "id": 1,
+      "startup_profile_id": 1,
+      "cohort_id": 1,
+      "scheduled_at": "2026-08-10T10:05:00.000Z",
+      "notes": null,
+      "attendance_status": "attended",
+      "created_by_user_id": 1,
+      "created_by_email": "qaseebahmed@gmail.com",
+      "created_at": "2026-08-10T10:05:29.950Z",
+      "updated_at": "2026-08-10T10:05:29.950Z"
+    }
+  ],
+  "checkin_checklist_items": [
+    {
+      "id": 1,
+      "checkin_id": 1,
+      "originating_checkin_id": 1,
+      "description": "Review monthly target KPIs & milestones",
+      "is_completed": false,
+      "created_at": "2026-08-10T11:34:12.659Z"
+    },
+    {
+      "id": 2,
+      "checkin_id": 1,
+      "originating_checkin_id": 1,
+      "description": "Update pitch deck financial projection model",
+      "is_completed": false,
+      "created_at": "2026-08-10T11:34:20.255Z"
+    },
+    {
+      "id": 3,
+      "checkin_id": 1,
+      "originating_checkin_id": 1,
+      "description": "Schedule follow-up mentor advisory session",
+      "is_completed": false,
+      "created_at": "2026-08-10T11:34:24.122Z"
     }
   ]
 }
