@@ -400,6 +400,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
                 <div className="flex items-center justify-center gap-3 bg-white border border-emerald-200 rounded-xl px-4 py-3 shadow-xs">
                   <span className="font-mono text-lg font-black text-primary select-all tracking-wider">{successData.id}</span>
                   <button 
+                    type="button"
                     onClick={() => copyToClipboard(successData.id)}
                     className="p-1.5 text-gray-400 hover:text-primary hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
                     title="Copy Reference Code"
@@ -414,12 +415,14 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button 
+                  type="button"
                   onClick={() => onNavigate(`/track?token=${successData.id}`)}
                   className="w-full sm:w-auto flex-1 bg-primary hover:bg-primary/95 text-white font-bold py-3 px-6 rounded-xl text-xs uppercase tracking-wider cursor-pointer shadow-md transition-all flex items-center justify-center gap-2"
                 >
                   <Search className="h-4 w-4" /> Track Status Page
                 </button>
                 <button 
+                  type="button"
                   onClick={() => setSuccessData(null)}
                   className="w-full sm:w-auto bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 px-5 rounded-xl text-xs uppercase tracking-wider cursor-pointer transition-colors"
                 >
