@@ -92,13 +92,23 @@
     },
     {
       "id": 10,
-      "microsoft_id": null,
+      "microsoft_id": "2e09babe3717cd6e",
       "email": "takhleeqadmin@gmail.com",
       "full_name": "Takhleeq Admin",
       "password": "admin",
       "is_active": true,
-      "last_login": "2026-08-11T07:34:05.550Z",
+      "last_login": "2026-08-11T07:36:48.571Z",
       "created_at": "2026-08-11T07:34:05.550Z"
+    },
+    {
+      "id": 11,
+      "microsoft_id": null,
+      "email": "agha69428@gmail.com",
+      "full_name": "Agha Admin",
+      "password": "admin",
+      "is_active": true,
+      "last_login": "2026-08-11T08:15:00.000Z",
+      "created_at": "2026-08-11T08:15:00.000Z"
     }
   ],
   "roles": [
@@ -231,6 +241,10 @@
     },
     {
       "user_id": 10,
+      "role_id": 1
+    },
+    {
+      "user_id": 11,
       "role_id": 1
     }
   ],
@@ -920,6 +934,16 @@
         "permissions": []
       },
       "timestamp": "2026-08-11T07:34:05.554Z"
+    },
+    {
+      "id": 50,
+      "action": "User signed in via Microsoft SSO: takhleeq admin (takhleeqadmin@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "10",
+      "actor_email": "takhleeqadmin@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-11T07:36:48.577Z"
     }
   ],
   "rooms": [
