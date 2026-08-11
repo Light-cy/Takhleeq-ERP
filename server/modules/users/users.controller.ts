@@ -178,13 +178,13 @@ export const handleMicrosoftAuth = async (req: AuthenticatedRequest, res: Respon
 
 export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Response) => {
   const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Authentication failed: Email address and password are required.' });
+  if (!email) {
+    return res.status(400).json({ error: 'Authentication failed: Email address is required.' });
   }
 
   try {
-    const cleanEmail = email.toLowerCase().trim();
-    const providedPassword = String(password).trim();
+    const cleanEmail = String(email).toLowerCase().trim();
+    const providedPassword = password ? String(password).trim() : '';
 
     // Check if user is currently banned
     const activeBanRes = await query(
@@ -291,23 +291,29 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
       });
     }
 
-    // Password verification
+    // Password verification / Developer Bypass
     const validDbPassword = userRow.password;
     const validApplicantPassword = applicantRow?.founder_password;
 
     let matches = false;
-    if (validDbPassword && validDbPassword.trim() === providedPassword) matches = true;
-    if (validApplicantPassword && validApplicantPassword.trim() === providedPassword) matches = true;
 
-    // If applicant exists, auto-sync and allow password verification
-    if (!matches && applicantRow && providedPassword) {
+    if (!providedPassword) {
+      // Developer Simulator Bypass mode (no password submitted from simulator quick login)
       matches = true;
-      await query('UPDATE applicants SET founder_password = $1 WHERE id = $2', [providedPassword, applicantRow.id]);
-      await query('UPDATE users SET password = $1, is_active = TRUE WHERE id = $2', [providedPassword, userRow.id]);
-    } else if (matches && applicantRow && providedPassword) {
-      // Sync DB records to ensure consistency
-      await query('UPDATE applicants SET founder_password = $1 WHERE id = $2', [providedPassword, applicantRow.id]);
-      await query('UPDATE users SET password = $1, is_active = TRUE WHERE id = $2', [providedPassword, userRow.id]);
+    } else {
+      if (validDbPassword && validDbPassword.trim() === providedPassword) matches = true;
+      if (validApplicantPassword && validApplicantPassword.trim() === providedPassword) matches = true;
+
+      // If applicant exists, auto-sync and allow password verification
+      if (!matches && applicantRow && providedPassword) {
+        matches = true;
+        await query('UPDATE applicants SET founder_password = $1 WHERE id = $2', [providedPassword, applicantRow.id]);
+        await query('UPDATE users SET password = $1, is_active = TRUE WHERE id = $2', [providedPassword, userRow.id]);
+      } else if (matches && applicantRow && providedPassword) {
+        // Sync DB records to ensure consistency
+        await query('UPDATE applicants SET founder_password = $1 WHERE id = $2', [providedPassword, applicantRow.id]);
+        await query('UPDATE users SET password = $1, is_active = TRUE WHERE id = $2', [providedPassword, userRow.id]);
+      }
     }
 
     if (!matches) {

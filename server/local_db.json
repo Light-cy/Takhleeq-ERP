@@ -7,7 +7,7 @@
       "full_name": "Qaseeb Ahmed",
       "password": "Tk#304544",
       "is_active": true,
-      "last_login": "2026-08-10T11:16:04.723Z",
+      "last_login": "2026-08-11T07:21:24.851Z",
       "created_at": "2026-08-09T13:44:11.773Z"
     },
     {
@@ -59,6 +59,46 @@
       "is_active": true,
       "last_login": "2026-08-10T10:52:27.007Z",
       "created_at": "2026-08-10T10:52:27.008Z"
+    },
+    {
+      "id": 7,
+      "microsoft_id": null,
+      "email": "agha69428@gmail.com",
+      "full_name": "agha",
+      "password": null,
+      "is_active": true,
+      "last_login": "2026-08-11T07:22:38.894Z",
+      "created_at": "2026-08-11T07:22:38.894Z"
+    },
+    {
+      "id": 8,
+      "microsoft_id": null,
+      "email": "admin@ucp.edu.pk",
+      "full_name": "Admin",
+      "password": null,
+      "is_active": true,
+      "last_login": "2026-08-11T07:30:41.735Z",
+      "created_at": "2026-08-11T07:30:41.735Z"
+    },
+    {
+      "id": 9,
+      "microsoft_id": null,
+      "email": "manager@ucp.edu.pk",
+      "full_name": "Manager",
+      "password": null,
+      "is_active": true,
+      "last_login": "2026-08-11T07:31:13.407Z",
+      "created_at": "2026-08-11T07:31:13.407Z"
+    },
+    {
+      "id": 10,
+      "microsoft_id": null,
+      "email": "takhleeqadmin@gmail.com",
+      "full_name": "Takhleeq Admin",
+      "password": "admin",
+      "is_active": true,
+      "last_login": "2026-08-11T07:34:05.550Z",
+      "created_at": "2026-08-11T07:34:05.550Z"
     }
   ],
   "roles": [
@@ -176,6 +216,22 @@
     {
       "user_id": 6,
       "role_id": 4
+    },
+    {
+      "user_id": 7,
+      "role_id": 1
+    },
+    {
+      "user_id": 8,
+      "role_id": 4
+    },
+    {
+      "user_id": 9,
+      "role_id": 2
+    },
+    {
+      "user_id": 10,
+      "role_id": 1
     }
   ],
   "cohorts": [
@@ -823,6 +879,47 @@
       "previous_value": null,
       "new_value": null,
       "timestamp": "2026-08-10T11:16:04.729Z"
+    },
+    {
+      "id": 47,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-11T07:21:24.855Z"
+    },
+    {
+      "id": 48,
+      "action": "Created User Account: agha (agha69428@gmail.com) with role Administrator",
+      "entity_type": "user",
+      "entity_id": "7",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": {
+        "email": "agha69428@gmail.com",
+        "name": "agha",
+        "role": "Administrator",
+        "status": "Active"
+      },
+      "timestamp": "2026-08-11T07:22:38.896Z"
+    },
+    {
+      "id": 49,
+      "action": "User registered via Microsoft SSO: takhleeq admin (takhleeqadmin@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "10",
+      "actor_email": "takhleeqadmin@gmail.com",
+      "previous_value": null,
+      "new_value": {
+        "email": "takhleeqadmin@gmail.com",
+        "name": "Takhleeq Admin",
+        "role": "Administrator",
+        "status": "Active",
+        "permissions": []
+      },
+      "timestamp": "2026-08-11T07:34:05.554Z"
     }
   ],
   "rooms": [

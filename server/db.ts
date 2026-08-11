@@ -2267,6 +2267,13 @@ async function ensureDBReady() {
           ON CONFLICT (email) DO UPDATE SET
             full_name = EXCLUDED.full_name,
             is_active = EXCLUDED.is_active;
+
+          INSERT INTO users (email, full_name, is_active, last_login)
+          VALUES 
+          ('takhleeqadmin@gmail.com', 'Takhleeq Admin', TRUE, CURRENT_TIMESTAMP)
+          ON CONFLICT (email) DO UPDATE SET
+            full_name = EXCLUDED.full_name,
+            is_active = EXCLUDED.is_active;
         `);
 
         // Get actual role IDs to make sure we map user_roles correctly
@@ -2285,7 +2292,8 @@ async function ensureDBReady() {
 
         // 3. Set standard user roles
         const assignments = [
-          { email: 'qaseebahmed@gmail.com', role: 'Administrator' }
+          { email: 'qaseebahmed@gmail.com', role: 'Administrator' },
+          { email: 'takhleeqadmin@gmail.com', role: 'Administrator' }
         ];
 
         for (const assign of assignments) {
