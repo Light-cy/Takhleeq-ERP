@@ -177,6 +177,16 @@ export default function App() {
 
   // Initialize session on boot from localStorage
   useEffect(() => {
+    const handleSessionExpired = () => {
+      localStorage.removeItem('jwtToken');
+      localStorage.removeItem('currentUser');
+      setJwtToken(null);
+      setActiveUser(null);
+      setGlobalBannedError(null);
+      navigate('/login');
+    };
+    window.addEventListener('auth:session_expired', handleSessionExpired);
+
     const initAuth = async () => {
       const storedToken = localStorage.getItem('jwtToken');
       if (storedToken) {
@@ -189,6 +199,8 @@ export default function App() {
       setLoading(false);
     };
     initAuth();
+
+    return () => window.removeEventListener('auth:session_expired', handleSessionExpired);
   }, []);
 
   // Auto-refresh the back-office queue or calendar when on the staff dashboard
@@ -524,6 +536,8 @@ export default function App() {
             <BookingFormPage 
               rooms={rooms}
               selectedUserEmail={activeUser?.email || ''}
+              activeUser={activeUser}
+              jwtToken={jwtToken}
               onBookingSubmitted={fetchStateData}
               onNavigate={navigate}
             />

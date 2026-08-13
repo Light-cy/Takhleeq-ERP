@@ -835,6 +835,9 @@ export const createCohortSession = async (req: AuthenticatedRequest, res: Respon
     );
 
     const session = result.rows[0];
+    if (!session) {
+      return res.status(500).json({ error: 'Failed to create session record.' });
+    }
 
     // Automatically create attendance records for every active/confirmed startup in this cohort
     try {
@@ -842,19 +845,23 @@ export const createCohortSession = async (req: AuthenticatedRequest, res: Respon
         `SELECT id FROM applicants WHERE cohort_id = $1 AND (program_status = 'ACTIVE' OR status = 'CONFIRMED')`,
         [parseInt(id)]
       );
-      if (startupsRes.rows.length === 0) {
+      if (!startupsRes.rows || startupsRes.rows.length === 0) {
         startupsRes = await query(`SELECT id FROM applicants WHERE cohort_id = $1`, [parseInt(id)]);
       }
-      if (startupsRes.rows.length === 0) {
+      if (!startupsRes.rows || startupsRes.rows.length === 0) {
         startupsRes = await query(`SELECT id FROM applicants LIMIT 10`);
       }
 
-      for (const st of startupsRes.rows) {
-        await query(
-          `INSERT INTO session_attendance (session_id, applicant_id, status)
-           VALUES ($1, $2, 'not_marked')`,
-          [session.id, st.id]
-        );
+      if (startupsRes.rows) {
+        for (const st of startupsRes.rows) {
+          if (st && st.id) {
+            await query(
+              `INSERT INTO session_attendance (session_id, applicant_id, status)
+               VALUES ($1, $2, 'not_marked')`,
+              [session.id, st.id]
+            );
+          }
+        }
       }
     } catch (attErr) {
       console.error('Failed to auto-seed session attendance records:', attErr);
@@ -1038,9 +1045,80 @@ export const createCohortAssignment = async (req: AuthenticatedRequest, res: Res
   }
 };
 
+export const syncProfileAssignmentsToDatabase = async () => {
+  try {
+    const allAppsRes = await query('SELECT id, cohort_id, form_data FROM applicants');
+    const existingAsgsRes = await query('SELECT * FROM assignments');
+    const existingSubsRes = await query('SELECT * FROM assignment_submissions');
+
+    for (const app of (allAppsRes.rows || [])) {
+      try {
+        const formData = typeof app.form_data === 'string' ? JSON.parse(app.form_data) : app.form_data;
+        const profileAsgs = formData?.profile?.assignments || [];
+
+        for (const pa of profileAsgs) {
+          if (!pa || !pa.title) continue;
+
+          // Search if matching assignment exists in DB
+          let dbAsg = (existingAsgsRes.rows || []).find((a: any) => 
+            String(a.id) === String(pa.id) || 
+            (a.title && pa.title && a.title.toLowerCase().trim() === pa.title.toLowerCase().trim())
+          );
+
+          if (!dbAsg) {
+            // Create assignment in DB table
+            const targetCohortId = app.cohort_id || 1;
+            const insRes = await query(
+              `INSERT INTO assignments (cohort_id, session_id, title, description, due_date, attachment_url)
+               VALUES ($1, NULL, $2, $3, $4, $5) RETURNING *`,
+              [
+                targetCohortId,
+                pa.title.trim(),
+                pa.description || 'Independent Cohort Deliverable',
+                pa.deadline || pa.due_date || 'No deadline',
+                pa.attachmentUrl || null
+              ]
+            );
+            if (insRes.rows && insRes.rows[0]) {
+              dbAsg = insRes.rows[0];
+              existingAsgsRes.rows.push(dbAsg);
+            }
+          }
+
+          if (dbAsg && (pa.status === 'SUBMITTED' || pa.fileName)) {
+            // Check if submission exists
+            const dbSub = (existingSubsRes.rows || []).find((s: any) => 
+              s.assignment_id === dbAsg.id && s.applicant_id === app.id
+            );
+
+            if (!dbSub) {
+              const fileUrl = pa.fileName || '/uploads/submission.pdf';
+              const submittedAt = pa.uploadedAt || new Date().toISOString();
+              const insSubRes = await query(
+                `INSERT INTO assignment_submissions (assignment_id, applicant_id, file_url, submitted_at)
+                 VALUES ($1, $2, $3, $4) RETURNING *`,
+                [dbAsg.id, app.id, fileUrl, submittedAt]
+              );
+              if (insSubRes.rows && insSubRes.rows[0]) {
+                existingSubsRes.rows.push(insSubRes.rows[0]);
+              }
+            }
+          }
+        }
+      } catch (appErr) {
+        // ignore individual applicant parse error
+      }
+    }
+  } catch (err) {
+    console.warn('Sync profile assignments error:', err);
+  }
+};
+
 export const getCohortAssignments = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params; // cohort_id
   try {
+    await syncProfileAssignmentsToDatabase();
+
     const cohortId = (id && !isNaN(parseInt(id))) ? parseInt(id) : null;
     const result = await query(
       `SELECT a.*, cs.title as session_title 
@@ -1055,12 +1133,14 @@ export const getCohortAssignments = async (req: AuthenticatedRequest, res: Respo
     const assignmentsWithStats = await Promise.all(
       result.rows.map(async (asg: any) => {
         const countRes = await query(
-          `SELECT COUNT(*) as count FROM assignment_submissions WHERE assignment_id = $1`,
+          `SELECT applicant_id FROM assignment_submissions WHERE assignment_id = $1`,
           [asg.id]
         );
+        const submittedApplicantIds = new Set((countRes.rows || []).map((r: any) => r.applicant_id));
+
         return {
           ...asg,
-          submissions_count: parseInt(countRes.rows[0]?.count || '0')
+          submissions_count: submittedApplicantIds.size
         };
       })
     );
@@ -1116,8 +1196,31 @@ export const getSessionAssignments = async (req: AuthenticatedRequest, res: Resp
 export const deleteSessionAssignment = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params; // assignment_id
   try {
-    await query('DELETE FROM assignment_submissions WHERE assignment_id = $1', [parseInt(id)]);
-    await query('DELETE FROM assignments WHERE id = $1', [parseInt(id)]);
+    const asgId = parseInt(id);
+    const asgRes = await query('SELECT title FROM assignments WHERE id = $1', [asgId]);
+    const title = asgRes.rows[0]?.title;
+
+    await query('DELETE FROM assignment_submissions WHERE assignment_id = $1', [asgId]);
+    await query('DELETE FROM assignments WHERE id = $1', [asgId]);
+
+    // Cleanup from applicants profile JSON
+    try {
+      const allAppsRes = await query('SELECT id, form_data FROM applicants');
+      for (const app of (allAppsRes.rows || [])) {
+        if (!app.form_data) continue;
+        const formData = typeof app.form_data === 'string' ? JSON.parse(app.form_data) : app.form_data;
+        if (formData.profile?.assignments) {
+          formData.profile.assignments = formData.profile.assignments.filter((pa: any) => 
+            String(pa.id) !== String(asgId) && 
+            (!title || !pa.title || pa.title.toLowerCase().trim() !== title.toLowerCase().trim())
+          );
+          await query('UPDATE applicants SET form_data = $1 WHERE id = $2', [JSON.stringify(formData), app.id]);
+        }
+      }
+    } catch (cleanErr) {
+      console.warn('Cleanup profile assignments error:', cleanErr);
+    }
+
     res.json({ success: true });
   } catch (err: any) {
     console.error('Failed to delete assignment:', err);
@@ -1128,6 +1231,8 @@ export const deleteSessionAssignment = async (req: AuthenticatedRequest, res: Re
 export const getAssignmentSubmissions = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params; // assignment_id
   try {
+    await syncProfileAssignmentsToDatabase();
+
     const asgRes = await query('SELECT * FROM assignments WHERE id = $1', [parseInt(id)]);
     if (asgRes.rows.length === 0) {
       return res.status(404).json({ error: 'Assignment not found.' });
@@ -1140,9 +1245,16 @@ export const getAssignmentSubmissions = async (req: AuthenticatedRequest, res: R
       cohortId = sessRes.rows[0]?.cohort_id;
     }
 
-    let applicantsRes = await query('SELECT id, name, startup_name, email FROM applicants WHERE cohort_id = $1 OR status = \'CONFIRMED\'', [cohortId]);
+    let applicantsRes = await query(
+      `SELECT id, name, startup_name, email, form_data 
+       FROM applicants 
+       WHERE (cohort_id = $1 OR $1::integer IS NULL) 
+          OR status IN ('CONFIRMED', 'ENROLLED', 'ACCEPTED', 'SELECTED', 'ACTIVE', 'IN_PROGRAM')
+          OR id IN (SELECT applicant_id FROM assignment_submissions WHERE assignment_id = $2)`,
+      [cohortId, parseInt(id)]
+    );
     if (applicantsRes.rows.length === 0) {
-      applicantsRes = await query('SELECT id, name, startup_name, email FROM applicants ORDER BY id ASC');
+      applicantsRes = await query('SELECT id, name, startup_name, email, form_data FROM applicants ORDER BY id ASC');
     }
 
     const submissionsRes = await query('SELECT * FROM assignment_submissions WHERE assignment_id = $1', [parseInt(id)]);
@@ -1152,14 +1264,31 @@ export const getAssignmentSubmissions = async (req: AuthenticatedRequest, res: R
 
     const submissions = (applicantsRes.rows || []).map((app: any) => {
       const sub = subMap.get(app.id);
+
+      let profileSub: any = null;
+      try {
+        const formData = typeof app.form_data === 'string' ? JSON.parse(app.form_data) : app.form_data;
+        const profileAsgs = formData?.profile?.assignments || [];
+        profileSub = profileAsgs.find((pa: any) => 
+          String(pa.id) === String(id) || 
+          (pa.title && assignment.title && pa.title.toLowerCase().trim() === assignment.title.toLowerCase().trim())
+        );
+      } catch (e) {
+        // ignore
+      }
+
+      const isSubmitted = !!sub || (profileSub && (profileSub.status === 'SUBMITTED' || profileSub.fileName));
+      const fileUrl = sub?.file_url || profileSub?.fileName || null;
+      const submittedAt = sub?.submitted_at || profileSub?.uploadedAt || null;
+
       return {
         applicant_id: app.id,
         startup_name: app.startup_name || 'Startup Team',
         founder_name: app.name || 'Founder',
-        is_submitted: !!sub,
-        file_url: sub?.file_url || null,
-        submitted_at: sub?.submitted_at || null,
-        updated_at: sub?.updated_at || null
+        is_submitted: !!isSubmitted,
+        file_url: fileUrl,
+        submitted_at: submittedAt,
+        updated_at: sub?.updated_at || submittedAt
       };
     });
 
@@ -1204,11 +1333,57 @@ export const submitAssignment = async (req: AuthenticatedRequest, res: Response)
       return res.status(400).json({ error: 'Could not resolve startup applicant identity for submission.' });
     }
 
+    let targetAsgId = isNaN(parseInt(id)) ? 0 : parseInt(id);
+    let asgRes = await query('SELECT * FROM assignments WHERE id = $1', [targetAsgId]);
+    if (asgRes.rows.length === 0) {
+      const insAsg = await query(
+        `INSERT INTO assignments (cohort_id, session_id, title, description, due_date)
+         VALUES (1, NULL, 'Cohort Deliverable', 'Independent Cohort Deliverable', 'No deadline') RETURNING *`
+      );
+      if (insAsg.rows && insAsg.rows[0]) {
+        targetAsgId = insAsg.rows[0].id;
+      }
+    }
+
+    await query('DELETE FROM assignment_submissions WHERE assignment_id = $1 AND applicant_id = $2', [targetAsgId, targetApplicantId]);
+
     const subRes = await query(
       `INSERT INTO assignment_submissions (assignment_id, applicant_id, file_url)
-       VALUES ($1, $2, $3)`,
-      [parseInt(id), targetApplicantId, file_url.trim()]
+       VALUES ($1, $2, $3) RETURNING *`,
+      [targetAsgId, targetApplicantId, file_url.trim()]
     );
+
+    // Sync to profile assignments JSON as backup
+    try {
+      const appRecordRes = await query(`SELECT form_data FROM applicants WHERE id = $1`, [targetApplicantId]);
+      if (appRecordRes.rows.length > 0) {
+        const formData = appRecordRes.rows[0].form_data ? (typeof appRecordRes.rows[0].form_data === 'string' ? JSON.parse(appRecordRes.rows[0].form_data) : appRecordRes.rows[0].form_data) : {};
+        const profile = formData.profile || {};
+        const asgs = profile.assignments || [];
+        const existingAsgIdx = asgs.findIndex((a: any) => String(a.id) === String(id) || String(a.id) === String(targetAsgId));
+
+        if (existingAsgIdx >= 0) {
+          asgs[existingAsgIdx] = {
+            ...asgs[existingAsgIdx],
+            status: 'SUBMITTED',
+            fileName: file_url.trim(),
+            uploadedAt: new Date().toLocaleString()
+          };
+        } else {
+          asgs.push({
+            id: String(targetAsgId),
+            status: 'SUBMITTED',
+            fileName: file_url.trim(),
+            uploadedAt: new Date().toLocaleString()
+          });
+        }
+
+        formData.profile = { ...profile, assignments: asgs };
+        await query(`UPDATE applicants SET form_data = $1 WHERE id = $2`, [JSON.stringify(formData), targetApplicantId]);
+      }
+    } catch (syncErr) {
+      console.warn('Profile sync failed during submission:', syncErr);
+    }
 
     res.json({
       success: true,
@@ -1502,12 +1677,14 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
     );
 
     // 4. Fetch Assignments and founder's submissions
+    await syncProfileAssignmentsToDatabase();
+
     let assignmentsList: any[] = [];
     const allAsgsRes = await query(
       `SELECT a.*, cs.title as session_title 
        FROM assignments a 
        LEFT JOIN cohort_sessions cs ON a.session_id = cs.id 
-       WHERE a.session_id IS NULL AND a.cohort_id = $1 
+       WHERE ($1::integer IS NULL OR a.cohort_id = $1 OR a.cohort_id IS NULL)
        ORDER BY a.created_at DESC`,
       [cohortId]
     );
@@ -1517,10 +1694,34 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
         `SELECT * FROM assignment_submissions WHERE assignment_id = $1 AND applicant_id = $2`,
         [asg.id, applicant.id]
       );
+      let sub = subRes.rows[0] || null;
+
+      if (!sub) {
+        try {
+          const profileAsgs = applicant.form_data?.profile?.assignments || [];
+          const found = profileAsgs.find((pa: any) => 
+            String(pa.id) === String(asg.id) || 
+            (pa.title && asg.title && pa.title.toLowerCase().trim() === asg.title.toLowerCase().trim())
+          );
+          if (found && (found.status === 'SUBMITTED' || found.fileName)) {
+            sub = {
+              id: 0,
+              assignment_id: asg.id,
+              applicant_id: applicant.id,
+              file_url: found.fileName,
+              submitted_at: found.uploadedAt || new Date().toISOString(),
+              created_at: found.uploadedAt || new Date().toISOString()
+            };
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
       assignmentsList.push({
         ...asg,
         sessionTitle: asg.session_title,
-        submission: subRes.rows[0] || null
+        submission: sub
       });
     }
 
@@ -1535,6 +1736,34 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
       `SELECT * FROM performance_warnings WHERE applicant_id = $1 ORDER BY created_at DESC`,
       [applicant.id]
     );
+
+    // 7. Sync & Merge linked startup_profile data
+    const spRes = await query(
+      `SELECT * FROM startup_profiles WHERE applicant_id = $1 OR LOWER(founder_email) = LOWER($2) LIMIT 1`,
+      [applicant.id, applicant.email]
+    );
+
+    if (spRes.rows.length > 0) {
+      const sp = spRes.rows[0];
+      applicant.startup_profile_id = sp.id;
+      if (sp.startup_name) applicant.startup_name = sp.startup_name;
+      if (sp.description) applicant.startup_description = sp.description;
+      if (sp.program_status) applicant.program_status = sp.program_status;
+      if (sp.current_progress_stage) applicant.stage = sp.current_progress_stage;
+
+      applicant.form_data = applicant.form_data || {};
+      applicant.form_data.profile = applicant.form_data.profile || {};
+      
+      applicant.form_data.profile.website = sp.website || applicant.form_data.profile.website || '';
+      applicant.form_data.profile.revenue_status = sp.revenue_status || applicant.form_data.profile.revenue_status || 'PRE_REVENUE';
+      applicant.form_data.profile.monthly_revenue = sp.monthly_revenue || applicant.form_data.profile.monthly_revenue || '0';
+      applicant.form_data.profile.annual_recurring_revenue = sp.annual_recurring_revenue || applicant.form_data.profile.annual_recurring_revenue || '0';
+      applicant.form_data.profile.funding_status = sp.funding_status || applicant.form_data.profile.funding_status || 'BOOTSTRAPPED';
+      applicant.form_data.profile.funding_raised = sp.funding_raised || applicant.form_data.profile.funding_raised || '0';
+      applicant.form_data.profile.burn_rate = sp.burn_rate || applicant.form_data.profile.burn_rate || '0';
+      applicant.form_data.profile.team_size = String(sp.team_size || applicant.form_data.profile.team_size || '1');
+      applicant.form_data.profile.pitch_deck_url = sp.pitch_deck_url || applicant.form_data.profile.pitch_deck_url || '';
+    }
 
     res.json({
       success: true,
@@ -1554,7 +1783,12 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
 
 export const updateApplicantProfile = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const { phone, website, social_links, logo_description, description, logo_url, contact_info, pivot_history } = req.body;
+  const { 
+    phone, website, social_links, logo_description, description, logo_url, contact_info, pivot_history,
+    monthly_revenue, annual_recurring_revenue, revenue_status, funding_status, funding_raised, burn_rate, team_size, pitch_deck_url,
+    linkedin_url, twitter_url, github_url, instagram_url,
+    assignments, team_roster, shared_notes, notifications
+  } = req.body;
 
   try {
     const targetId = parseInt(id) || 1;
@@ -1590,6 +1824,25 @@ export const updateApplicantProfile = async (req: AuthenticatedRequest, res: Res
         logo_url: logo_url !== undefined ? logo_url?.trim() : (currentFormData.profile?.logo_url || ''),
         contact_info: contact_info !== undefined ? contact_info?.trim() : (currentFormData.profile?.contact_info || ''),
         pivot_history: pivot_history !== undefined ? pivot_history : (currentFormData.profile?.pivot_history || []),
+        // Financial & Metrics fields aligned with Admin Panel
+        revenue_status: revenue_status !== undefined ? revenue_status : (currentFormData.profile?.revenue_status || 'PRE_REVENUE'),
+        monthly_revenue: monthly_revenue !== undefined ? monthly_revenue : (currentFormData.profile?.monthly_revenue || '0'),
+        annual_recurring_revenue: annual_recurring_revenue !== undefined ? annual_recurring_revenue : (currentFormData.profile?.annual_recurring_revenue || '0'),
+        funding_status: funding_status !== undefined ? funding_status : (currentFormData.profile?.funding_status || 'BOOTSTRAPPED'),
+        funding_raised: funding_raised !== undefined ? funding_raised : (currentFormData.profile?.funding_raised || '0'),
+        burn_rate: burn_rate !== undefined ? burn_rate : (currentFormData.profile?.burn_rate || '0'),
+        team_size: team_size !== undefined ? team_size : (currentFormData.profile?.team_size || '1'),
+        pitch_deck_url: pitch_deck_url !== undefined ? pitch_deck_url?.trim() : (currentFormData.profile?.pitch_deck_url || ''),
+        // Detailed Social Handles
+        linkedin_url: linkedin_url !== undefined ? linkedin_url?.trim() : (currentFormData.profile?.linkedin_url || ''),
+        twitter_url: twitter_url !== undefined ? twitter_url?.trim() : (currentFormData.profile?.twitter_url || ''),
+        github_url: github_url !== undefined ? github_url?.trim() : (currentFormData.profile?.github_url || ''),
+        instagram_url: instagram_url !== undefined ? instagram_url?.trim() : (currentFormData.profile?.instagram_url || ''),
+        // Assignments, Roster & Notes
+        assignments: assignments !== undefined ? assignments : (currentFormData.profile?.assignments || []),
+        team_roster: team_roster !== undefined ? team_roster : (currentFormData.profile?.team_roster || []),
+        shared_notes: shared_notes !== undefined ? shared_notes : (currentFormData.profile?.shared_notes || []),
+        notifications: notifications !== undefined ? notifications : (currentFormData.profile?.notifications || []),
       }
     };
 
@@ -1609,7 +1862,43 @@ export const updateApplicantProfile = async (req: AuthenticatedRequest, res: Res
       );
     }
 
+    // Sync directly with startup_profiles table if linked profile exists
+    try {
+      await query(`
+        UPDATE startup_profiles
+        SET
+          description = COALESCE($1, description),
+          website = COALESCE($2, website),
+          revenue_status = COALESCE($3, revenue_status),
+          monthly_revenue = COALESCE($4, monthly_revenue),
+          annual_recurring_revenue = COALESCE($5, annual_recurring_revenue),
+          funding_status = COALESCE($6, funding_status),
+          funding_raised = COALESCE($7, funding_raised),
+          burn_rate = COALESCE($8, burn_rate),
+          team_size = COALESCE($9, team_size),
+          pitch_deck_url = COALESCE($10, pitch_deck_url),
+          updated_at = CURRENT_TIMESTAMP
+        WHERE applicant_id = $11 OR LOWER(founder_email) = LOWER($12)
+      `, [
+        finalDesc,
+        website !== undefined ? website : null,
+        revenue_status !== undefined ? revenue_status : null,
+        monthly_revenue !== undefined ? monthly_revenue : null,
+        annual_recurring_revenue !== undefined ? annual_recurring_revenue : null,
+        funding_status !== undefined ? funding_status : null,
+        funding_raised !== undefined ? funding_raised : null,
+        burn_rate !== undefined ? burn_rate : null,
+        team_size !== undefined ? (parseInt(team_size) || 1) : null,
+        pitch_deck_url !== undefined ? pitch_deck_url : null,
+        appRecord.id,
+        appRecord.email
+      ]);
+    } catch (spSyncErr) {
+      console.warn('Non-blocking startup_profiles sync warning:', spSyncErr);
+    }
+
     const updatedApplicant = result.rows[0];
+    await syncProfileAssignmentsToDatabase();
     updatedApplicant.panel_scores = updatedApplicant.panel_scores && typeof updatedApplicant.panel_scores === 'string' ? JSON.parse(updatedApplicant.panel_scores) : updatedApplicant.panel_scores;
     updatedApplicant.form_data = updatedApplicant.form_data && typeof updatedApplicant.form_data === 'string' ? JSON.parse(updatedApplicant.form_data) : updatedApplicant.form_data;
 

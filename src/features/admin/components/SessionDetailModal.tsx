@@ -20,6 +20,7 @@ import {
   ArrowLeft,
   Image as ImageIcon
 } from 'lucide-react';
+import { downloadFileLocally, getCleanFileName } from '../../../utils/fileDownload';
 
 interface SessionDetailModalProps {
   session: any;
@@ -74,7 +75,15 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
       ...options.headers,
       'Authorization': `Bearer ${jwtToken}`
     };
-    return fetch(url, { ...options, headers });
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('jwtToken');
+        localStorage.removeItem('currentUser');
+        window.dispatchEvent(new Event('auth:session_expired'));
+      }
+    }
+    return res;
   };
 
   // Fetch Session Attendance
@@ -705,14 +714,13 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
                             </div>
                             {asg.description && <p className="text-xs text-gray-600">{asg.description}</p>}
                             {asg.attachment_url && (
-                              <a
-                                href={asg.attachment_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] text-primary font-bold hover:underline mt-1"
+                              <button
+                                type="button"
+                                onClick={() => downloadFileLocally(asg.attachment_url, getCleanFileName(asg.attachment_url))}
+                                className="inline-flex items-center gap-1 text-[11px] text-primary font-bold hover:underline mt-1 cursor-pointer"
                               >
                                 <Download className="h-3 w-3" /> Download Staff Reference File
-                              </a>
+                              </button>
                             )}
                           </div>
 
@@ -762,14 +770,14 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
                                           <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1">
                                             <CheckCircle2 className="h-3 w-3" /> Submitted
                                           </span>
-                                          <a
-                                            href={sub.file_url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-2.5 py-1 rounded text-[11px] font-bold flex items-center gap-1"
+                                          <button
+                                            type="button"
+                                            onClick={() => downloadFileLocally(sub.file_url, `${sub.startup_name.replace(/\s+/g, '_')}_${getCleanFileName(sub.file_url)}`)}
+                                            className="bg-primary/10 hover:bg-primary text-primary hover:text-white px-2.5 py-1 rounded text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-3xs"
+                                            title="Save file directly to local disk"
                                           >
-                                            <Download className="h-3 w-3" /> File
-                                          </a>
+                                            <Download className="h-3 w-3" /> Save File
+                                          </button>
                                         </div>
                                       ) : (
                                         <span className="bg-gray-100 text-gray-500 text-[10px] font-bold uppercase px-2 py-0.5 rounded">

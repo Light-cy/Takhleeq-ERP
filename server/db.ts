@@ -545,7 +545,7 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   }
 
   // 4. Cohort Sessions Interceptors
-  if (q.includes('from cohort_sessions')) {
+  if (q.includes('cohort_sessions')) {
     if (q.includes('update cohort_sessions')) {
       const photoUrl = params[0];
       const sid = parseInt(params[1]);
@@ -766,7 +766,7 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   }
 
   // 5c. Assignment Submissions Interceptors
-  if (q.includes('from assignment_submissions')) {
+  if (q.includes('assignment_submissions')) {
     if (q.includes('delete from assignment_submissions')) {
       const aid = parseInt(params[0]);
       db.assignment_submissions = (db.assignment_submissions || []).filter((s: any) => s.assignment_id !== aid);
@@ -2031,7 +2031,11 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     const idVal = parseInt(params[params.length - 1]);
     const profile = db.startup_profiles.find((p: any) => p.id === idVal);
     if (profile) {
-      if (params.length >= 8) {
+      if (q.includes('set current_progress_stage =')) {
+        profile.current_progress_stage = params[0];
+      } else if (q.includes('set program_status =')) {
+        profile.program_status = params[0];
+      } else if (params.length >= 8) {
         profile.startup_name = params[0] || profile.startup_name;
         profile.description = params[1] || profile.description;
         profile.industry_id = params[2] ? parseInt(params[2]) : profile.industry_id;
@@ -2040,6 +2044,14 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
         profile.program_status = params[5] || profile.program_status;
         profile.team_size = params[6] !== undefined ? parseInt(params[6]) : profile.team_size;
         profile.revenue_status = params[7] || profile.revenue_status;
+      } else {
+        const setMatch = q.match(/set\s+([a_z0-9_]+)\s*=/i);
+        if (setMatch && setMatch[1]) {
+          const colName = setMatch[1].toLowerCase();
+          if (colName !== 'updated_at') {
+            profile[colName] = params[0];
+          }
+        }
       }
       profile.updated_at = new Date().toISOString();
       saveLocalDB(db);
@@ -2059,14 +2071,28 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   if (q.includes('insert into startup_stage_history')) {
     if (!db.startup_stage_history) db.startup_stage_history = [];
     const id = Math.max(...db.startup_stage_history.map((h: any) => h.id || 0), 0) + 1;
+    let userId = null;
+    let email = '';
+    let comments = null;
+    if (params.length >= 6) {
+      userId = params[3];
+      email = params[4] || '';
+      comments = params[5] || null;
+    } else if (params.length === 5) {
+      email = params[3] || '';
+      comments = params[4] || null;
+    } else {
+      email = params[3] || '';
+    }
     const newHist = {
       id,
       startup_profile_id: parseInt(params[0]),
       previous_stage: params[1],
       new_stage: params[2],
       change_date: new Date().toISOString(),
-      updated_by_email: params[3],
-      comments: params[4] || null
+      updated_by_user_id: userId,
+      updated_by_email: email,
+      comments: comments
     };
     db.startup_stage_history.push(newHist);
     saveLocalDB(db);
@@ -2111,13 +2137,47 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   if (q.includes('insert into startup_audit_logs')) {
     if (!db.startup_audit_logs) db.startup_audit_logs = [];
     const id = Math.max(...db.startup_audit_logs.map((l: any) => l.id || 0), 0) + 1;
+    let userId = null;
+    let email = '';
+    let field = '';
+    let oldVal = null;
+    let newVal = null;
+
+    if (params.length >= 6) {
+      userId = params[1];
+      email = params[2];
+      field = params[3];
+      oldVal = params[4];
+      newVal = params[5];
+    } else if (params.length === 5) {
+      userId = params[1];
+      email = params[2];
+      const fieldMatch = q.match(/values\s*\([^,]+,\s*[^,]+,\s*[^,]+,\s*'([^']+)'/i);
+      field = fieldMatch ? fieldMatch[1] : 'general';
+      oldVal = params[3];
+      newVal = params[4];
+    } else if (params.length === 3) {
+      userId = params[1];
+      email = params[2];
+      const fieldMatch = q.match(/values\s*\([^,]+,\s*[^,]+,\s*[^,]+,\s*'([^']+)'/i);
+      field = fieldMatch ? fieldMatch[1] : 'general';
+      oldVal = '***';
+      newVal = '***';
+    } else {
+      email = params[1] || '';
+      field = params[2] || 'general';
+      oldVal = params[3] || null;
+      newVal = params[4] || null;
+    }
+
     const newLog = {
       id,
       startup_profile_id: parseInt(params[0]),
-      changed_by_email: params[1],
-      field_name: params[2],
-      old_value: params[3] || null,
-      new_value: params[4] || null,
+      changed_by_user_id: userId,
+      changed_by_email: email,
+      field_name: field,
+      old_value: oldVal ? String(oldVal) : null,
+      new_value: newVal ? String(newVal) : null,
       created_at: new Date().toISOString()
     };
     db.startup_audit_logs.push(newLog);
@@ -2736,6 +2796,18 @@ async function ensureDBReady() {
               is_completed BOOLEAN DEFAULT FALSE,
               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
+        `);
+
+        // 15. Ensure all startup_profiles financial columns exist
+        await pool.query(`
+          ALTER TABLE startup_profiles ADD COLUMN IF NOT EXISTS monthly_revenue TEXT DEFAULT 'PKR 0';
+          ALTER TABLE startup_profiles ADD COLUMN IF NOT EXISTS annual_recurring_revenue TEXT DEFAULT 'PKR 0';
+          ALTER TABLE startup_profiles ADD COLUMN IF NOT EXISTS funding_raised TEXT DEFAULT '0';
+          ALTER TABLE startup_profiles ADD COLUMN IF NOT EXISTS burn_rate TEXT DEFAULT 'PKR 0';
+          ALTER TABLE startup_profiles ADD COLUMN IF NOT EXISTS pitch_deck_url TEXT;
+          ALTER TABLE startup_profiles ADD COLUMN IF NOT EXISTS founder_email VARCHAR(255);
+          ALTER TABLE startup_profiles ADD COLUMN IF NOT EXISTS founder_name VARCHAR(255);
+          ALTER TABLE startup_profiles ADD COLUMN IF NOT EXISTS founder_phone VARCHAR(50);
         `);
 
         console.log("Cohort & Startup tables synchronized successfully in PostgreSQL.");

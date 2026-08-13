@@ -82,8 +82,12 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
     } else {
       req.currentUser = null;
     }
-  } catch (err) {
-    console.error("JWT verification failed:", err.message);
+  } catch (err: any) {
+    if (err.name === 'TokenExpiredError' || err.message === 'jwt expired') {
+      console.warn("JWT token expired for incoming request");
+    } else {
+      console.warn("JWT verification failed:", err.message);
+    }
     req.currentUser = null;
   }
   next();
@@ -92,7 +96,7 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
 // Access guard to require valid active session
 export function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   if (!req.currentUser) {
-    return res.status(401).json({ error: 'Session expired or unauthorized. Please sign in with Microsoft SSO.' });
+    return res.status(401).json({ error: 'Session expired or unauthorized. Please sign in with Microsoft SSO.', code: 'TOKEN_EXPIRED' });
   }
   if (req.currentUser.status === 'Inactive') {
     return res.status(401).json({ error: 'Access Denied: Your account has been set to Inactive.' });

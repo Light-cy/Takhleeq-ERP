@@ -201,6 +201,23 @@ router.post('/bookings', async (req, res) => {
     await autoExpireBans();
 
     const cleanEmail = String(email || '').trim().toLowerCase();
+
+    // -------------------------------------------------------------
+    // STAGE 0: LOGIN CHECK (Requester must be a registered active user)
+    // -------------------------------------------------------------
+    if (!cleanEmail) {
+      return res.status(401).json({ 
+        error: 'Login required. You must be logged in to submit a space booking request.' 
+      });
+    }
+
+    const userCheck = await query(`SELECT id, is_active FROM users WHERE LOWER(email) = $1`, [cleanEmail]);
+    if (userCheck.rows.length === 0 || !userCheck.rows[0].is_active) {
+      return res.status(401).json({ 
+        error: 'Login required. You must be logged in with an active account to submit a booking.' 
+      });
+    }
+
     const currentYear = new Date().getFullYear();
 
     // Generate next unique Booking Ref (e.g. TBK-2026-001)

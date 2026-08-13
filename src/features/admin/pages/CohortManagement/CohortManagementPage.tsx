@@ -34,6 +34,7 @@ import {
   CheckSquare,
   User
 } from 'lucide-react';
+import { downloadFileLocally, getCleanFileName } from '../../../../utils/fileDownload';
 import { FormField, Cohort, Applicant, ApplicantStatus, CohortSession, TeamCheckIn, PerformanceWarning, CohortAssignment, MilestoneSubmission, AuditRecord } from '../../../../types';
 import { 
   COHORT_STAGES, 
@@ -81,7 +82,15 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       ...options.headers,
       'Authorization': `Bearer ${jwtToken}`,
     };
-    return fetch(url, { ...options, headers });
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('jwtToken');
+        localStorage.removeItem('currentUser');
+        window.dispatchEvent(new Event('auth:session_expired'));
+      }
+    }
+    return res;
   };
   // Global View Sub-Tabs
   const [activeSubTab, setActiveSubTab] = useState<string>(() => {
@@ -1052,18 +1061,8 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 Module 02
               </span>
             </h1>
-            <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">{displayDesc}</p>
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => setShowCreateCohortForm(true)}
-          className="bg-primary hover:bg-[#5A0F0F] text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-3xs transition-all cursor-pointer flex items-center gap-2 shrink-0"
-        >
-          <Plus className="h-4 w-4" />
-          <span>+ Create New Cohort</span>
-        </button>
       </div>
 
       {/* Global alert messages */}
@@ -1458,14 +1457,6 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                       <option key={c.id} value={c.id}>{c.name} ({c.status})</option>
                     ))}
                   </select>
-
-                  <button
-                    onClick={() => setShowCreateCohortForm(true)}
-                    className="p-2 bg-gray-50 hover:bg-gray-100 text-gray-500 hover:text-gray-800 rounded-xl border border-gray-150 transition-all cursor-pointer"
-                    title="Initiate New Cohort"
-                  >
-                    <FolderPlus className="h-4.5 w-4.5" />
-                  </button>
                 </div>
               </div>
 
@@ -1487,28 +1478,6 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 </div>
               )}
             </div>
-
-            {/* Graduation & Complete Cohort Actions */}
-            {selectedCohort && selectedCohort.status === 'ACTIVE' && (
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleUpdateCohortStatus('COMPLETED', false)}
-                  className="bg-gray-50 hover:bg-gray-100 text-gray-800 text-xs font-bold py-2.5 px-4 rounded-xl border border-gray-150 transition-all cursor-pointer"
-                >
-                  Complete Program (Archive)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleUpdateCohortStatus('COMPLETED', true)}
-                  className="bg-[#8B1A1A] hover:bg-[#5A0F0F] text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-3xs transition-all cursor-pointer flex items-center gap-1.5"
-                  title="Graduate all founders that do not have unresolved Red or Yellow performance warnings"
-                >
-                  <Award className="h-4 w-4" />
-                  Bulk Graduate Founders (Excl. Warnings)
-                </button>
-              </div>
-            )}
           </div>
 
           {/* CREATE COHORT POPUP FORM */}
@@ -2219,26 +2188,6 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 >
                   Save Cohort Config
                 </button>
-
-                {selectedCohort.status === 'ACTIVE' && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateCohortStatus('COMPLETED', false)}
-                      className="bg-gray-50 hover:bg-gray-100 text-gray-800 text-xs font-bold py-2.5 px-4 rounded-xl border border-gray-150 transition-all cursor-pointer"
-                    >
-                      Complete Program (Archive)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateCohortStatus('COMPLETED', true)}
-                      className="bg-[#8B1A1A] hover:bg-[#5A0F0F] text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-3xs transition-all cursor-pointer flex items-center gap-1.5"
-                    >
-                      <Award className="h-4 w-4" />
-                      Bulk Graduate Founders (Excl. Warnings)
-                    </button>
-                  </>
-                )}
               </div>
             </div>
           ) : (
@@ -2403,14 +2352,13 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
                         {asg.attachment_url && (
                           <div className="pt-1">
-                            <a
-                              href={asg.attachment_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:underline bg-white px-2.5 py-1 rounded border border-gray-200 shadow-3xs"
+                            <button
+                              type="button"
+                              onClick={() => downloadFileLocally(asg.attachment_url, getCleanFileName(asg.attachment_url))}
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:underline bg-white px-2.5 py-1 rounded border border-gray-200 shadow-3xs cursor-pointer"
                             >
                               <Download className="h-3 w-3 text-primary" /> Download Reference Material
-                            </a>
+                            </button>
                           </div>
                         )}
 
@@ -2507,14 +2455,13 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                                             Submitted
                                           </span>
                                           {sub.file_url && (
-                                            <a
-                                              href={sub.file_url}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              className="bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all text-[9px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1"
+                                            <button
+                                              type="button"
+                                              onClick={() => downloadFileLocally(sub.file_url, `${sub.startup_name.replace(/\s+/g, '_')}_${getCleanFileName(sub.file_url)}`)}
+                                              className="bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all text-[9px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1 cursor-pointer border border-primary/20"
                                             >
-                                              <ExternalLink className="h-2.5 w-2.5" /> View File
-                                            </a>
+                                              <Download className="h-2.5 w-2.5" /> Save File
+                                            </button>
                                           )}
                                         </>
                                       ) : (

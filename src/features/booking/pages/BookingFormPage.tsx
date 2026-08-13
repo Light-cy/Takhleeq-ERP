@@ -17,17 +17,19 @@ import {
   Copy,
   Search
 } from 'lucide-react';
-import { Room, BookingType } from '../../../types';
+import { Room, BookingType, User as ERPUser } from '../../../types';
 import { bookingsApi } from '../services/bookings.api';
 
 interface BookingFormPageProps {
   rooms: Room[];
   selectedUserEmail: string;
+  activeUser?: ERPUser | null;
+  jwtToken?: string | null;
   onBookingSubmitted: () => void;
   onNavigate: (path: string) => void;
 }
 
-export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, onNavigate }: BookingFormPageProps) {
+export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken, onBookingSubmitted, onNavigate }: BookingFormPageProps) {
   // Form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState(selectedUserEmail);
@@ -270,6 +272,12 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
     setErrorMsg(null);
     setSuccessData(null);
 
+    // Mandatory Login Check
+    if (!activeUser || !selectedUserEmail) {
+      setErrorMsg("Login Required: You must be logged in to submit a space booking request. Please sign in or log in first.");
+      return;
+    }
+
     // Client-side Validations
     if (nameError) {
       setErrorMsg(`Validation Error: ${nameError}`);
@@ -332,7 +340,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
         eventDescription,
         bookingType,
         expectedAttendance
-      });
+      }, jwtToken);
 
       setSuccessData({
         id: result?.booking?.id || result?.booking?.booking_id || 'TBK-2026',
@@ -374,6 +382,30 @@ export function BookingFormPage({ rooms, selectedUserEmail, onBookingSubmitted, 
           <span>/</span>
           <span className="text-gray-800">Booking Portal</span>
         </nav>
+
+        {/* LOGIN REQUIRED BANNER */}
+        {!activeUser && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-2xl p-4.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs" id="login-required-booking-banner">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-100/80 rounded-xl text-amber-700 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-amber-950">Login Required to Submit Space Booking</h4>
+                <p className="text-xs text-amber-800/90 mt-0.5">
+                  You are currently browsing as a guest. Please sign in or choose your simulated user account to submit a room booking request.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate('/login')}
+              className="bg-primary hover:bg-primary/95 text-white text-xs font-bold px-4 py-2.5 rounded-xl shrink-0 transition-colors cursor-pointer shadow-xs uppercase tracking-wider"
+            >
+              Log In Now
+            </button>
+          </div>
+        )}
 
         {/* BLOCKING SUCCESS CONFIRMATION MODAL */}
         {successData && (

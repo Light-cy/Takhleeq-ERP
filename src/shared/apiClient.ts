@@ -15,6 +15,33 @@ export const getClientHeaders = (customToken?: string | null) => {
   return headers;
 };
 
+const handle401 = () => {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('jwtToken');
+    localStorage.removeItem('currentUser');
+    window.dispatchEvent(new Event('auth:session_expired'));
+  }
+};
+
+const handleResponseError = async (res: Response): Promise<never> => {
+  if (res.status === 401) {
+    handle401();
+  }
+  const errText = await res.text().catch(() => '');
+  let errMsg = `HTTP error! status: ${res.status}`;
+  try {
+    const errData = JSON.parse(errText);
+    if (errData && errData.error) {
+      errMsg = errData.error;
+    }
+  } catch (e) {
+    if (errText && errText.length < 300 && !errText.includes('<!DOCTYPE')) {
+      errMsg = errText;
+    }
+  }
+  throw new Error(errMsg);
+};
+
 export const apiClient = {
   get: async <T>(url: string, customToken?: string | null): Promise<T> => {
     const headers = getClientHeaders(customToken);
@@ -22,19 +49,7 @@ export const apiClient = {
     delete headers['Content-Type'];
     const res = await fetch(url, { headers });
     if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      let errMsg = `HTTP error! status: ${res.status}`;
-      try {
-        const errData = JSON.parse(errText);
-        if (errData && errData.error) {
-          errMsg = errData.error;
-        }
-      } catch (e) {
-        if (errText && errText.length < 300 && !errText.includes('<!DOCTYPE')) {
-          errMsg = errText;
-        }
-      }
-      throw new Error(errMsg);
+      await handleResponseError(res);
     }
     return res.json();
   },
@@ -46,19 +61,7 @@ export const apiClient = {
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      let errMsg = `HTTP error! status: ${res.status}`;
-      try {
-        const errData = JSON.parse(errText);
-        if (errData && errData.error) {
-          errMsg = errData.error;
-        }
-      } catch (e) {
-        if (errText && errText.length < 300 && !errText.includes('<!DOCTYPE')) {
-          errMsg = errText;
-        }
-      }
-      throw new Error(errMsg);
+      await handleResponseError(res);
     }
     return res.json();
   },
@@ -70,19 +73,7 @@ export const apiClient = {
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      let errMsg = `HTTP error! status: ${res.status}`;
-      try {
-        const errData = JSON.parse(errText);
-        if (errData && errData.error) {
-          errMsg = errData.error;
-        }
-      } catch (e) {
-        if (errText && errText.length < 300 && !errText.includes('<!DOCTYPE')) {
-          errMsg = errText;
-        }
-      }
-      throw new Error(errMsg);
+      await handleResponseError(res);
     }
     return res.json();
   },
@@ -94,19 +85,7 @@ export const apiClient = {
       headers,
     });
     if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      let errMsg = `HTTP error! status: ${res.status}`;
-      try {
-        const errData = JSON.parse(errText);
-        if (errData && errData.error) {
-          errMsg = errData.error;
-        }
-      } catch (e) {
-        if (errText && errText.length < 300 && !errText.includes('<!DOCTYPE')) {
-          errMsg = errText;
-        }
-      }
-      throw new Error(errMsg);
+      await handleResponseError(res);
     }
     return res.json();
   },

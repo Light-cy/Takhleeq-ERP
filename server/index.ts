@@ -17,6 +17,7 @@ import startupRoutes from './modules/startups/startups.routes.ts';
 import checkinRoutes from './modules/checkins/checkins.routes.ts';
 
 import uploadRoutes from './modules/upload/upload.routes.ts';
+import { syncProfileAssignmentsToDatabase } from './modules/cohorts/cohorts.controller.ts';
 
 const PORT = 3000;
 
@@ -24,6 +25,9 @@ export async function startServer() {
   const app = express();
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // Run initial assignment reconciliation
+  syncProfileAssignmentsToDatabase().catch(err => console.warn('Initial assignment sync error:', err));
 
   // Serve static uploaded files
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));

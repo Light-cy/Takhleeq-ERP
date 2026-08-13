@@ -7,10 +7,23 @@ import {
   StartupProgressStage
 } from '../../../types/startup.types';
 
+async function parseResponse(res: Response, fallbackError: string) {
+  const text = await res.text();
+  let json: any = {};
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch (e) {
+    throw new Error(fallbackError || `Server error (${res.status}): ${text.slice(0, 100)}`);
+  }
+  if (!res.ok || json.success === false) {
+    throw new Error(json.error || fallbackError);
+  }
+  return json;
+}
+
 export async function fetchIndustries(): Promise<Industry[]> {
   const res = await fetch('/api/industries');
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to fetch industries');
+  const json = await parseResponse(res, 'Failed to fetch industries');
   return json.data || [];
 }
 
@@ -33,22 +46,19 @@ export async function fetchStartupProfiles(params: {
   if (params.industry_id) query.set('industry_id', String(params.industry_id));
 
   const res = await fetch(`/api/startup-profiles?${query.toString()}`);
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to fetch startup profiles');
+  const json = await parseResponse(res, 'Failed to fetch startup profiles');
   return { data: json.data || [], pagination: json.pagination };
 }
 
 export async function fetchFounderOwnProfile(): Promise<StartupProfile> {
   const res = await fetch('/api/startup-profiles/me');
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to fetch founder profile');
+  const json = await parseResponse(res, 'Failed to fetch founder profile');
   return json.data;
 }
 
 export async function fetchStartupProfileById(id: number): Promise<StartupProfile> {
   const res = await fetch(`/api/startup-profiles/${id}`);
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to fetch startup profile');
+  const json = await parseResponse(res, 'Failed to fetch startup profile');
   return json.data;
 }
 
@@ -58,8 +68,7 @@ export async function updateStartupProfile(id: number, payload: Partial<StartupP
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to update profile');
+  const json = await parseResponse(res, 'Failed to update profile');
   return json.data;
 }
 
@@ -69,15 +78,13 @@ export async function updateStartupProgressStage(id: number, newStage: StartupPr
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ new_stage: newStage, comments })
   });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to update stage');
+  const json = await parseResponse(res, 'Failed to update stage');
   return json.data;
 }
 
 export async function fetchStageHistory(id: number, page: number = 1, limit: number = 10): Promise<{ data: StartupStageHistory[]; pagination: any }> {
   const res = await fetch(`/api/startup-profiles/${id}/stage-history?page=${page}&limit=${limit}`);
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to fetch stage history');
+  const json = await parseResponse(res, 'Failed to fetch stage history');
   return { data: json.data || [], pagination: json.pagination };
 }
 
@@ -92,22 +99,19 @@ export async function recordStartupPivot(id: number, payload: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to record pivot');
+  const json = await parseResponse(res, 'Failed to record pivot');
   return json.data;
 }
 
 export async function fetchStartupPivots(id: number, page: number = 1, limit: number = 10): Promise<{ data: StartupPivot[]; pagination: any }> {
   const res = await fetch(`/api/startup-profiles/${id}/pivots?page=${page}&limit=${limit}`);
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to fetch pivots');
+  const json = await parseResponse(res, 'Failed to fetch pivots');
   return { data: json.data || [], pagination: json.pagination };
 }
 
 export async function fetchStartupAuditLogs(id: number, page: number = 1, limit: number = 20): Promise<{ data: StartupAuditLog[]; pagination: any }> {
   const res = await fetch(`/api/startup-profiles/${id}/audit-logs?page=${page}&limit=${limit}`);
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to fetch audit logs');
+  const json = await parseResponse(res, 'Failed to fetch audit logs');
   return { data: json.data || [], pagination: json.pagination };
 }
 
@@ -115,22 +119,19 @@ export async function revertStartupAuditLog(id: number, logId: number): Promise<
   const res = await fetch(`/api/startup-profiles/${id}/audit-logs/${logId}/revert`, {
     method: 'POST'
   });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to revert change');
+  const json = await parseResponse(res, 'Failed to revert change');
   return json.data;
 }
 
 export async function syncAcceptedStartups(): Promise<string> {
   const res = await fetch('/api/startup-profiles/sync-accepted', { method: 'POST' });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to sync accepted startups');
+  const json = await parseResponse(res, 'Failed to sync accepted startups');
   return json.message;
 }
 
 export async function fetchStartupFullDetails(id: number): Promise<any> {
   const res = await fetch(`/api/startup-profiles/${id}/full-details`);
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to fetch startup full details');
+  const json = await parseResponse(res, 'Failed to fetch startup full details');
   return json.data;
 }
 
@@ -140,8 +141,7 @@ export async function adminUpdateStartupProfile(id: number, payload: any): Promi
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to update startup details');
+  const json = await parseResponse(res, 'Failed to update startup details');
   return json;
 }
 
@@ -155,8 +155,7 @@ export async function issueStartupWarning(id: number, payload: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to issue performance warning');
+  const json = await parseResponse(res, 'Failed to issue performance warning');
   return json;
 }
 
@@ -169,7 +168,6 @@ export async function resolveStartupWarning(warningId: number, payload: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'Failed to resolve warning');
+  const json = await parseResponse(res, 'Failed to resolve warning');
   return json;
 }

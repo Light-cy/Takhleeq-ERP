@@ -144,7 +144,7 @@ export const handleMicrosoftAuth = async (req: AuthenticatedRequest, res: Respon
     const token = jwt.sign(
       { id: userId, email: email },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '7d' }
     );
 
     let perms: string[] = [];
@@ -333,7 +333,7 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
     }
 
     const userId = userRow.id;
-    const token = jwt.sign({ id: userId, email: cleanEmail }, JWT_SECRET, { expiresIn: '24h' });
+    const token = jwt.sign({ id: userId, email: cleanEmail }, JWT_SECRET, { expiresIn: '7d' });
     let perms: string[] = [];
     if (userRow.permissions) {
       perms = Array.isArray(userRow.permissions) ? userRow.permissions : JSON.parse(userRow.permissions);
