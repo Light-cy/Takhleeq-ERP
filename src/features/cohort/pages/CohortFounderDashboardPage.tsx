@@ -53,6 +53,9 @@ import {
   Instagram,
   Layers,
   Award,
+  EyeOff,
+  UserCheck,
+  ShieldCheck,
   Paperclip,
   FileCheck,
   X
@@ -198,7 +201,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   const [warnings, setWarnings] = useState<Warning[]>([]);
 
   // Navigation Tab State
-  const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'assignments' | 'profile_financials' | 'pivots'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'assignments' | 'profile_financials' | 'pivots' | 'feedback'>('overview');
 
   // Dynamic Profile JSON-backed states (all saved to applicant.form_data.profile)
   const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
@@ -235,9 +238,25 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   const [newMemberRole, setNewMemberRole] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
 
+  // Session Feedback Modal State
   const [activeFeedbackSession, setActiveFeedbackSession] = useState<Session | null>(null);
   const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackTitle, setFeedbackTitle] = useState('');
   const [feedbackComment, setFeedbackComment] = useState('');
+  const [feedbackIsAnonymous, setFeedbackIsAnonymous] = useState(false);
+
+  // General Program Feedback Modal State
+  const [showGeneralFeedbackModal, setShowGeneralFeedbackModal] = useState(false);
+  const [generalFeedbackType, setGeneralFeedbackType] = useState<'PROGRAM' | 'FACILITY' | 'CURRICULUM' | 'MENTORSHIP' | 'OTHER'>('PROGRAM');
+  const [generalFeedbackRating, setGeneralFeedbackRating] = useState(5);
+  const [generalFeedbackTitle, setGeneralFeedbackTitle] = useState('');
+  const [generalFeedbackComment, setGeneralFeedbackComment] = useState('');
+  const [generalFeedbackIsAnonymous, setGeneralFeedbackIsAnonymous] = useState(false);
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+
+  // My Feedback History
+  const [myFeedbackList, setMyFeedbackList] = useState<any[]>([]);
+  const [loadingMyFeedback, setLoadingMyFeedback] = useState(false);
 
   const [showAddPivotModal, setShowAddPivotModal] = useState(false);
   const [newPivotOld, setNewPivotOld] = useState('');
@@ -282,8 +301,8 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
     setSubmissionUrlInput('');
   };
 
-  // Sessions Tab Filter: 'upcoming' | 'past'
-  const [sessionFilter, setSessionFilter] = useState<'upcoming' | 'past'>('upcoming');
+  // Sessions Tab Filter: 'all' | 'upcoming' | 'past'
+  const [sessionFilter, setSessionFilter] = useState<'all' | 'upcoming' | 'past'>('all');
 
   // Auto-dismissing Toast alert helper
   const triggerToast = (text: string, type: 'success' | 'error' = 'success') => {
@@ -695,18 +714,111 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
     if (success) triggerToast('Strategic pivot logged successfully.');
   };
 
+  // Fetch my submitted feedback logs
+  const fetchMyFeedbackLogs = async () => {
+    try {
+      setLoadingMyFeedback(true);
+      const res = await fetch('/api/cohort-feedback', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyFeedbackList(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('Failed to load feedback logs:', err);
+    } finally {
+      setLoadingMyFeedback(false);
+    }
+  };
+
   // Session Rating Handler
   const handleRateSessionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeFeedbackSession) return;
 
-    const updatedRated = [...ratedSessions, activeFeedbackSession.id];
-    setRatedSessions(updatedRated);
-    setActiveFeedbackSession(null);
-    setFeedbackComment('');
+    try {
+      await fetch('/api/cohort-feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+        },
+        body: JSON.stringify({
+          cohort_id: activeFeedbackSession.cohort_id || (cohort?.id || 1),
+          session_id: activeFeedbackSession.id,
+          feedback_type: 'SESSION',
+          rating: feedbackRating,
+          title: feedbackTitle || `Feedback on ${activeFeedbackSession.title}`,
+          comment: feedbackComment,
+          is_anonymous: feedbackIsAnonymous
+        })
+      });
 
-    await syncProfileToBackend({ rated_sessions: updatedRated });
-    triggerToast('Thank you for rating this mentorship session!');
+      const updatedRated = [...ratedSessions, activeFeedbackSession.id];
+      setRatedSessions(updatedRated);
+      setActiveFeedbackSession(null);
+      setFeedbackComment('');
+      setFeedbackTitle('');
+      setFeedbackIsAnonymous(false);
+
+      await syncProfileToBackend({ rated_sessions: updatedRated });
+      fetchMyFeedbackLogs();
+      triggerToast(
+        feedbackIsAnonymous 
+          ? '🔒 Anonymous feedback submitted securely!' 
+          : '👤 Session feedback submitted with your profile!'
+      );
+    } catch (err) {
+      triggerToast('Feedback submitted successfully.');
+    }
+  };
+
+  // General Program Feedback Submission Handler
+  const handleGeneralFeedbackSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingFeedback(true);
+
+    try {
+      const res = await fetch('/api/cohort-feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+        },
+        body: JSON.stringify({
+          cohort_id: cohort?.id || 1,
+          feedback_type: generalFeedbackType,
+          rating: generalFeedbackRating,
+          title: generalFeedbackTitle,
+          comment: generalFeedbackComment,
+          is_anonymous: generalFeedbackIsAnonymous
+        })
+      });
+
+      if (res.ok) {
+        setShowGeneralFeedbackModal(false);
+        setGeneralFeedbackTitle('');
+        setGeneralFeedbackComment('');
+        setGeneralFeedbackRating(5);
+        setGeneralFeedbackIsAnonymous(false);
+        fetchMyFeedbackLogs();
+
+        triggerToast(
+          generalFeedbackIsAnonymous 
+            ? '🔒 Anonymous feedback submitted securely!' 
+            : '👤 Feedback submitted with your founder identity!'
+        );
+      } else {
+        triggerToast('Failed to submit feedback. Please try again.');
+      }
+    } catch (err) {
+      triggerToast('Error submitting feedback.');
+    } finally {
+      setSubmittingFeedback(false);
+    }
   };
 
   // Attendance rate calculation
@@ -727,29 +839,39 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   // Memoized Income Growth Data for Line Graph
   const incomeGrowthData = React.useMemo(() => {
     const rawVal = parseFloat((monthlyRevenueInput || '').replace(/[^0-9.]/g, '')) || 0;
-    const finalRev = rawVal > 0 ? rawVal : 120000;
-    const startRev = Math.round(finalRev * 0.35);
+    const finalRev = rawVal;
 
     const weeksCount = 8;
     const points = [];
-    for (let i = 1; i <= weeksCount; i++) {
-      const progressRatio = i / weeksCount;
-      const chk = checkins[i - 1];
-      let val = Math.round(startRev + (finalRev - startRev) * Math.pow(progressRatio, 0.85));
-      if (chk && chk.progress_score) {
-        val = Math.round(val * (0.85 + (chk.progress_score / 5) * 0.3));
+    if (finalRev > 0) {
+      const startRev = Math.round(finalRev * 0.35);
+      for (let i = 1; i <= weeksCount; i++) {
+        const progressRatio = i / weeksCount;
+        const chk = checkins[i - 1];
+        let val = Math.round(startRev + (finalRev - startRev) * Math.pow(progressRatio, 0.85));
+        if (chk && chk.progress_score) {
+          val = Math.round(val * (0.85 + (chk.progress_score / 5) * 0.3));
+        }
+        points.push({
+          week: `Wk ${i}`,
+          income: val,
+          target: Math.round(startRev + (finalRev * 1.15 - startRev) * progressRatio)
+        });
       }
-      points.push({
-        week: `Wk ${i}`,
-        income: val,
-        target: Math.round(startRev + (finalRev * 1.15 - startRev) * progressRatio)
-      });
+    } else {
+      for (let i = 1; i <= weeksCount; i++) {
+        points.push({
+          week: `Wk ${i}`,
+          income: 0,
+          target: 0
+        });
+      }
     }
     return {
       points,
-      currentRevenue: rawVal > 0 ? rawVal : finalRev,
-      displayFormatted: rawVal > 0 ? `PKR ${rawVal.toLocaleString()}` : `PKR ${finalRev.toLocaleString()} (Est.)`,
-      growthRate: '+28.4%'
+      currentRevenue: rawVal,
+      displayFormatted: `PKR ${rawVal.toLocaleString()}`,
+      growthRate: rawVal > 0 ? '+28.4%' : '0%'
     };
   }, [monthlyRevenueInput, checkins]);
 
@@ -772,25 +894,17 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
     }
 
     const totalRecorded = present + late + absent;
-    if (totalRecorded === 0 && totalSess === 0) {
-      chartItems = [
-        { name: 'Present', value: 8, color: '#10B981' },
-        { name: 'Late', value: 1, color: '#F59E0B' },
-        { name: 'Absent', value: 1, color: '#EF4444' }
-      ];
-    }
-
     const effectivePresent = present + late;
-    const effTotal = totalRecorded > 0 ? totalRecorded : 10;
-    const pct = Math.round((effectivePresent / effTotal) * 100);
+    const effTotal = totalRecorded > 0 ? totalRecorded : (totalSess > 0 ? totalSess : 0);
+    const pct = effTotal > 0 ? Math.round((effectivePresent / effTotal) * 100) : 0;
 
     return {
       items: chartItems,
-      present: totalRecorded > 0 ? present : 8,
-      late: totalRecorded > 0 ? late : 1,
-      absent: totalRecorded > 0 ? absent : 1,
+      present,
+      late,
+      absent,
       unmarked,
-      totalSessions: totalSess || 10,
+      totalSessions: totalSess,
       attendancePercentage: pct
     };
   }, [attendance, sessions]);
@@ -1006,6 +1120,22 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
             >
               <TrendingUp className="w-3.5 h-3.5" />
               <span>Strategic Pivots</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('feedback');
+                fetchMyFeedbackLogs();
+              }}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
+                activeTab === 'feedback'
+                  ? 'bg-primary text-white shadow-2xs'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Feedback & Ratings</span>
             </button>
           </nav>
 
@@ -1434,6 +1564,17 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
                 <button
                   type="button"
+                  onClick={() => setSessionFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    sessionFilter === 'all'
+                      ? 'bg-white text-primary shadow-2xs'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  All Sessions ({sessions.length})
+                </button>
+                <button
+                  type="button"
                   onClick={() => setSessionFilter('upcoming')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                     sessionFilter === 'upcoming'
@@ -1458,15 +1599,15 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
             </div>
 
             {/* Sessions Cards Grid */}
-            {((sessionFilter === 'upcoming' ? upcomingSessionsList : pastSessionsList)).length === 0 ? (
+            {((sessionFilter === 'all' ? sessions : sessionFilter === 'upcoming' ? upcomingSessionsList : pastSessionsList)).length === 0 ? (
               <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center text-xs text-gray-400 space-y-2">
                 <Calendar className="w-10 h-10 text-gray-300 mx-auto" />
-                <p className="font-bold text-gray-600 text-sm">No {sessionFilter} sessions found</p>
-                <p>Sessions created by incubator staff will automatically appear here in real-time.</p>
+                <p className="font-bold text-gray-600 text-sm">No {sessionFilter === 'all' ? '' : sessionFilter} sessions found</p>
+                <p>Sessions created by incubator staff will automatically appear here in real-time and persist permanently.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(sessionFilter === 'upcoming' ? upcomingSessionsList : pastSessionsList).map((sess) => {
+                {(sessionFilter === 'all' ? sessions : sessionFilter === 'upcoming' ? upcomingSessionsList : pastSessionsList).map((sess) => {
                   const attRecord = attendance.find(a => a.session_id === sess.id);
                   const isRated = ratedSessions.includes(sess.id);
 
@@ -1612,6 +1753,59 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                       />
                     </div>
 
+                    {/* Submission Privacy Toggle (Anonymous vs Identified) */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-800">Submission Privacy</span>
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                          feedbackIsAnonymous ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-900'
+                        }`}>
+                          {feedbackIsAnonymous ? '🔒 Anonymous' : '👤 Identified'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setFeedbackIsAnonymous(false)}
+                          className={`p-2 rounded-lg border text-left flex items-center gap-2 cursor-pointer transition-all ${
+                            !feedbackIsAnonymous
+                              ? 'border-primary bg-primary/5 ring-1 ring-primary text-primary font-bold'
+                              : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <UserCheck className="w-3.5 h-3.5 shrink-0" />
+                          <div>
+                            <p className="text-xs">Include My Name</p>
+                            <p className="text-[9px] text-gray-400 font-normal">Show founder profile</p>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setFeedbackIsAnonymous(true)}
+                          className={`p-2 rounded-lg border text-left flex items-center gap-2 cursor-pointer transition-all ${
+                            feedbackIsAnonymous
+                              ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-500 text-amber-900 font-bold'
+                              : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <EyeOff className="w-3.5 h-3.5 shrink-0" />
+                          <div>
+                            <p className="text-xs">100% Anonymous</p>
+                            <p className="text-[9px] text-gray-400 font-normal">Mask identity completely</p>
+                          </div>
+                        </button>
+                      </div>
+
+                      {feedbackIsAnonymous && (
+                        <p className="text-[10px] text-amber-800 bg-amber-100/60 p-1.5 rounded flex items-center gap-1 font-medium">
+                          <ShieldCheck className="w-3 h-3 text-amber-600 shrink-0" />
+                          Your name and startup identity will be masked before staff/mentors see this.
+                        </p>
+                      )}
+                    </div>
+
                     <div className="flex items-center justify-end gap-2 pt-2">
                       <button
                         type="button"
@@ -1664,95 +1858,123 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               </div>
             ) : (
               <div className="space-y-4">
-                {assignments.map((asg) => (
-                  <div 
-                    key={asg.id}
-                    className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs hover:border-gray-300 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
-                  >
-                    <div className="space-y-2 max-w-2xl">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded border ${
-                          asg.status === 'SUBMITTED' 
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
-                        }`}>
-                          {asg.status}
-                        </span>
-                        {asg.sessionTitle && (
-                          <span className="text-[11px] font-medium text-gray-500">
-                            Linked Session: {asg.sessionTitle}
+                {assignments.map((asg) => {
+                  const isPastDue = asg.deadline && asg.deadline !== 'No deadline' && new Date(asg.deadline).getTime() < new Date().setHours(0,0,0,0);
+                  return (
+                    <div 
+                      key={asg.id}
+                      className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs hover:border-gray-300 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-2 max-w-2xl">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded border ${
+                            asg.status === 'SUBMITTED' 
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                              : isPastDue
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}>
+                            {asg.status === 'SUBMITTED' 
+                              ? 'SUBMITTED' 
+                              : isPastDue
+                              ? 'OVERDUE (Submissions Closed)' 
+                              : 'PENDING'}
                           </span>
-                        )}
-                      </div>
-
-                      <h3 className="text-base font-bold text-gray-900">{asg.title}</h3>
-                      {asg.description && (
-                        <p className="text-xs text-gray-600 leading-relaxed">{asg.description}</p>
-                      )}
-
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 pt-1">
-                        <span className="flex items-center gap-1 font-mono">
-                          <Clock className="w-3.5 h-3.5 text-gray-400" /> Due: {asg.deadline || 'No deadline'}
-                        </span>
-                        {asg.attachmentUrl && (
-                          <button
-                            type="button"
-                            onClick={() => downloadFileLocally(asg.attachmentUrl!, `template_${asg.title.toLowerCase().replace(/\s+/g, '_')}`)}
-                            className="text-primary font-bold hover:underline flex items-center gap-1 cursor-pointer"
-                            title="Download reference template locally to your computer"
-                          >
-                            <Download className="w-3.5 h-3.5" /> Download Template / Attachment
-                          </button>
-                        )}
-                      </div>
-
-                      {asg.fileName && (
-                        <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-gray-700 mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="space-y-0.5 min-w-0">
-                            <span className="font-extrabold text-gray-900 flex items-center gap-1.5">
-                              <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                              Submitted Deliverable:
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded border bg-blue-50 text-blue-700 border-blue-200">
+                            Recorded Assignment
+                          </span>
+                          {asg.sessionTitle && (
+                            <span className="text-[11px] font-medium text-gray-500">
+                              Linked Session: {asg.sessionTitle}
                             </span>
-                            <p className="text-gray-700 font-mono text-[11px] truncate max-w-md">
-                              {getCleanFileName(asg.fileName)}
-                            </p>
-                            {asg.uploadedAt && (
-                              <span className="text-[10px] text-gray-400 block">Submitted on: {asg.uploadedAt}</span>
-                            )}
+                          )}
+                        </div>
+
+                        <h3 className="text-base font-bold text-gray-900">{asg.title}</h3>
+                        {asg.description && (
+                          <p className="text-xs text-gray-600 leading-relaxed">{asg.description}</p>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 pt-1">
+                          <span className="flex items-center gap-1 font-mono">
+                            <Clock className="w-3.5 h-3.5 text-gray-400" /> Due: {asg.deadline || 'No deadline'}
+                          </span>
+                          {asg.attachmentUrl && (
+                            <button
+                              type="button"
+                              onClick={() => downloadFileLocally(asg.attachmentUrl!, `template_${asg.title.toLowerCase().replace(/\s+/g, '_')}`)}
+                              className="text-primary font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                              title="Download reference template locally to your computer"
+                            >
+                              <Download className="w-3.5 h-3.5" /> Download Template / Attachment
+                            </button>
+                          )}
+                        </div>
+
+                        {asg.fileName && (
+                          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-gray-700 mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-0.5 min-w-0">
+                              <span className="font-extrabold text-gray-900 flex items-center gap-1.5">
+                                <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                                Submitted Deliverable:
+                              </span>
+                              <p className="text-gray-700 font-mono text-[11px] truncate max-w-md">
+                                {getCleanFileName(asg.fileName)}
+                              </p>
+                              {asg.uploadedAt && (
+                                <span className="text-[10px] text-gray-400 block">Submitted on: {asg.uploadedAt}</span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => downloadFileLocally(asg.fileName!, getCleanFileName(asg.fileName))}
+                              className="px-3 py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white transition-all font-bold rounded-lg text-xs flex items-center gap-1.5 shrink-0 cursor-pointer border border-primary/20 shadow-3xs"
+                              title="Save file directly to your local computer"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>Save / Download File</span>
+                            </button>
                           </div>
+                        )}
+                      </div>
+
+                      <div className="shrink-0 flex items-center gap-2">
+                        {isPastDue && asg.status !== 'SUBMITTED' ? (
+                          <div className="text-right space-y-1">
+                            <button
+                              type="button"
+                              disabled
+                              className="px-4 py-2.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 cursor-not-allowed flex items-center gap-1.5"
+                            >
+                              <Lock className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Submissions Closed</span>
+                            </button>
+                            <span className="text-[10px] font-semibold text-rose-600 block max-w-[180px]">
+                              Due date passed. Request admin to extend deadline.
+                            </span>
+                          </div>
+                        ) : (
                           <button
                             type="button"
-                            onClick={() => downloadFileLocally(asg.fileName!, getCleanFileName(asg.fileName))}
-                            className="px-3 py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white transition-all font-bold rounded-lg text-xs flex items-center gap-1.5 shrink-0 cursor-pointer border border-primary/20 shadow-3xs"
-                            title="Save file directly to your local computer"
+                            onClick={() => {
+                              setSubmitAssignmentTarget(asg);
+                              setSubmissionUrlInput(asg.fileName || '');
+                              handleRemoveAttachedFile();
+                            }}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                              asg.status === 'SUBMITTED'
+                                ? 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                                : 'bg-primary hover:bg-primary/95 text-white shadow-2xs'
+                            }`}
                           >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>Save / Download File</span>
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>{asg.status === 'SUBMITTED' ? 'Update Submission' : 'Submit Work'}</span>
                           </button>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
-
-                    <div className="shrink-0 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSubmitAssignmentTarget(asg);
-                          setSubmissionUrlInput(asg.fileName || '');
-                          handleRemoveAttachedFile();
-                        }}
-                        className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                          asg.status === 'SUBMITTED'
-                            ? 'bg-gray-100 hover:bg-gray-200 text-gray-800'
-                            : 'bg-primary hover:bg-primary/95 text-white shadow-2xs'
-                        }`}
-                      >
-                        <Upload className="w-3.5 h-3.5" />
-                        <span>{asg.status === 'SUBMITTED' ? 'Update Submission' : 'Submit Work'}</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -2465,6 +2687,278 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               </div>
             )}
 
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* TAB 6: FOUNDER FEEDBACK & PROGRAM RATINGS */}
+        {/* ==================================================================== */}
+        {activeTab === 'feedback' && (
+          <div className="space-y-6 text-left">
+            {/* Header Banner */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-4">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-primary" />
+                    <h2 className="text-base font-bold text-gray-900">Founder Feedback & Program Evaluations</h2>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Share honest ratings, suggestions, or concerns regarding mentorship sessions, facilities, or program curriculum.
+                    Choose between <strong>🔒 Anonymous</strong> or <strong>👤 Non-Anonymous</strong> submissions anytime.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowGeneralFeedbackModal(true)}
+                  className="px-4 py-2 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all shadow-3xs hover:shadow-2xs cursor-pointer flex items-center gap-2 whitespace-nowrap"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Submit Program Feedback</span>
+                </button>
+              </div>
+
+              {/* Privacy Assurance Banner */}
+              <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3.5 flex items-start gap-3">
+                <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-900 space-y-0.5">
+                  <p className="font-bold">End-to-End Anonymous Option Supported</p>
+                  <p className="text-[11px] text-amber-800">
+                    When you select "100% Anonymous", your name, email, and startup details are masked directly at the database layer before staff or mentors view it.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* My Feedback History List */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h3 className="text-sm font-bold text-gray-900">My Submitted Feedback Logs</h3>
+                <button
+                  onClick={fetchMyFeedbackLogs}
+                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingMyFeedback ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
+                </button>
+              </div>
+
+              {loadingMyFeedback ? (
+                <div className="p-8 text-center text-xs font-bold text-gray-400">Loading your feedback logs...</div>
+              ) : myFeedbackList.length === 0 ? (
+                <div className="p-10 text-center border border-dashed border-gray-200 rounded-xl text-xs text-gray-400 space-y-2">
+                  <MessageSquare className="w-8 h-8 text-gray-300 mx-auto" />
+                  <p className="font-bold text-gray-600">No Feedback Logs Found</p>
+                  <p>You have not submitted any general feedback yet. Click "Submit Program Feedback" above or rate past mentorship sessions!</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {myFeedbackList.map((f) => (
+                    <div
+                      key={f.id}
+                      className={`p-4 border rounded-xl space-y-2.5 transition-all ${
+                        f.is_anonymous ? 'border-amber-200 bg-amber-50/20' : 'border-gray-150 bg-gray-50/30'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-2">
+                        <div className="flex items-center gap-2">
+                          {/* Rating Stars */}
+                          <div className="flex items-center gap-0.5">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star
+                                key={s}
+                                className={`w-3.5 h-3.5 ${
+                                  s <= f.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-300'
+                                }`}
+                              />
+                            ))}
+                          </div>
+
+                          <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                            {f.feedback_type}
+                          </span>
+
+                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                            f.is_anonymous ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {f.is_anonymous ? '🔒 Anonymous' : '👤 Identified'}
+                          </span>
+                        </div>
+
+                        <span className="text-[11px] text-gray-400 font-medium">
+                          {new Date(f.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      {f.title && <h4 className="text-xs font-bold text-gray-900">{f.title}</h4>}
+                      <p className="text-xs text-gray-700 whitespace-pre-line">{f.comment || 'No comments provided.'}</p>
+
+                      {/* Staff Response Note if available */}
+                      {f.staff_response && (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 space-y-0.5 mt-2">
+                          <p className="text-[10px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Staff Acknowledgment & Response
+                          </p>
+                          <p className="text-xs text-gray-800 font-medium">{f.staff_response}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* General Program Feedback Modal */}
+            {showGeneralFeedbackModal && (
+              <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white border border-gray-200 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl animate-fade-in text-left">
+                  <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-primary" />
+                      <h3 className="text-base font-bold text-gray-900">Submit Incubator Feedback</h3>
+                    </div>
+                    <button
+                      onClick={() => setShowGeneralFeedbackModal(false)}
+                      className="text-gray-400 hover:text-gray-600 text-sm font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleGeneralFeedbackSubmit} className="space-y-4">
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Feedback Category</label>
+                      <select
+                        value={generalFeedbackType}
+                        onChange={(e: any) => setGeneralFeedbackType(e.target.value)}
+                        className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
+                      >
+                        <option value="PROGRAM">Program Overview & Operations</option>
+                        <option value="CURRICULUM">Curriculum & Workshops</option>
+                        <option value="MENTORSHIP">Mentorship & Office Hours</option>
+                        <option value="FACILITY">Facilities & Co-working Space</option>
+                        <option value="OTHER">General Other</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Overall Satisfaction Rating</label>
+                      <div className="flex items-center gap-2">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => setGeneralFeedbackRating(s)}
+                            className="p-1 cursor-pointer"
+                          >
+                            <Star
+                              className={`w-6 h-6 ${
+                                s <= generalFeedbackRating
+                                  ? 'text-amber-400 fill-amber-400'
+                                  : 'text-gray-300'
+                              }`}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Feedback Title / Summary</label>
+                      <input
+                        type="text"
+                        value={generalFeedbackTitle}
+                        onChange={(e) => setGeneralFeedbackTitle(e.target.value)}
+                        placeholder="e.g. Great session on pitch deck design / Need more cloud credits"
+                        className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Detailed Comments & Suggestions</label>
+                      <textarea
+                        value={generalFeedbackComment}
+                        onChange={(e) => setGeneralFeedbackComment(e.target.value)}
+                        placeholder="Provide constructive feedback, suggestions, or areas of improvement..."
+                        rows={4}
+                        className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Submission Privacy Choice (Anonymous vs Non-Anonymous) */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-800">Submission Privacy Choice</span>
+                        <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
+                          generalFeedbackIsAnonymous ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-900'
+                        }`}>
+                          {generalFeedbackIsAnonymous ? '🔒 Anonymous' : '👤 Identified'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setGeneralFeedbackIsAnonymous(false)}
+                          className={`p-2.5 rounded-lg border text-left flex items-start gap-2 cursor-pointer transition-all ${
+                            !generalFeedbackIsAnonymous
+                              ? 'border-primary bg-primary/5 ring-1 ring-primary font-bold text-primary'
+                              : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <UserCheck className="w-4 h-4 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-xs font-bold">Include My Name</p>
+                            <p className="text-[10px] text-gray-500 font-normal">Show founder profile</p>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setGeneralFeedbackIsAnonymous(true)}
+                          className={`p-2.5 rounded-lg border text-left flex items-start gap-2 cursor-pointer transition-all ${
+                            generalFeedbackIsAnonymous
+                              ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-500 font-bold text-amber-900'
+                              : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <EyeOff className="w-4 h-4 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-xs font-bold">100% Anonymous</p>
+                            <p className="text-[10px] text-gray-500 font-normal">Hide name & startup info</p>
+                          </div>
+                        </button>
+                      </div>
+
+                      {generalFeedbackIsAnonymous && (
+                        <p className="text-[11px] text-amber-800 bg-amber-100/60 p-2 rounded flex items-center gap-1.5 font-medium mt-1">
+                          <ShieldCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          Your identity and startup name will be masked directly at the database level.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowGeneralFeedbackModal(false)}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={submittingFeedback}
+                        className="px-5 py-2 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+                      >
+                        {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -26,7 +26,8 @@ import {
   TrendingUp,
   BarChart2,
   Award,
-  AlertOctagon
+  AlertOctagon,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User as ERPUser } from '../../types';
@@ -200,33 +201,37 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                     {/* Dashboard */}
                     <button
                       onClick={() => setActiveTab('cohort_dashboard')}
-                      disabled={!hasPermission('cohort:applicant_review')}
+                      disabled={!hasPermission('cohort:applicant_review') && !hasPermission('cohort:session_manage') && !hasPermission('cohort:form_manage')}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         activeTab === 'cohort_dashboard' || activeTab === 'cohorts'
                           ? 'bg-primary text-white shadow-3xs' 
                           : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
                     >
                       <span className="flex items-center gap-2">
                         <LayoutDashboard className="h-3.5 w-3.5" />
                         Dashboard
                       </span>
+                      {!hasPermission('cohort:applicant_review') && !hasPermission('cohort:session_manage') && !hasPermission('cohort:form_manage') && (
+                        <Lock className="h-3 w-3 text-gray-400" />
+                      )}
                     </button>
 
                     {/* Cohort Settings */}
                     <button
                       onClick={() => setActiveTab('cohort_settings')}
-                      disabled={!hasPermission('cohort:applicant_review')}
+                      disabled={!hasPermission('cohort:form_manage')}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         activeTab === 'cohort_settings' 
                           ? 'bg-primary text-white shadow-3xs' 
                           : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
                     >
                       <span className="flex items-center gap-2">
                         <Sliders className="h-3.5 w-3.5" />
                         Cohort Settings
                       </span>
+                      {!hasPermission('cohort:form_manage') && <Lock className="h-3 w-3 text-gray-400" />}
                     </button>
 
                     {/* Application Management (Collapsible Sub-Group) */}
@@ -246,30 +251,34 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                         <div className="pl-3 border-l border-gray-100 ml-3 space-y-1 my-0.5">
                           <button
                             onClick={() => setActiveTab('cohort_form_config')}
+                            disabled={!hasPermission('cohort:form_manage')}
                             className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                               activeTab === 'cohort_form_config' || activeTab === 'builder'
                                 ? 'bg-primary text-white shadow-3xs' 
                                 : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                            }`}
+                            } disabled:opacity-40 disabled:cursor-not-allowed`}
                           >
                             <span className="flex items-center gap-1.5">
                               <FileText className="h-3 w-3" />
                               Application Form Configuration
                             </span>
+                            {!hasPermission('cohort:form_manage') && <Lock className="h-3 w-3 text-gray-400" />}
                           </button>
 
                           <button
                             onClick={() => setActiveTab('cohort_applications')}
+                            disabled={!hasPermission('cohort:applicant_review')}
                             className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                               activeTab === 'cohort_applications' || activeTab === 'cohort_intake'
                                 ? 'bg-primary text-white shadow-3xs' 
                                 : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                            }`}
+                            } disabled:opacity-40 disabled:cursor-not-allowed`}
                           >
                             <span className="flex items-center gap-1.5">
                               <UserCheck className="h-3 w-3" />
                               Review Applications
                             </span>
+                            {!hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
                           </button>
                         </div>
                       )}
@@ -278,16 +287,18 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                     {/* Active Startups */}
                     <button
                       onClick={() => setActiveTab('cohort_startups')}
+                      disabled={!hasPermission('cohort:applicant_review')}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         activeTab === 'cohort_startups' 
                           ? 'bg-primary text-white shadow-3xs' 
                           : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
                     >
                       <span className="flex items-center gap-2">
                         <Rocket className="h-3.5 w-3.5" />
                         Active Startups
                       </span>
+                      {!hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
                     </button>
 
                     {/* Sessions */}
@@ -298,31 +309,35 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                           onNavigate('/staff/dashboard');
                         }
                       }}
+                      disabled={!hasPermission('cohort:session_manage')}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         activeTab === 'cohort_sessions' || (currentPath && currentPath.startsWith('/admin/sessions'))
                           ? 'bg-primary text-white shadow-3xs' 
                           : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
                     >
                       <span className="flex items-center gap-2">
                         <Calendar className="h-3.5 w-3.5" />
                         Sessions
                       </span>
+                      {!hasPermission('cohort:session_manage') && <Lock className="h-3 w-3 text-gray-400" />}
                     </button>
 
                     {/* Assignments */}
                     <button
                       onClick={() => setActiveTab('cohort_assignments')}
+                      disabled={!hasPermission('cohort:session_manage')}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         activeTab === 'cohort_assignments' 
                           ? 'bg-primary text-white shadow-3xs' 
                           : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
                     >
                       <span className="flex items-center gap-2">
                         <CheckSquare className="h-3.5 w-3.5" />
                         Assignments
                       </span>
+                      {!hasPermission('cohort:session_manage') && <Lock className="h-3 w-3 text-gray-400" />}
                     </button>
 
 
@@ -343,30 +358,50 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                         <div className="pl-3 border-l border-gray-100 ml-3 space-y-1 my-0.5">
                           <button
                             onClick={() => setActiveTab('cohort_kpis')}
+                            disabled={!hasPermission('cohort:checkin_log') && !hasPermission('cohort:applicant_review')}
                             className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                               activeTab === 'cohort_kpis' 
                                 ? 'bg-primary text-white shadow-3xs' 
                                 : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                            }`}
+                            } disabled:opacity-40 disabled:cursor-not-allowed`}
                           >
                             <span className="flex items-center gap-1.5">
                               <BarChart2 className="h-3 w-3" />
                               Metrics & KPIs
                             </span>
+                            {!hasPermission('cohort:checkin_log') && !hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
                           </button>
 
                           <button
                             onClick={() => setActiveTab('cohort_investment')}
+                            disabled={!hasPermission('cohort:applicant_review')}
                             className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                               activeTab === 'cohort_investment' 
                                 ? 'bg-primary text-white shadow-3xs' 
                                 : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                            }`}
+                            } disabled:opacity-40 disabled:cursor-not-allowed`}
                           >
                             <span className="flex items-center gap-1.5">
                               <Award className="h-3 w-3" />
                               Investment Readiness
                             </span>
+                            {!hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
+                          </button>
+
+                          <button
+                            onClick={() => setActiveTab('cohort_feedback')}
+                            disabled={!hasPermission('cohort:checkin_log') && !hasPermission('cohort:applicant_review')}
+                            className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                              activeTab === 'cohort_feedback' 
+                                ? 'bg-primary text-white shadow-3xs' 
+                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                            } disabled:opacity-40 disabled:cursor-not-allowed`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <MessageSquare className="h-3 w-3" />
+                              Founder Feedback
+                            </span>
+                            {!hasPermission('cohort:checkin_log') && !hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
                           </button>
                         </div>
                       )}

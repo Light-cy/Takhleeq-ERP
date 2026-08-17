@@ -1228,6 +1228,33 @@ export const deleteSessionAssignment = async (req: AuthenticatedRequest, res: Re
   }
 };
 
+export const updateAssignment = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const { title, description, due_date } = req.body;
+  try {
+    const asgId = parseInt(id);
+    const existingRes = await query('SELECT * FROM assignments WHERE id = $1', [asgId]);
+    if (existingRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Assignment not found.' });
+    }
+
+    const current = existingRes.rows[0];
+    const newTitle = title !== undefined && title !== null ? title.trim() : current.title;
+    const newDesc = description !== undefined && description !== null ? description.trim() : current.description;
+    const newDueDate = due_date !== undefined && due_date !== null ? due_date.trim() : current.due_date;
+
+    const result = await query(
+      `UPDATE assignments SET title = $1, description = $2, due_date = $3 WHERE id = $4 RETURNING *`,
+      [newTitle, newDesc, newDueDate, asgId]
+    );
+
+    res.json({ success: true, assignment: result.rows[0] || { id: asgId, title: newTitle, description: newDesc, due_date: newDueDate } });
+  } catch (err: any) {
+    console.error('Failed to update assignment:', err);
+    res.status(500).json({ error: 'Failed to update assignment due date.' });
+  }
+};
+
 export const getAssignmentSubmissions = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params; // assignment_id
   try {
@@ -1342,6 +1369,20 @@ export const submitAssignment = async (req: AuthenticatedRequest, res: Response)
       );
       if (insAsg.rows && insAsg.rows[0]) {
         targetAsgId = insAsg.rows[0].id;
+        asgRes = { rows: [insAsg.rows[0]] };
+      }
+    }
+
+    const targetAsg = asgRes.rows[0];
+    if (targetAsg && targetAsg.due_date && targetAsg.due_date !== 'No deadline') {
+      const dueDate = new Date(targetAsg.due_date);
+      if (!isNaN(dueDate.getTime())) {
+        dueDate.setHours(23, 59, 59, 999);
+        if (new Date() > dueDate) {
+          return res.status(400).json({
+            error: `Submission deadline passed on ${targetAsg.due_date}. Submissions are closed. Please request Admin to extend the due date.`
+          });
+        }
       }
     }
 
@@ -1906,6 +1947,177 @@ export const updateApplicantProfile = async (req: AuthenticatedRequest, res: Res
   } catch (err: any) {
     console.error('Failed to update profile:', err);
     res.status(500).json({ error: 'Failed to save self-service profile edits.' });
+  }
+};
+
+// --- COHORT FEEDBACK SYSTEM CONTROLLER ---
+export const submitCohortFeedback = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const {
+      cohort_id,
+      session_id,
+      feedback_type = 'PROGRAM',
+      rating,
+      title,
+      comment,
+      is_anonymous = false
+    } = req.body;
+
+    if (!rating || parseInt(rating) < 1 || parseInt(rating) > 5) {
+      return res.status(400).json({ error: 'Valid rating between 1 and 5 stars is required.' });
+    }
+
+    const userId = req.currentUser?.id || null;
+    const founderName = (req.currentUser as any)?.name || (req.currentUser as any)?.full_name || 'Cohort Founder';
+
+    let startupName = 'Cohort Startup';
+    let applicantId = null;
+
+    if (req.currentUser?.email) {
+      const appRes = await query(
+        `SELECT id, startup_name FROM applicants WHERE LOWER(email) = LOWER($1) ORDER BY id DESC LIMIT 1`,
+        [req.currentUser.email]
+      );
+      if (appRes.rows.length > 0) {
+        applicantId = appRes.rows[0].id;
+        startupName = appRes.rows[0].startup_name || startupName;
+      }
+    }
+
+    const isAnonBool = is_anonymous === true || is_anonymous === 'true';
+
+    const insertRes = await query(
+      `INSERT INTO cohort_feedback 
+       (cohort_id, session_id, user_id, applicant_id, founder_name, startup_name, feedback_type, rating, title, comment, is_anonymous, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'SUBMITTED')
+       RETURNING *`,
+      [
+        cohort_id ? parseInt(cohort_id) : null,
+        session_id ? parseInt(session_id) : null,
+        userId,
+        applicantId,
+        isAnonBool ? 'Anonymous Founder' : founderName,
+        isAnonBool ? 'Anonymous Startup' : startupName,
+        feedback_type,
+        parseInt(rating),
+        title ? title.trim() : null,
+        comment ? comment.trim() : null,
+        isAnonBool
+      ]
+    );
+
+    const feedback = insertRes.rows[0];
+
+    const returnedFeedback = isAnonBool ? {
+      ...feedback,
+      founder_name: 'Anonymous Founder',
+      startup_name: 'Anonymous Startup',
+      user_id: null,
+      applicant_id: null
+    } : feedback;
+
+    res.json({
+      success: true,
+      message: isAnonBool 
+        ? 'Anonymous feedback submitted successfully. Your identity is protected.' 
+        : 'Feedback submitted successfully.',
+      feedback: returnedFeedback
+    });
+  } catch (err) {
+    console.error('Failed to submit cohort feedback:', err);
+    res.status(500).json({ error: 'Failed to record feedback.' });
+  }
+};
+
+export const getCohortFeedback = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { cohort_id, session_id, feedback_type } = req.query;
+
+    let sql = `SELECT * FROM cohort_feedback WHERE 1=1`;
+    const params: any[] = [];
+
+    if (cohort_id) {
+      params.push(parseInt(cohort_id as string));
+      sql += ` AND cohort_id = $${params.length}`;
+    }
+
+    if (session_id) {
+      params.push(parseInt(session_id as string));
+      sql += ` AND session_id = $${params.length}`;
+    }
+
+    if (feedback_type) {
+      params.push(feedback_type);
+      sql += ` AND feedback_type = $${params.length}`;
+    }
+
+    sql += ` ORDER BY created_at DESC`;
+
+    const feedRes = await query(sql, params);
+
+    const rows = feedRes.rows.map((f: any) => {
+      const isAnon = f.is_anonymous === true || f.is_anonymous === 'true';
+      if (isAnon) {
+        return {
+          ...f,
+          founder_name: 'Anonymous Founder',
+          startup_name: 'Anonymous Startup',
+          user_id: null,
+          applicant_id: null
+        };
+      }
+      return f;
+    });
+
+    res.json(rows);
+  } catch (err) {
+    console.error('Failed to retrieve cohort feedback:', err);
+    res.status(500).json({ error: 'Failed to retrieve feedback logs.' });
+  }
+};
+
+export const updateCohortFeedbackStatus = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, staff_response } = req.body;
+
+    const targetId = parseInt(id);
+    const updateRes = await query(
+      `UPDATE cohort_feedback SET status = $1, staff_response = $2 WHERE id = $3 RETURNING *`,
+      [status || 'REVIEWED', staff_response || null, targetId]
+    );
+
+    if (updateRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Feedback record not found.' });
+    }
+
+    const item = updateRes.rows[0];
+    if (item.is_anonymous) {
+      item.founder_name = 'Anonymous Founder';
+      item.startup_name = 'Anonymous Startup';
+      item.user_id = null;
+      item.applicant_id = null;
+    }
+
+    res.json({
+      success: true,
+      feedback: item
+    });
+  } catch (err) {
+    console.error('Failed to update feedback status:', err);
+    res.status(500).json({ error: 'Failed to update feedback status.' });
+  }
+};
+
+export const deleteCohortFeedback = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const targetId = parseInt(id);
+    await query(`DELETE FROM cohort_feedback WHERE id = $1`, [targetId]);
+    res.json({ success: true, message: 'Feedback deleted successfully.' });
+  } catch (err) {
+    console.error('Failed to delete feedback:', err);
+    res.status(500).json({ error: 'Failed to delete feedback.' });
   }
 };
 

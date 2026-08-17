@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Key, Plus, Check, Lock, Edit3, Trash2, AlertTriangle, Info } from 'lucide-react';
+import { Key, Plus, Check, Lock, Edit3, Trash2, AlertTriangle, Info, GraduationCap, Building, Shield, Sparkles } from 'lucide-react';
 import { CustomRole } from '../../../types';
 
 interface GovRolesTabProps {
@@ -14,6 +14,42 @@ interface GovRolesTabProps {
   processing: boolean;
   setProcessing: (p: boolean) => void;
 }
+
+export interface PermissionNodeDef {
+  key: string;
+  label: string;
+  category: 'INCUBATION' | 'FACILITY' | 'GOVERNANCE';
+  description: string;
+}
+
+export const PERMISSION_NODES: PermissionNodeDef[] = [
+  // --- COHORT & INCUBATION MANAGEMENT NODES ---
+  { key: 'cohort:form_manage', label: 'Form Builder & Cohort Settings', category: 'INCUBATION', description: 'Configure application intake fields, toggle portal status, create & manage cohorts' },
+  { key: 'cohort:applicant_review', label: 'Applicant Screening & Admissions', category: 'INCUBATION', description: 'Review startup applications, score interviews/pitches, manage stage transitions & credentials' },
+  { key: 'cohort:session_manage', label: 'Session Scheduling & Curriculum', category: 'INCUBATION', description: 'Schedule workshop lectures, assign mentors, manage syllabus & assignment deliverables' },
+  { key: 'cohort:attendance_write', label: 'Attendance Tracking & Compliance', category: 'INCUBATION', description: 'Mark session attendance (Present/Late/Absent), log orientation compliance & review submissions' },
+  { key: 'cohort:checkin_log', label: 'Mentorship Check-ins & Progress', category: 'INCUBATION', description: 'Log team check-ins, record founder progress scores, mentor notes & velocity metrics' },
+  { key: 'cohort:warning_write', label: 'Probation Notices & Warnings', category: 'INCUBATION', description: 'Issue official performance/attendance warnings to startups and resolve probation status' },
+  { key: 'cohort:profile_write', label: 'Founder Startup Self-Service', category: 'INCUBATION', description: 'Founder access to manage startup profile, team members, pitch details & metrics' },
+  { key: 'cohort:feedback_submit', label: 'Founder Workshop Feedback', category: 'INCUBATION', description: 'Founder access to rate workshop sessions and submit mentor feedback' },
+  { key: 'cohort:assignment_upload', label: 'Founder Deliverable Uploads', category: 'INCUBATION', description: 'Founder access to upload completed assignment deliverables and milestone proofs' },
+
+  // --- FACILITY & RESERVATION NODES ---
+  { key: 'SUBMIT_BOOKING', label: 'Submit Facility Booking', category: 'FACILITY', description: 'Request space reservations for incubator/university rooms and labs' },
+  { key: 'CANCEL_OWN_BOOKING', label: 'Cancel Own Reservations', category: 'FACILITY', description: 'Cancel active or pending space booking requests submitted by user' },
+  { key: 'VIEW_PENDING_QUEUE', label: 'View Booking Review Queue', category: 'FACILITY', description: 'Access pending facility booking requests queue and review details' },
+  { key: 'APPROVE_REJECT_BOOKINGS', label: 'Approve / Reject Bookings', category: 'FACILITY', description: 'Approve or decline pending space reservation applications' },
+  { key: 'BOOKING_OVERRIDE', label: 'Booking Schedule Override', category: 'FACILITY', description: 'Override existing room bookings and resolve calendar scheduling conflicts' },
+  { key: 'MANAGE_ROOMS', label: 'Facility Spaces & Rooms', category: 'FACILITY', description: 'Configure room attributes, operating parameters, and add new facility spaces' },
+  { key: 'MANAGE_BOOKING_TYPES', label: 'Booking Classifications', category: 'FACILITY', description: 'Manage classification categories and policy constraints for space requests' },
+
+  // --- GOVERNANCE & SECURITY NODES ---
+  { key: 'MANAGE_ROLES', label: 'Role & Policy Compiler', category: 'GOVERNANCE', description: 'Create, edit, and assign custom RBAC roles and permission node policies' },
+  { key: 'MANAGE_USERS', label: 'User Directory & Role Mapping', category: 'GOVERNANCE', description: 'Register workspace user profiles and map security roles' },
+  { key: 'ISSUE_BAN', label: 'Blacklist & Account Bans', category: 'GOVERNANCE', description: 'Suspend user facility/portal access and manage active ban records' },
+  { key: 'VIEW_ANALYTICS_DASHBOARD', label: 'Executive Analytics', category: 'GOVERNANCE', description: 'Access executive analytics dashboards, facility utilization, and cohort KPIs' },
+  { key: 'EXPORT_AUDIT_LOGS', label: 'Audit Logs & PDF Reports', category: 'GOVERNANCE', description: 'Inspect system audit trails and export compliance audit reports' },
+];
 
 export function GovRolesTab({
   roles,
@@ -34,35 +70,60 @@ export function GovRolesTab({
   const [newRoleDesc, setNewRoleDesc] = useState('');
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [banCeiling, setBanCeiling] = useState('7');
-
-  const availablePermissions = [
-    'SUBMIT_BOOKING',
-    'CANCEL_OWN_BOOKING',
-    'VIEW_PENDING_QUEUE',
-    'APPROVE_REJECT_BOOKINGS',
-    'BOOKING_OVERRIDE',
-    'ISSUE_BAN',
-    'MANAGE_ROOMS',
-    'VIEW_ANALYTICS_DASHBOARD',
-    'EXPORT_AUDIT_LOGS',
-    'MANAGE_ROLES',
-    'MANAGE_USERS',
-    'MANAGE_BOOKING_TYPES'
-  ];
+  const [permCategoryFilter, setPermCategoryFilter] = useState<'ALL' | 'INCUBATION' | 'FACILITY' | 'GOVERNANCE'>('ALL');
 
   const clearMessages = () => {
     setErrorMsg(null);
     setSuccessMsg(null);
   };
 
-  const handlePermissionToggle = (perm: string) => {
-    if (!hasPermission(perm)) {
-      setErrorMsg(`Privilege Escalation Blocked: You cannot assign '${perm}' because you do not hold this permission yourself.`);
+  const handlePermissionToggle = (permKey: string) => {
+    if (!hasPermission(permKey)) {
+      setErrorMsg(`Privilege Escalation Blocked: You cannot assign '${permKey}' because you do not hold this permission yourself.`);
       return;
     }
     setSelectedPermissions(prev => 
-      prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]
+      prev.includes(permKey) ? prev.filter(p => p !== permKey) : [...prev, permKey]
     );
+  };
+
+  const applyPreset = (presetType: 'ALL_COHORT' | 'EVALUATOR' | 'INCUBATOR_STAFF' | 'FOUNDER' | 'FACILITY_MGR' | 'CLEAR') => {
+    clearMessages();
+    let keysToSelect: string[] = [];
+
+    switch (presetType) {
+      case 'ALL_COHORT':
+        keysToSelect = PERMISSION_NODES.filter(p => p.category === 'INCUBATION').map(p => p.key);
+        break;
+      case 'EVALUATOR':
+        keysToSelect = ['cohort:applicant_review'];
+        break;
+      case 'INCUBATOR_STAFF':
+        keysToSelect = ['cohort:session_manage', 'cohort:attendance_write', 'cohort:checkin_log', 'cohort:warning_write', 'cohort:applicant_review'];
+        break;
+      case 'FOUNDER':
+        keysToSelect = ['cohort:profile_write', 'cohort:feedback_submit', 'cohort:assignment_upload'];
+        break;
+      case 'FACILITY_MGR':
+        keysToSelect = ['SUBMIT_BOOKING', 'CANCEL_OWN_BOOKING', 'VIEW_PENDING_QUEUE', 'APPROVE_REJECT_BOOKINGS', 'BOOKING_OVERRIDE', 'MANAGE_ROOMS'];
+        break;
+      case 'CLEAR':
+        keysToSelect = [];
+        break;
+    }
+
+    // Filter by permissions creator actually holds
+    const allowedKeys = keysToSelect.filter(k => hasPermission(k));
+    if (keysToSelect.length > allowedKeys.length) {
+      setErrorMsg(`Preset partially applied: Some nodes were omitted because you do not hold those permissions yourself.`);
+    }
+
+    if (presetType === 'CLEAR') {
+      setSelectedPermissions([]);
+    } else {
+      // Merge with current selection or replace
+      setSelectedPermissions(prev => Array.from(new Set([...prev, ...allowedKeys])));
+    }
   };
 
   const startEditingRole = (role: CustomRole) => {
@@ -144,19 +205,24 @@ export function GovRolesTab({
     }
   };
 
+  const filteredPermissionNodes = PERMISSION_NODES.filter(node => 
+    permCategoryFilter === 'ALL' || node.category === permCategoryFilter
+  );
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in text-left">
       
       {/* Custom Role Compiler Form */}
-      <div className="lg:col-span-5 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5 h-fit">
+      <div className="lg:col-span-6 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5 h-fit">
         <div className="space-y-1">
-          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">
+          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+            <Key className="w-4 h-4 text-primary" />
             {editingRole ? 'Configure Policy Role' : 'Compile Policy Role'}
           </h3>
           <p className="text-[11px] text-gray-500">
             {editingRole 
               ? `Configure active properties and permissions for '${editingRole.name}'.` 
-              : 'Design a custom security role and compile its active permission nodes.'}
+              : 'Design a custom security role and compile its active permission nodes for Cohort & Facility access.'}
           </p>
         </div>
 
@@ -169,7 +235,7 @@ export function GovRolesTab({
               disabled={!!editingRole}
               value={newRoleName}
               onChange={e => setNewRoleName(e.target.value)}
-              placeholder="e.g. Society Advisor"
+              placeholder="e.g. Incubation Evaluator, Cohort Director..."
               className={`w-full p-2.5 border rounded-xl text-xs focus:ring-1 focus:ring-primary focus:bg-white ${
                 editingRole ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'border-gray-150 bg-gray-50/50'
               } text-gray-800`}
@@ -188,36 +254,151 @@ export function GovRolesTab({
             />
           </div>
 
-          <div>
-            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Active Permission Nodes <span className="text-red-500">*</span></label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto border p-3 rounded-xl bg-gray-50/30 text-gray-800">
-              {availablePermissions.map(perm => {
-                const isChecked = selectedPermissions.includes(perm);
-                const isAllowed = hasPermission(perm);
+          {/* Quick Preset Buttons */}
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                Quick Role Presets
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => applyPreset('ALL_COHORT')}
+                className="px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-bold border border-primary/20 transition-all cursor-pointer flex items-center gap-1"
+              >
+                <GraduationCap className="w-3 h-3" />
+                All Incubation
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPreset('INCUBATOR_STAFF')}
+                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold border border-blue-200 transition-all cursor-pointer"
+              >
+                Incubator Staff
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPreset('EVALUATOR')}
+                className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 text-[10px] font-bold border border-purple-200 transition-all cursor-pointer"
+              >
+                Panel Evaluator
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPreset('FOUNDER')}
+                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-bold border border-emerald-200 transition-all cursor-pointer"
+              >
+                Cohort Founder
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPreset('FACILITY_MGR')}
+                className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-[10px] font-bold border border-amber-200 transition-all cursor-pointer flex items-center gap-1"
+              >
+                <Building className="w-3 h-3" />
+                Facility Ops
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPreset('CLEAR')}
+                className="px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] font-bold transition-all cursor-pointer"
+              >
+                Clear All
+              </button>
+            </div>
+          </div>
+
+          {/* Active Permission Nodes Selection */}
+          <div className="space-y-2 pt-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider">
+                Active Permission Nodes ({selectedPermissions.length} Selected) <span className="text-red-500">*</span>
+              </label>
+
+              {/* Category Filters */}
+              <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg text-[10px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setPermCategoryFilter('ALL')}
+                  className={`px-2 py-0.5 rounded ${permCategoryFilter === 'ALL' ? 'bg-white text-gray-900 shadow-2xs font-black' : 'text-gray-500'}`}
+                >
+                  All ({PERMISSION_NODES.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPermCategoryFilter('INCUBATION')}
+                  className={`px-2 py-0.5 rounded flex items-center gap-1 ${permCategoryFilter === 'INCUBATION' ? 'bg-primary text-white shadow-2xs font-black' : 'text-gray-500'}`}
+                >
+                  <GraduationCap className="w-2.5 h-2.5" />
+                  Cohort ({PERMISSION_NODES.filter(p => p.category === 'INCUBATION').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPermCategoryFilter('FACILITY')}
+                  className={`px-2 py-0.5 rounded ${permCategoryFilter === 'FACILITY' ? 'bg-white text-gray-900 shadow-2xs font-black' : 'text-gray-500'}`}
+                >
+                  Facility
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPermCategoryFilter('GOVERNANCE')}
+                  className={`px-2 py-0.5 rounded ${permCategoryFilter === 'GOVERNANCE' ? 'bg-white text-gray-900 shadow-2xs font-black' : 'text-gray-500'}`}
+                >
+                  Gov
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-200 p-3 rounded-xl bg-gray-50/40 text-gray-800 divide-y divide-gray-100">
+              {filteredPermissionNodes.map(node => {
+                const isChecked = selectedPermissions.includes(node.key);
+                const isAllowed = hasPermission(node.key);
+
                 return (
-                  <button
-                    type="button"
-                    key={perm}
-                    disabled={!isAllowed}
-                    onClick={() => handlePermissionToggle(perm)}
-                    className={`p-2 rounded-lg border text-left text-[10px] font-mono font-bold transition-all flex items-center justify-between cursor-pointer ${
-                      !isAllowed
-                        ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed opacity-50'
-                        : isChecked 
-                          ? 'bg-primary/5 text-primary border-primary/25' 
-                          : 'bg-white text-gray-500 border-gray-150 hover:bg-gray-50'
-                    }`}
-                    title={!isAllowed ? `Locked: You do not hold the '${perm}' permission` : undefined}
+                  <div
+                    key={node.key}
+                    onClick={() => isAllowed && handlePermissionToggle(node.key)}
+                    className={`pt-2 first:pt-0 pb-1 cursor-pointer transition-all ${!isAllowed ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <span className="truncate">{perm}</span>
-                    {!isAllowed ? (
-                      <Lock className="h-3 w-3 shrink-0 text-gray-400" />
-                    ) : isChecked ? (
-                      <Check className="h-3 w-3 shrink-0 text-primary" />
-                    ) : (
-                      <Plus className="h-3 w-3 shrink-0" />
-                    )}
-                  </button>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-0.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono text-[10px] font-bold text-gray-900 bg-white px-1.5 py-0.5 rounded border border-gray-200">
+                            {node.key}
+                          </span>
+                          <span className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded font-mono ${
+                            node.category === 'INCUBATION'
+                              ? 'bg-primary/10 text-primary border border-primary/20'
+                              : node.category === 'FACILITY'
+                                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                : 'bg-blue-50 text-blue-700 border border-blue-200'
+                          }`}>
+                            {node.category}
+                          </span>
+                          <span className="text-xs font-bold text-gray-800">{node.label}</span>
+                        </div>
+                        <p className="text-[10px] text-gray-500 leading-normal pl-0.5">{node.description}</p>
+                      </div>
+
+                      <div className="shrink-0 pt-0.5">
+                        {!isAllowed ? (
+                          <span className="p-1.5 rounded-lg bg-gray-100 text-gray-400 inline-block" title="Locked: You do not hold this permission node">
+                            <Lock className="h-3.5 w-3.5" />
+                          </span>
+                        ) : isChecked ? (
+                          <span className="p-1.5 rounded-lg bg-primary text-white inline-block shadow-2xs">
+                            <Check className="h-3.5 w-3.5" />
+                          </span>
+                        ) : (
+                          <span className="p-1.5 rounded-lg bg-white border border-gray-300 text-gray-400 hover:border-gray-400 inline-block">
+                            <Plus className="h-3.5 w-3.5" />
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -227,7 +408,7 @@ export function GovRolesTab({
             <button
               type="submit"
               disabled={processing}
-              className="w-full bg-primary hover:bg-primary/95 text-white font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
+              className="w-full bg-primary hover:bg-primary/95 text-white font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 shadow-3xs"
             >
               {processing ? 'Saving role...' : (editingRole ? 'Update Role & Save' : 'Compile Role & Save')}
             </button>
@@ -244,53 +425,106 @@ export function GovRolesTab({
         </form>
       </div>
 
-      {/* compiled Role list */}
-      <div className="lg:col-span-7 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
+      {/* Compiled Role list */}
+      <div className="lg:col-span-6 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
         <div className="space-y-1">
-          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Compiled Policy Roles</h3>
-          <p className="text-[11px] text-gray-500">System roles compiling security bounds and operational permissions.</p>
+          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+            <Shield className="w-4 h-4 text-primary" />
+            Compiled Policy Roles ({roles.length})
+          </h3>
+          <p className="text-[11px] text-gray-500">Active system security roles defining cohort, facility, and administrative operational bounds.</p>
         </div>
 
         <div className="space-y-4">
-          {roles.map(role => (
-            <div key={role.name} className="border border-gray-155 rounded-xl p-4 space-y-3 bg-white hover:border-gray-300 transition-all text-xs text-gray-700">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h4 className="font-black text-gray-900 uppercase tracking-wide flex items-center gap-1.5">
-                    <Key className="h-4 w-4 text-primary" />
-                    {role.name}
-                  </h4>
-                  <p className="text-[11px] text-gray-400 mt-0.5">{role.description}</p>
-                </div>
-                {role.name !== 'Administrator' && role.name !== 'UCP Member' && (
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => startEditingRole(role)}
-                      className="text-primary hover:bg-primary/5 p-1.5 rounded-lg border border-transparent hover:border-primary/10 transition-colors cursor-pointer"
-                      title="Configure role"
-                    >
-                      <Edit3 className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => setDeletingRole(role.name)}
-                      className="text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg border border-transparent hover:border-rose-100 transition-colors cursor-pointer"
-                      title="Purge role"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
-              </div>
+          {roles.map(role => {
+            const cohortNodeCount = role.permissions.filter(p => p.startsWith('cohort:')).length;
+            const facilityNodeCount = role.permissions.filter(p => !p.startsWith('cohort:') && p !== 'MANAGE_ROLES' && p !== 'MANAGE_USERS' && p !== 'ISSUE_BAN' && p !== 'VIEW_ANALYTICS_DASHBOARD' && p !== 'EXPORT_AUDIT_LOGS').length;
+            const govNodeCount = role.permissions.length - cohortNodeCount - facilityNodeCount;
 
-              <div className="flex flex-wrap gap-1 pt-1.5 border-t border-gray-50">
-                {role.permissions.map(perm => (
-                  <span key={perm} className="bg-gray-50 border border-gray-155 text-gray-500 text-[8px] font-bold font-mono px-2 py-0.5 rounded uppercase">
-                    {perm}
-                  </span>
-                ))}
+            return (
+              <div key={role.name} className="border border-gray-200 rounded-xl p-4 space-y-3 bg-white hover:border-gray-300 transition-all text-xs text-gray-700">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <h4 className="font-black text-gray-900 uppercase tracking-wide flex items-center gap-1.5 text-sm">
+                      <Key className="h-4 w-4 text-primary shrink-0" />
+                      <span>{role.name}</span>
+                      {role.name === 'Administrator' && (
+                        <span className="bg-amber-100 text-amber-800 text-[9px] font-black uppercase px-2 py-0.5 rounded font-mono border border-amber-200">
+                          Superuser
+                        </span>
+                      )}
+                      {role.name === 'Cohort Founder' && (
+                        <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase px-2 py-0.5 rounded font-mono border border-emerald-200">
+                          Founder Default
+                        </span>
+                      )}
+                    </h4>
+                    <p className="text-[11px] text-gray-500">{role.description}</p>
+                    
+                    {/* Node count badges */}
+                    <div className="flex items-center gap-2 pt-1 font-mono text-[9px]">
+                      {cohortNodeCount > 0 && (
+                        <span className="bg-primary/10 text-primary font-bold px-2 py-0.5 rounded border border-primary/20 flex items-center gap-1">
+                          <GraduationCap className="w-3 h-3" />
+                          {cohortNodeCount} Cohort Nodes
+                        </span>
+                      )}
+                      {facilityNodeCount > 0 && (
+                        <span className="bg-amber-50 text-amber-800 font-bold px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
+                          <Building className="w-3 h-3" />
+                          {facilityNodeCount} Facility Nodes
+                        </span>
+                      )}
+                      {govNodeCount > 0 && (
+                        <span className="bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded border border-blue-200 flex items-center gap-1">
+                          <Shield className="w-3 h-3" />
+                          {govNodeCount} Governance Nodes
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {role.name !== 'Administrator' && role.name !== 'UCP Member' && (
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        onClick={() => startEditingRole(role)}
+                        className="text-primary hover:bg-primary/5 p-1.5 rounded-lg border border-transparent hover:border-primary/10 transition-colors cursor-pointer"
+                        title="Configure role"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeletingRole(role.name)}
+                        className="text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg border border-transparent hover:border-rose-100 transition-colors cursor-pointer"
+                        title="Purge role"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-1 pt-1.5 border-t border-gray-100">
+                  {role.permissions.length === 0 ? (
+                    <span className="text-[10px] text-gray-400 font-italic italic">No permission nodes assigned</span>
+                  ) : (
+                    role.permissions.map(perm => (
+                      <span
+                        key={perm}
+                        className={`text-[9px] font-bold font-mono px-2 py-0.5 rounded border ${
+                          perm.startsWith('cohort:')
+                            ? 'bg-primary/5 border-primary/20 text-primary'
+                            : 'bg-gray-50 border-gray-200 text-gray-600'
+                        }`}
+                      >
+                        {perm}
+                      </span>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -344,3 +578,4 @@ export function GovRolesTab({
     </div>
   );
 }
+

@@ -24,6 +24,7 @@ import {
   getCohortAssignments,
   getSessionAssignments,
   deleteSessionAssignment,
+  updateAssignment,
   getAssignmentSubmissions,
   submitAssignment,
   getCohortCheckIns,
@@ -35,7 +36,11 @@ import {
   updateApplicantProfile,
   getApplicantStageHistory,
   getApplicantCredentials,
-  manageApplicantCredentials
+  manageApplicantCredentials,
+  submitCohortFeedback,
+  getCohortFeedback,
+  updateCohortFeedbackStatus,
+  deleteCohortFeedback
 } from './cohorts.controller.ts';
 
 const router = Router();
@@ -94,6 +99,7 @@ router.post('/cohorts/:id/assignments', requireAuth, requirePermission('cohort:s
 router.get('/assignments', requireAuth, getCohortAssignments);
 router.post('/assignments', requireAuth, requirePermission('cohort:session_manage'), createCohortAssignment);
 router.delete('/assignments/:id', requireAuth, requirePermission('cohort:session_manage'), deleteSessionAssignment);
+router.put('/assignments/:id', requireAuth, requirePermission('cohort:session_manage'), updateAssignment);
 router.get('/assignments/:id/submissions', requireAuth, requirePermission('cohort:attendance_write'), getAssignmentSubmissions);
 router.post('/assignments/:id/submit', requireAuth, submitAssignment);
 
@@ -105,5 +111,11 @@ router.post('/cohorts/:id/checkins', requireAuth, requirePermission('cohort:chec
 router.get('/cohorts/:id/warnings', requireAuth, getCohortWarnings);
 router.post('/cohorts/:id/warnings', requireAuth, requirePermission('cohort:warning_write'), issuePerformanceWarning);
 router.put('/warnings/:id/resolve', requireAuth, requirePermission('cohort:warning_write'), resolvePerformanceWarning);
+
+// Cohort & Program Feedback System
+router.post('/cohort-feedback', requireAuth, submitCohortFeedback);
+router.get('/cohort-feedback', requireAuth, getCohortFeedback);
+router.put('/cohort-feedback/:id/status', requireAuth, updateCohortFeedbackStatus);
+router.delete('/cohort-feedback/:id', requireAuth, deleteCohortFeedback);
 
 export default router;

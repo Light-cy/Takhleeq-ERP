@@ -136,6 +136,11 @@ function initializeLocalDB() {
       updated = true;
     }
 
+    if (!db.cohort_feedback || !Array.isArray(db.cohort_feedback)) {
+      db.cohort_feedback = [];
+      updated = true;
+    }
+
     if (db.roles && Array.isArray(db.roles)) {
       // 1. Upgrade Administrator role
       const adminRole = db.roles.find((r: any) => r.name === 'Administrator');
@@ -765,6 +770,20 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: list };
   }
 
+  if (q.includes('update assignments set')) {
+    db.assignments = db.assignments || [];
+    const asgId = parseInt(params[3]);
+    const found = db.assignments.find((a: any) => a.id === asgId);
+    if (found) {
+      found.title = params[0];
+      found.description = params[1];
+      found.due_date = params[2];
+      saveLocalDB(db);
+      return { rows: [found] };
+    }
+    return { rows: [] };
+  }
+
   // 5c. Assignment Submissions Interceptors
   if (q.includes('assignment_submissions')) {
     if (q.includes('delete from assignment_submissions')) {
@@ -871,6 +890,73 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       saveLocalDB(db);
     }
     return { rows: warn ? [warn] : [] };
+  }
+
+  // 7b. Cohort Feedback Interceptors
+  if (q.includes('from cohort_feedback') || q.includes('select * from cohort_feedback')) {
+    db.cohort_feedback = db.cohort_feedback || [];
+    let list = [...db.cohort_feedback];
+    if (q.includes('cohort_id = $1')) {
+      const cid = parseInt(params[0]);
+      if (cid) list = list.filter((f: any) => f.cohort_id === cid);
+    }
+    if (q.includes('session_id = $1') || q.includes('session_id = $2')) {
+      const sid = parseInt(params[q.includes('session_id = $1') ? 0 : 1]);
+      if (sid) list = list.filter((f: any) => f.session_id === sid);
+    }
+    const processed = list.map((f: any) => {
+      const isAnon = f.is_anonymous === true || f.is_anonymous === 'true';
+      if (isAnon) {
+        return {
+          ...f,
+          founder_name: 'Anonymous Founder',
+          startup_name: 'Anonymous Startup',
+          user_id: null,
+          applicant_id: null
+        };
+      }
+      return f;
+    });
+    processed.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return { rows: processed };
+  }
+
+  if (q.includes('insert into cohort_feedback')) {
+    db.cohort_feedback = db.cohort_feedback || [];
+    const id = Math.max(...db.cohort_feedback.map((f: any) => f.id || 0), 0) + 1;
+    const isAnonBool = params[10] === true || params[10] === 'true';
+    const newFeedback = {
+      id,
+      cohort_id: params[0] ? parseInt(params[0]) : null,
+      session_id: params[1] ? parseInt(params[1]) : null,
+      user_id: params[2] ? parseInt(params[2]) : null,
+      applicant_id: params[3] ? parseInt(params[3]) : null,
+      founder_name: isAnonBool ? 'Anonymous Founder' : (params[4] || 'Cohort Founder'),
+      startup_name: isAnonBool ? 'Anonymous Startup' : (params[5] || 'Cohort Startup'),
+      feedback_type: params[6] || 'PROGRAM',
+      rating: parseInt(params[7]) || 5,
+      title: params[8] || '',
+      comment: params[9] || '',
+      is_anonymous: isAnonBool,
+      status: 'SUBMITTED',
+      staff_response: null,
+      created_at: new Date().toISOString()
+    };
+    db.cohort_feedback.push(newFeedback);
+    saveLocalDB(db);
+    return { rows: [newFeedback] };
+  }
+
+  if (q.includes('update cohort_feedback set')) {
+    db.cohort_feedback = db.cohort_feedback || [];
+    const idVal = parseInt(params[params.length - 1]);
+    const item = db.cohort_feedback.find((f: any) => f.id === idVal);
+    if (item) {
+      if (q.includes('status = $1')) item.status = params[0];
+      if (q.includes('staff_response = $2')) item.staff_response = params[1];
+      saveLocalDB(db);
+    }
+    return { rows: item ? [item] : [] };
   }
 
   // 8. 1-on-1 Check-ins Interceptors
@@ -2622,6 +2708,27 @@ async function ensureDBReady() {
               resolution_notes TEXT,
               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
               updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        // 7b. cohort_feedback table
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS cohort_feedback (
+              id SERIAL PRIMARY KEY,
+              cohort_id INTEGER REFERENCES cohorts(id) ON DELETE CASCADE,
+              session_id INTEGER REFERENCES cohort_sessions(id) ON DELETE SET NULL,
+              user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              applicant_id INTEGER REFERENCES applicants(id) ON DELETE SET NULL,
+              founder_name VARCHAR(255),
+              startup_name VARCHAR(255),
+              feedback_type VARCHAR(50) DEFAULT 'PROGRAM',
+              rating INTEGER CHECK (rating >= 1 AND rating <= 5),
+              title VARCHAR(255),
+              comment TEXT,
+              is_anonymous BOOLEAN DEFAULT FALSE,
+              status VARCHAR(50) DEFAULT 'SUBMITTED',
+              staff_response TEXT,
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
           );
         `);
 

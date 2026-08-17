@@ -70,6 +70,10 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
   const [asgSubmissions, setAsgSubmissions] = useState<any[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
 
+  // Extend / Edit Assignment State
+  const [editingAsg, setEditingAsg] = useState<any | null>(null);
+  const [isUpdatingAsg, setIsUpdatingAsg] = useState(false);
+
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const headers = {
       ...options.headers,
@@ -300,6 +304,37 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
       triggerSuccess('Assignment deleted.');
     } catch (err: any) {
       triggerError(err.message);
+    }
+  };
+
+  const handleUpdateAssignmentDueDate = async () => {
+    if (!editingAsg || !editingAsg.due_date) {
+      triggerError('Due date is required.');
+      return;
+    }
+    setIsUpdatingAsg(true);
+    try {
+      const res = await fetchWithAuth(`/api/assignments/${editingAsg.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editingAsg.title,
+          description: editingAsg.description,
+          due_date: editingAsg.due_date
+        })
+      });
+      if (res.ok) {
+        triggerSuccess('Assignment due date updated / extended successfully!');
+        setAssignments(prev => prev.map(a => a.id === editingAsg.id ? { ...a, ...editingAsg } : a));
+        setEditingAsg(null);
+      } else {
+        const err = await res.json();
+        triggerError(err.error || 'Failed to update assignment.');
+      }
+    } catch (err: any) {
+      triggerError('Error updating assignment due date.');
+    } finally {
+      setIsUpdatingAsg(false);
     }
   };
 
@@ -727,6 +762,15 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
+                              onClick={() => setEditingAsg({ id: asg.id, title: asg.title, description: asg.description || '', due_date: asg.due_date || '' })}
+                              className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold py-1.5 px-3 rounded-lg transition-all cursor-pointer flex items-center gap-1 border border-blue-200"
+                              title="Extend or Edit Due Date"
+                            >
+                              <Calendar className="h-3.5 w-3.5" />
+                              <span>Extend Date</span>
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleToggleExpandAsg(asg.id)}
                               className="bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold py-1.5 px-3 rounded-lg transition-all cursor-pointer flex items-center gap-1"
                             >
@@ -813,6 +857,67 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
       {content}
+
+      {editingAsg && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-gray-200 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl text-left">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+              <h3 className="text-base font-extrabold text-gray-900">Extend / Edit Due Date</h3>
+              <button onClick={() => setEditingAsg(null)} className="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer">×</button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Assignment Title</label>
+                <input
+                  type="text"
+                  value={editingAsg.title}
+                  onChange={(e) => setEditingAsg({ ...editingAsg, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-900 focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Extended Due Date *</label>
+                <input
+                  type="date"
+                  value={editingAsg.due_date}
+                  onChange={(e) => setEditingAsg({ ...editingAsg, due_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-900 focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Instructions / Guidelines</label>
+                <textarea
+                  value={editingAsg.description}
+                  onChange={(e) => setEditingAsg({ ...editingAsg, description: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs text-gray-900 focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setEditingAsg(null)}
+                className="px-4 py-2 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdateAssignmentDueDate}
+                disabled={isUpdatingAsg}
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-primary hover:bg-primary/90 text-white cursor-pointer shadow-xs"
+              >
+                {isUpdatingAsg ? 'Saving...' : 'Save Extended Date'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

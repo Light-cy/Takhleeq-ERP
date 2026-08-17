@@ -35,6 +35,7 @@ import {
   User
 } from 'lucide-react';
 import { downloadFileLocally, getCleanFileName } from '../../../../utils/fileDownload';
+import { CohortFeedbackTab } from '../../components/CohortFeedbackTab';
 import { FormField, Cohort, Applicant, ApplicantStatus, CohortSession, TeamCheckIn, PerformanceWarning, CohortAssignment, MilestoneSubmission, AuditRecord } from '../../../../types';
 import { 
   COHORT_STAGES, 
@@ -271,6 +272,10 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
   const [deletingAsgId, setDeletingAsgId] = useState<number | null>(null);
 
+  // Extend / Edit Assignment State
+  const [editingAssignment, setEditingAssignment] = useState<any | null>(null);
+  const [isUpdatingAssignment, setIsUpdatingAssignment] = useState(false);
+
   // Search/Filters in Intake Sheet
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -363,7 +368,9 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       const res = await fetchWithAuth(endpoint);
       if (res.ok) {
         const data = await res.json();
-        setCohortAssignments(data.assignments || []);
+        const list = data.assignments || [];
+        setCohortAssignments(list);
+        setAssignments(list);
       }
     } catch (err) {
       console.error('Failed to load assignments:', err);
@@ -474,6 +481,38 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
     } catch (err) {
       triggerError('Failed to delete assignment.');
       fetchCohortAssignments();
+    }
+  };
+
+  const handleSaveAssignmentUpdate = async () => {
+    if (!editingAssignment || !editingAssignment.due_date) {
+      triggerError('Due date is required.');
+      return;
+    }
+    setIsUpdatingAssignment(true);
+    try {
+      const res = await fetchWithAuth(`/api/assignments/${editingAssignment.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editingAssignment.title,
+          description: editingAssignment.description,
+          due_date: editingAssignment.due_date
+        })
+      });
+      if (res.ok) {
+        triggerSuccess('Assignment due date updated / extended successfully!');
+        setCohortAssignments(prev => prev.map(a => a.id === editingAssignment.id ? { ...a, ...editingAssignment } : a));
+        setAssignments(prev => prev.map(a => a.id === editingAssignment.id ? { ...a, ...editingAssignment } : a));
+        setEditingAssignment(null);
+      } else {
+        const err = await res.json();
+        triggerError(err.error || 'Failed to update assignment.');
+      }
+    } catch (err) {
+      triggerError('Error updating assignment due date.');
+    } finally {
+      setIsUpdatingAssignment(false);
     }
   };
 
@@ -2338,12 +2377,22 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                               <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded border bg-emerald-50 text-emerald-800 border-emerald-200">
                                 Independent Assignment
                               </span>
+                              <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded border bg-blue-50 text-blue-800 border-blue-200">
+                                Permanent Record
+                              </span>
                             </div>
                             <h4 className="font-extrabold text-gray-900 text-sm mt-1">{asg.title}</h4>
                           </div>
-                          <span className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded shrink-0 font-mono">
-                            Due: {asg.due_date}
-                          </span>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded font-mono">
+                              Due: {asg.due_date}
+                            </span>
+                            {asg.due_date && new Date(asg.due_date).getTime() < new Date().setHours(0,0,0,0) && (
+                              <span className="text-[8px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                Past Due (Kept in Record)
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {asg.description && (
@@ -2369,6 +2418,14 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                           </span>
 
                           <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setEditingAssignment({ id: asg.id, title: asg.title, description: asg.description || '', due_date: asg.due_date || '' })}
+                              className="text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all cursor-pointer border bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 flex items-center gap-1"
+                              title="Extend or Edit Due Date"
+                            >
+                              <Calendar className="h-3 w-3" /> Extend Date
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleToggleSubmissions(asg)}
@@ -2530,6 +2587,11 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
             )}
           </div>
         </div>
+      )}
+
+      {/* SUBTAB: FOUNDER FEEDBACK */}
+      {activeSubTab === 'cohort_feedback' && (
+        <CohortFeedbackTab cohortId={selectedCohort?.id} />
       )}
 
       {/* STARTUP PROFILE MODAL WITH PIVOT HISTORY AND NOTES TABS */}
@@ -2778,6 +2840,68 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* EXTEND / EDIT ASSIGNMENT MODAL */}
+      {editingAssignment && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white border border-gray-200 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl text-left">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+              <h3 className="text-base font-extrabold text-gray-900">Extend / Edit Due Date</h3>
+              <button onClick={() => setEditingAssignment(null)} className="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer">×</button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Assignment Title</label>
+                <input
+                  type="text"
+                  value={editingAssignment.title}
+                  onChange={(e) => setEditingAssignment({ ...editingAssignment, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-900 focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Extended Due Date *</label>
+                <input
+                  type="date"
+                  value={editingAssignment.due_date}
+                  onChange={(e) => setEditingAssignment({ ...editingAssignment, due_date: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-900 focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Instructions / Description</label>
+                <textarea
+                  value={editingAssignment.description}
+                  onChange={(e) => setEditingAssignment({ ...editingAssignment, description: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs text-gray-900 focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setEditingAssignment(null)}
+                className="px-4 py-2 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAssignmentUpdate}
+                disabled={isUpdatingAssignment}
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-primary hover:bg-primary/90 text-white cursor-pointer shadow-xs"
+              >
+                {isUpdatingAssignment ? 'Saving...' : 'Save Extended Date'}
+              </button>
+            </div>
           </div>
         </div>
       )}
