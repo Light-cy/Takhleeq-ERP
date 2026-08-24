@@ -959,6 +959,159 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: item ? [item] : [] };
   }
 
+  // 7c. Generalized Feedback Forms Interceptors
+  if (q.includes('insert into feedback_forms')) {
+    db.feedback_forms = db.feedback_forms || [];
+    const id = Math.max(...db.feedback_forms.map((f: any) => f.id || 0), 0) + 1;
+    const isAnon = params[3] === true || params[3] === 'true';
+    const newForm = {
+      id,
+      cohort_id: parseInt(params[0]) || 1,
+      title: params[1] || 'Feedback Survey',
+      description: params[2] || '',
+      is_anonymous: isAnon,
+      created_by: params[4] ? parseInt(params[4]) : null,
+      expiry_date: params[5] || null,
+      status: params[6] || 'Active',
+      session_id: params[7] ? parseInt(params[7]) : null,
+      created_at: new Date().toISOString()
+    };
+    db.feedback_forms.push(newForm);
+    saveLocalDB(db);
+    return { rows: [newForm] };
+  }
+
+  if (q.includes('update feedback_forms')) {
+    db.feedback_forms = db.feedback_forms || [];
+    const idVal = parseInt(params[params.length - 1]);
+    const form = db.feedback_forms.find((f: any) => f.id === idVal);
+    if (form) {
+      if (q.includes('status = $1')) form.status = params[0];
+      if (q.includes('title = $1')) form.title = params[0];
+      if (q.includes('description = $2')) form.description = params[1];
+      if (q.includes('expiry_date = $3')) form.expiry_date = params[2];
+      saveLocalDB(db);
+    }
+    return { rows: form ? [form] : [] };
+  }
+
+  if (q.includes('delete from feedback_forms')) {
+    db.feedback_forms = db.feedback_forms || [];
+    const formId = parseInt(params[0]);
+    db.feedback_forms = db.feedback_forms.filter((f: any) => f.id !== formId);
+    if (db.feedback_questions) {
+      db.feedback_questions = db.feedback_questions.filter((q: any) => q.feedback_form_id !== formId);
+    }
+    if (db.feedback_responses) {
+      db.feedback_responses = db.feedback_responses.filter((r: any) => r.feedback_form_id !== formId);
+    }
+    saveLocalDB(db);
+    return { rows: [] };
+  }
+
+  if (q.includes('from feedback_forms') && !q.includes('insert into') && !q.includes('update') && !q.includes('delete')) {
+    db.feedback_forms = db.feedback_forms || [];
+    let list = [...db.feedback_forms];
+    if (q.includes('where id = $1') || q.includes('where ff.id = $1')) {
+      const fid = parseInt(params[0]);
+      list = list.filter((f: any) => f.id === fid);
+    } else if (q.includes('cohort_id = $1') || q.includes('ff.cohort_id = $1')) {
+      const cid = parseInt(params[0]);
+      if (cid) list = list.filter((f: any) => f.cohort_id === cid);
+    }
+    if (q.includes("status = 'Active'") || q.includes("status = $2")) {
+      list = list.filter((f: any) => f.status === 'Active');
+    }
+    // Enrich with session title & creator name if available
+    const enriched = list.map((f: any) => {
+      let session_title = null;
+      if (f.session_id) {
+        const s = (db.cohort_sessions || []).find((sess: any) => sess.id === f.session_id);
+        if (s) session_title = s.title;
+      }
+      let created_by_name = 'Incubator Admin';
+      if (f.created_by) {
+        const u = (db.users || []).find((usr: any) => usr.id === f.created_by);
+        if (u) created_by_name = u.name;
+      }
+      return {
+        ...f,
+        session_title,
+        created_by_name
+      };
+    });
+    enriched.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return { rows: enriched };
+  }
+
+  // 7d. Feedback Questions Interceptors
+  if (q.includes('insert into feedback_questions')) {
+    db.feedback_questions = db.feedback_questions || [];
+    const id = Math.max(...db.feedback_questions.map((q: any) => q.id || 0), 0) + 1;
+    const newQ = {
+      id,
+      feedback_form_id: parseInt(params[0]),
+      question_text: params[1],
+      question_type: params[2],
+      question_order: params[3] ? parseInt(params[3]) : 0
+    };
+    db.feedback_questions.push(newQ);
+    saveLocalDB(db);
+    return { rows: [newQ] };
+  }
+
+  if (q.includes('from feedback_questions') && !q.includes('insert into') && !q.includes('delete')) {
+    db.feedback_questions = db.feedback_questions || [];
+    let list = [...db.feedback_questions];
+    if (q.includes('feedback_form_id = $1')) {
+      const fid = parseInt(params[0]);
+      list = list.filter((q: any) => q.feedback_form_id === fid);
+    }
+    list.sort((a: any, b: any) => (a.question_order || 0) - (b.question_order || 0));
+    return { rows: list };
+  }
+
+  if (q.includes('delete from feedback_questions')) {
+    db.feedback_questions = db.feedback_questions || [];
+    const fid = parseInt(params[0]);
+    db.feedback_questions = db.feedback_questions.filter((q: any) => q.feedback_form_id !== fid);
+    saveLocalDB(db);
+    return { rows: [] };
+  }
+
+  // 7e. Feedback Responses Interceptors
+  if (q.includes('insert into feedback_responses')) {
+    db.feedback_responses = db.feedback_responses || [];
+    const id = Math.max(...db.feedback_responses.map((r: any) => r.id || 0), 0) + 1;
+    const newResp = {
+      id,
+      feedback_form_id: parseInt(params[0]),
+      question_id: parseInt(params[1]),
+      startup_id: parseInt(params[2]),
+      user_id: params[3] ? parseInt(params[3]) : null,
+      answer_value: String(params[4] || ''),
+      submitted_at: new Date().toISOString()
+    };
+    db.feedback_responses.push(newResp);
+    saveLocalDB(db);
+    return { rows: [newResp] };
+  }
+
+  if (q.includes('from feedback_responses') && !q.includes('insert into')) {
+    db.feedback_responses = db.feedback_responses || [];
+    let list = [...db.feedback_responses];
+    if (q.includes('feedback_form_id = $1')) {
+      const fid = parseInt(params[0]);
+      list = list.filter((r: any) => r.feedback_form_id === fid);
+    }
+    if (q.includes('startup_id = $2') || q.includes('startup_id = $1')) {
+      const sid = parseInt(params[q.includes('startup_id = $2') ? 1 : 0]);
+      if (sid) list = list.filter((r: any) => r.startup_id === sid);
+    }
+    return { rows: list };
+  }
+
+
   // 8. 1-on-1 Check-ins Interceptors
   if (q.includes('from checkins') && !q.includes('insert into checkins') && !q.includes('update checkins') && !q.includes('delete from checkins')) {
     db.checkins = db.checkins || [];
@@ -2729,6 +2882,44 @@ async function ensureDBReady() {
               status VARCHAR(50) DEFAULT 'SUBMITTED',
               staff_response TEXT,
               created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          );
+        `);
+
+        // 7c. Generalized feedback_forms, feedback_questions, feedback_responses
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS feedback_forms (
+              id SERIAL PRIMARY KEY,
+              cohort_id INTEGER REFERENCES cohorts(id) ON DELETE CASCADE,
+              title VARCHAR(255) NOT NULL,
+              description TEXT,
+              is_anonymous BOOLEAN DEFAULT FALSE,
+              created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              expiry_date VARCHAR(100),
+              status VARCHAR(50) DEFAULT 'Active',
+              session_id INTEGER REFERENCES cohort_sessions(id) ON DELETE SET NULL
+          );
+        `);
+
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS feedback_questions (
+              id SERIAL PRIMARY KEY,
+              feedback_form_id INTEGER REFERENCES feedback_forms(id) ON DELETE CASCADE,
+              question_text TEXT NOT NULL,
+              question_type VARCHAR(50) NOT NULL,
+              question_order INTEGER DEFAULT 0
+          );
+        `);
+
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS feedback_responses (
+              id SERIAL PRIMARY KEY,
+              feedback_form_id INTEGER REFERENCES feedback_forms(id) ON DELETE CASCADE,
+              question_id INTEGER REFERENCES feedback_questions(id) ON DELETE CASCADE,
+              startup_id INTEGER NOT NULL,
+              user_id INTEGER,
+              answer_value TEXT NOT NULL,
+              submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
         `);
 

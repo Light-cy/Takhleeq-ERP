@@ -60,7 +60,7 @@ import {
   FileCheck,
   X
 } from 'lucide-react';
-import { downloadFileLocally, formatFileSize, getCleanFileName } from '../../../utils/fileDownload';
+import { downloadFileLocally, formatFileSize, getCleanFileName, parseAssignmentAttachments } from '../../../utils/fileDownload';
 
 const CustomIncomeTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -258,6 +258,14 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   const [myFeedbackList, setMyFeedbackList] = useState<any[]>([]);
   const [loadingMyFeedback, setLoadingMyFeedback] = useState(false);
 
+  // Generalized Cohort Feedback Forms & Surveys (FR-02)
+  const [feedbackSurveys, setFeedbackSurveys] = useState<any[]>([]);
+  const [loadingFeedbackSurveys, setLoadingFeedbackSurveys] = useState(false);
+  const [activeSurveyModal, setActiveSurveyModal] = useState<any | null>(null);
+  const [surveyAnswers, setSurveyAnswers] = useState<Record<number, string | number>>({});
+  const [submittingSurvey, setSubmittingSurvey] = useState(false);
+  const [surveySubmitError, setSurveySubmitError] = useState<string | null>(null);
+
   const [showAddPivotModal, setShowAddPivotModal] = useState(false);
   const [newPivotOld, setNewPivotOld] = useState('');
   const [newPivotNew, setNewPivotNew] = useState('');
@@ -419,6 +427,9 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
 
       // Pivot History
       setPivotHistory(pf.pivot_history || []);
+
+      // Fetch Cohort Feedback Forms & Surveys
+      fetchFeedbackSurveys();
 
     } catch (err: any) {
       console.error(err);
@@ -821,6 +832,85 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
     }
   };
 
+  // Generalized Feedback Forms & Surveys Methods
+  const fetchFeedbackSurveys = async () => {
+    try {
+      setLoadingFeedbackSurveys(true);
+      const res = await fetchWithAuth('/api/feedback-forms');
+      if (res.ok) {
+        const data = await res.json();
+        setFeedbackSurveys(Array.isArray(data.forms) ? data.forms : []);
+      }
+    } catch (err) {
+      console.error('Error fetching feedback surveys:', err);
+    } finally {
+      setLoadingFeedbackSurveys(false);
+    }
+  };
+
+  const handleOpenSurveyModal = (survey: any) => {
+    setActiveSurveyModal(survey);
+    setSurveySubmitError(null);
+    const initAnswers: Record<number, string | number> = {};
+    if (survey.questions) {
+      survey.questions.forEach((q: any) => {
+        initAnswers[q.id] = q.question_type === 'rating_1_10' ? 8 : '';
+      });
+    }
+    setSurveyAnswers(initAnswers);
+  };
+
+  const handleSubmitSurvey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeSurveyModal) return;
+    setSurveySubmitError(null);
+
+    const questions = activeSurveyModal.questions || [];
+    for (const q of questions) {
+      const val = surveyAnswers[q.id];
+      if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) {
+        setSurveySubmitError(`Please provide an answer for: "${q.question_text}"`);
+        return;
+      }
+    }
+
+    try {
+      setSubmittingSurvey(true);
+      const answersPayload = questions.map((q: any) => ({
+        question_id: q.id,
+        answer_value: surveyAnswers[q.id]
+      }));
+
+      const res = await fetchWithAuth(`/api/feedback-forms/${activeSurveyModal.id}/responses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers: answersPayload })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to submit feedback survey.');
+      }
+
+      triggerToast(
+        activeSurveyModal.is_anonymous
+          ? '🔒 100% Anonymous feedback survey submitted successfully!'
+          : '👤 Survey response recorded with your profile!',
+        'success'
+      );
+      setActiveSurveyModal(null);
+      await fetchFeedbackSurveys();
+    } catch (err: any) {
+      console.error('Error submitting feedback response:', err);
+      setSurveySubmitError(err.message || 'Failed to submit feedback.');
+    } finally {
+      setSubmittingSurvey(false);
+    }
+  };
+
+  const pendingSurveysList = feedbackSurveys.filter(s => s.status === 'Active' && !s.user_submitted);
+  const pendingSurveysCount = pendingSurveysList.length;
+
   // Attendance rate calculation
   const calculatedAttendanceRate = () => {
     if (!sessions.length || !attendance.length) return 100;
@@ -1127,6 +1217,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               onClick={() => {
                 setActiveTab('feedback');
                 fetchMyFeedbackLogs();
+                fetchFeedbackSurveys();
               }}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
                 activeTab === 'feedback'
@@ -1135,7 +1226,14 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               }`}
             >
               <MessageSquare className="w-3.5 h-3.5" />
-              <span>Feedback & Ratings</span>
+              <span>Feedback & Surveys</span>
+              {pendingSurveysCount > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  activeTab === 'feedback' ? 'bg-amber-400 text-slate-900' : 'bg-amber-100 text-amber-900 animate-pulse'
+                }`}>
+                  {pendingSurveysCount} Pending
+                </span>
+              )}
             </button>
           </nav>
 
@@ -1151,6 +1249,41 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
         {activeTab === 'overview' && (
           <div className="space-y-8 animate-fade-in">
             
+            {/* Pending Cohort Surveys Action Banner */}
+            {pendingSurveysCount > 0 && (
+              <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border border-amber-300 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
+                <div className="flex items-start gap-3.5">
+                  <div className="p-3 bg-amber-500 text-white rounded-xl shadow-xs shrink-0">
+                    <MessageSquare className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-black text-amber-950">
+                        {pendingSurveysCount} Cohort Feedback Survey{pendingSurveysCount > 1 ? 's' : ''} Awaiting Your Response
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-200 text-amber-950">
+                        Action Required
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-900/90 mt-0.5">
+                      Your candid feedback directly shapes incubation sessions, workshops, and mentor allocations. Fully protected with end-to-end anonymity.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('feedback');
+                    if (pendingSurveysList[0]) handleOpenSurveyModal(pendingSurveysList[0]);
+                  }}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  <span>Answer Survey</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {/* Executive KPI Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               
@@ -1899,17 +2032,50 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                           <span className="flex items-center gap-1 font-mono">
                             <Clock className="w-3.5 h-3.5 text-gray-400" /> Due: {asg.deadline || 'No deadline'}
                           </span>
-                          {asg.attachmentUrl && (
-                            <button
-                              type="button"
-                              onClick={() => downloadFileLocally(asg.attachmentUrl!, `template_${asg.title.toLowerCase().replace(/\s+/g, '_')}`)}
-                              className="text-primary font-bold hover:underline flex items-center gap-1 cursor-pointer"
-                              title="Download reference template locally to your computer"
-                            >
-                              <Download className="w-3.5 h-3.5" /> Download Template / Attachment
-                            </button>
-                          )}
                         </div>
+
+                        {/* Reference Attachments & Templates */}
+                        {(() => {
+                          const attachments = parseAssignmentAttachments(asg.attachmentUrl);
+                          if (attachments.length === 0) return null;
+                          return (
+                            <div className="mt-2.5 p-2.5 bg-gray-50/80 border border-gray-200/80 rounded-xl space-y-1.5">
+                              <span className="text-[10px] font-extrabold text-gray-700 uppercase tracking-wider block font-mono flex items-center gap-1">
+                                <Paperclip className="h-3 w-3 text-primary" /> Reference Attachments & Templates ({attachments.length}):
+                              </span>
+                              <div className="flex flex-wrap gap-2">
+                                {attachments.map((att, attIdx) => {
+                                  const isUploadFile = att.url.startsWith('/uploads/') || att.url.startsWith('data:') || att.url.startsWith('blob:');
+                                  return (
+                                    <button
+                                      key={`${att.url}_${attIdx}`}
+                                      type="button"
+                                      onClick={() => {
+                                        if (isUploadFile) {
+                                          downloadFileLocally(att.url, att.name);
+                                        } else {
+                                          window.open(att.url, '_blank', 'noopener,noreferrer');
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-1.5 text-[11px] font-bold text-gray-800 hover:text-primary bg-white hover:bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200 shadow-3xs cursor-pointer transition-all max-w-sm truncate"
+                                      title={att.name || att.url}
+                                    >
+                                      {isUploadFile ? (
+                                        <Download className="h-3.5 w-3.5 text-primary shrink-0" />
+                                      ) : (
+                                        <ExternalLink className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                                      )}
+                                      <span className="truncate">{att.name || getCleanFileName(att.url)}</span>
+                                      {att.size && (
+                                        <span className="text-[9px] text-gray-400 font-mono">({formatFileSize(att.size)})</span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {asg.fileName && (
                           <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-gray-700 mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -2725,16 +2891,141 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                 <div className="text-xs text-amber-900 space-y-0.5">
                   <p className="font-bold">End-to-End Anonymous Option Supported</p>
                   <p className="text-[11px] text-amber-800">
-                    When you select "100% Anonymous", your name, email, and startup details are masked directly at the database layer before staff or mentors view it.
+                    When forms or submissions are marked as "100% Anonymous", your name, email, and startup details are masked directly at the database and API layer before staff or mentors view it.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* My Feedback History List */}
+            {/* SECTION 1: COHORT PULSE SURVEYS & EVALUATION FORMS */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-5">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-gray-900">Cohort Evaluation Surveys & Forms</h3>
+                    {pendingSurveysCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-900 animate-pulse">
+                        {pendingSurveysCount} Pending
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">Surveys created by incubator administration specifically for this cohort</p>
+                </div>
+                <button
+                  onClick={fetchFeedbackSurveys}
+                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingFeedbackSurveys ? 'animate-spin' : ''}`} />
+                  <span>Refresh Surveys</span>
+                </button>
+              </div>
+
+              {loadingFeedbackSurveys ? (
+                <div className="p-8 text-center text-xs font-bold text-gray-400">Loading cohort surveys...</div>
+              ) : feedbackSurveys.length === 0 ? (
+                <div className="p-8 text-center border border-dashed border-gray-200 rounded-xl text-xs text-gray-400 space-y-2">
+                  <MessageSquare className="w-8 h-8 text-gray-300 mx-auto" />
+                  <p className="font-bold text-gray-600">No Cohort Surveys Available</p>
+                  <p>There are currently no active survey forms published for this cohort.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {feedbackSurveys.map((survey) => {
+                    const isSubmitted = !!survey.user_submitted;
+                    const isAnonymous = !!survey.is_anonymous;
+
+                    return (
+                      <div
+                        key={survey.id}
+                        className={`p-5 rounded-2xl border transition-all flex flex-col justify-between space-y-4 ${
+                          isSubmitted
+                            ? 'bg-slate-50/70 border-slate-200 opacity-90'
+                            : 'bg-white border-amber-200/80 shadow-3xs hover:shadow-2xs hover:border-amber-300'
+                        }`}
+                      >
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                              isAnonymous ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-900'
+                            }`}>
+                              {isAnonymous ? <EyeOff className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
+                              {isAnonymous ? '100% Anonymous' : 'Identified Response'}
+                            </span>
+
+                            {isSubmitted ? (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> Submitted
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-black uppercase text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> Pending
+                              </span>
+                            )}
+                          </div>
+
+                          <div>
+                            <h4 className="text-sm font-black text-gray-900">{survey.title}</h4>
+                            {survey.description && (
+                              <p className="text-xs text-gray-600 mt-1 line-clamp-2">{survey.description}</p>
+                            )}
+                          </div>
+
+                          {survey.session_title && (
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 text-[11px] font-bold">
+                              <Calendar className="w-3 h-3" />
+                              <span>Session: {survey.session_title}</span>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-4 text-[11px] text-gray-500 pt-1">
+                            <span className="flex items-center gap-1">
+                              <FileText className="w-3 h-3 text-gray-400" />
+                              {survey.question_count || survey.questions?.length || 0} Questions
+                            </span>
+                            {survey.expiry_date && (
+                              <span className="flex items-center gap-1 font-mono">
+                                <Clock className="w-3 h-3 text-gray-400" />
+                                Due: {new Date(survey.expiry_date).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-3">
+                          {isSubmitted ? (
+                            <span className="text-xs text-gray-500 font-medium italic">
+                              Thank you! You have answered this survey.
+                            </span>
+                          ) : (
+                            <>
+                              <span className="text-[11px] text-amber-800 font-bold">
+                                Estimated time: ~2 mins
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSurveyModal(survey)}
+                                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-3xs hover:shadow-2xs cursor-pointer flex items-center gap-1.5"
+                              >
+                                <span>Answer Survey</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 2: MY DIRECT PROGRAM FEEDBACK LOGS */}
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-4">
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                <h3 className="text-sm font-bold text-gray-900">My Submitted Feedback Logs</h3>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">My General Feedback & Session Logs</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Ad-hoc feedback submitted directly by you to incubator management</p>
+                </div>
                 <button
                   onClick={fetchMyFeedbackLogs}
                   className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
@@ -2956,6 +3247,191 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                       </button>
                     </div>
                   </form>
+                </div>
+              </div>
+            )}
+
+            {/* Generalized Cohort Feedback Form & Survey Submission Modal */}
+            {activeSurveyModal && (
+              <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+                <div className="bg-white border border-gray-200 rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl animate-fade-in text-left my-8 max-h-[90vh] flex flex-col">
+                  
+                  {/* Modal Header */}
+                  <div className="flex items-start justify-between pb-3 border-b border-gray-100 shrink-0">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                          activeSurveyModal.is_anonymous ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-900'
+                        }`}>
+                          {activeSurveyModal.is_anonymous ? <EyeOff className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
+                          {activeSurveyModal.is_anonymous ? '100% Anonymous Survey' : 'Identified Evaluation'}
+                        </span>
+                        {activeSurveyModal.session_title && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">
+                            {activeSurveyModal.session_title}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-base font-black text-gray-900">{activeSurveyModal.title}</h3>
+                    </div>
+
+                    <button
+                      onClick={() => setActiveSurveyModal(null)}
+                      className="text-gray-400 hover:text-gray-600 text-sm font-bold p-1 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Scrollable Form Body */}
+                  <div className="overflow-y-auto space-y-5 pr-1 flex-1">
+                    
+                    {/* Privacy Guarantee Card */}
+                    <div className={`p-4 rounded-xl border text-xs flex items-start gap-3 ${
+                      activeSurveyModal.is_anonymous
+                        ? 'bg-amber-50/90 border-amber-200 text-amber-950'
+                        : 'bg-blue-50/90 border-blue-200 text-blue-950'
+                    }`}>
+                      <ShieldCheck className={`w-5 h-5 shrink-0 mt-0.5 ${
+                        activeSurveyModal.is_anonymous ? 'text-amber-600' : 'text-blue-600'
+                      }`} />
+                      <div className="space-y-0.5">
+                        <p className="font-extrabold">
+                          {activeSurveyModal.is_anonymous
+                            ? 'Strict Anonymity Guaranteed'
+                            : 'Identified Survey Feedback'}
+                        </p>
+                        <p className="text-[11px] leading-relaxed opacity-90">
+                          {activeSurveyModal.is_anonymous
+                            ? 'Your startup identity, name, and email are completely stripped before reports and analytics are generated. Program staff cannot see who submitted what.'
+                            : `This survey response will be submitted on behalf of "${applicant?.startup_name || 'your startup'}".`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Survey Description */}
+                    {activeSurveyModal.description && (
+                      <p className="text-xs text-gray-600 bg-slate-50 p-3.5 rounded-xl border border-slate-100 leading-relaxed">
+                        {activeSurveyModal.description}
+                      </p>
+                    )}
+
+                    {/* Validation Error Banner */}
+                    {surveySubmitError && (
+                      <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2 font-medium">
+                        <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                        <span>{surveySubmitError}</span>
+                      </div>
+                    )}
+
+                    {/* Questions Form List */}
+                    <form id="survey-form" onSubmit={handleSubmitSurvey} className="space-y-5">
+                      {(activeSurveyModal.questions || []).map((q: any, idx: number) => {
+                        const currentVal = surveyAnswers[q.id];
+
+                        return (
+                          <div key={q.id || idx} className="p-4 bg-slate-50/60 border border-slate-200/80 rounded-xl space-y-2.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <label className="text-xs font-bold text-gray-900 block leading-tight">
+                                <span className="text-primary font-black mr-1.5">{idx + 1}.</span>
+                                {q.question_text}
+                                <span className="text-red-500 ml-1">*</span>
+                              </label>
+                              <span className="text-[10px] font-mono text-gray-400 uppercase font-semibold">
+                                {q.question_type === 'rating_1_10' ? 'Rating 1-10' : q.question_type === 'long_text' ? 'Long Text' : 'Short Text'}
+                              </span>
+                            </div>
+
+                            {/* 1 to 10 Rating Question Renderer */}
+                            {q.question_type === 'rating_1_10' && (
+                              <div className="space-y-2 pt-1">
+                                <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
+                                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
+                                    const isSelected = Number(currentVal) === num;
+                                    return (
+                                      <button
+                                        key={num}
+                                        type="button"
+                                        onClick={() => setSurveyAnswers(prev => ({ ...prev, [q.id]: num }))}
+                                        className={`h-11 rounded-xl text-xs font-black transition-all flex flex-col items-center justify-center cursor-pointer border ${
+                                          isSelected
+                                            ? 'bg-primary text-white border-primary shadow-xs scale-105 ring-2 ring-primary/30'
+                                            : 'bg-white hover:bg-slate-100 text-gray-700 border-gray-200'
+                                        }`}
+                                      >
+                                        <span>{num}</span>
+                                        <Star className={`w-2.5 h-2.5 mt-0.5 ${isSelected ? 'fill-white text-white' : 'text-gray-300'}`} />
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 px-1 pt-0.5">
+                                  <span>1 - Poor / Inadequate</span>
+                                  <span>5 - Neutral / Average</span>
+                                  <span>10 - Outstanding / Exceptional</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Short Text Question Renderer */}
+                            {q.question_type === 'short_text' && (
+                              <input
+                                type="text"
+                                value={(currentVal as string) || ''}
+                                onChange={(e) => setSurveyAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                                placeholder="Your brief answer here..."
+                                className="w-full text-xs p-3 bg-white border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
+                              />
+                            )}
+
+                            {/* Long Text Question Renderer */}
+                            {q.question_type === 'long_text' && (
+                              <textarea
+                                value={(currentVal as string) || ''}
+                                onChange={(e) => setSurveyAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                                placeholder="Share your detailed thoughts, suggestions, or constructive observations..."
+                                rows={3}
+                                className="w-full text-xs p-3 bg-white border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </form>
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100 shrink-0">
+                    <span className="text-[11px] text-gray-400 font-medium">
+                      {(activeSurveyModal.questions || []).length} Question{(activeSurveyModal.questions || []).length > 1 ? 's' : ''} total
+                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveSurveyModal(null)}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        form="survey-form"
+                        disabled={submittingSurvey}
+                        className="px-6 py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 transition-all shadow-xs flex items-center gap-2"
+                      >
+                        {submittingSurvey ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Submitting...</span>
+                          </>
+                        ) : (
+                          <span>Submit Evaluation</span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
                 </div>
               </div>
             )}

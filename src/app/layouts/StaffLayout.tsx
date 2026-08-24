@@ -403,6 +403,22 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                             </span>
                             {!hasPermission('cohort:checkin_log') && !hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
                           </button>
+
+                          <button
+                            onClick={() => setActiveTab('cohort_feedback_forms')}
+                            disabled={!hasPermission('cohort:form_manage') && !hasPermission('cohort:applicant_review')}
+                            className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                              activeTab === 'cohort_feedback_forms' || activeTab === 'feedback_forms'
+                                ? 'bg-primary text-white shadow-3xs' 
+                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                            } disabled:opacity-40 disabled:cursor-not-allowed`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <FileText className="h-3 w-3" />
+                              Feedback Forms & Surveys
+                            </span>
+                            {!hasPermission('cohort:form_manage') && !hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
+                          </button>
                         </div>
                       )}
                     </div>

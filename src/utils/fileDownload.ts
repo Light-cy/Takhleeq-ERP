@@ -120,3 +120,64 @@ export function getCleanFileName(fileUrl?: string): string {
   }
   return fileUrl.length > 40 ? fileUrl.slice(0, 37) + '...' : fileUrl;
 }
+
+/**
+ * Interface for individual attachment items associated with an assignment.
+ */
+export interface AssignmentAttachment {
+  name: string;
+  url: string;
+  size?: number;
+}
+
+/**
+ * Robust parser for assignment attachments.
+ * Handles JSON arrays of {name, url, size}, single legacy URLs, or newline-separated URLs.
+ */
+export function parseAssignmentAttachments(raw: string | undefined | null): AssignmentAttachment[] {
+  if (!raw || typeof raw !== 'string' || !raw.trim()) return [];
+  const trimmed = raw.trim();
+  try {
+    if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        const results: AssignmentAttachment[] = [];
+        for (const item of parsed) {
+          if (typeof item === 'string' && item.trim()) {
+            results.push({ name: getCleanFileName(item), url: item.trim() });
+          } else if (item && typeof item === 'object' && item.url) {
+            results.push({
+              name: item.name || getCleanFileName(item.url),
+              url: item.url,
+              size: typeof item.size === 'number' ? item.size : undefined
+            });
+          }
+        }
+        return results;
+      } else if (parsed && typeof parsed === 'object' && parsed.url) {
+        return [{
+          name: parsed.name || getCleanFileName(parsed.url),
+          url: parsed.url,
+          size: typeof parsed.size === 'number' ? parsed.size : undefined
+        }];
+      }
+    }
+  } catch (e) {
+    // Ignore JSON parse error, treat as raw url string
+  }
+
+  // Handle newline separated URLs if any
+  if (trimmed.includes('\n')) {
+    return trimmed
+      .split('\n')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(url => ({ name: getCleanFileName(url), url }));
+  }
+
+  return [{
+    name: getCleanFileName(trimmed),
+    url: trimmed
+  }];
+}
+

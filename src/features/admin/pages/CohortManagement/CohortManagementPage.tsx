@@ -32,10 +32,13 @@ import {
   FileCheck,
   ArrowLeft,
   CheckSquare,
-  User
+  User,
+  Paperclip,
+  Link as LinkIcon
 } from 'lucide-react';
-import { downloadFileLocally, getCleanFileName } from '../../../../utils/fileDownload';
+import { downloadFileLocally, getCleanFileName, parseAssignmentAttachments, formatFileSize, AssignmentAttachment } from '../../../../utils/fileDownload';
 import { CohortFeedbackTab } from '../../components/CohortFeedbackTab';
+import { FeedbackFormsTab } from '../../components/FeedbackFormsTab';
 import { FormField, Cohort, Applicant, ApplicantStatus, CohortSession, TeamCheckIn, PerformanceWarning, CohortAssignment, MilestoneSubmission, AuditRecord } from '../../../../types';
 import { 
   COHORT_STAGES, 
@@ -263,8 +266,10 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   const [newAsgTitle, setNewAsgTitle] = useState('');
   const [newAsgDesc, setNewAsgDesc] = useState('');
   const [newAsgDueDate, setNewAsgDueDate] = useState('');
-  const [newAsgFile, setNewAsgFile] = useState<File | null>(null);
-  const [newAsgFileUrl, setNewAsgFileUrl] = useState('');
+  const [newAsgFiles, setNewAsgFiles] = useState<File[]>([]);
+  const [newAsgFileUrls, setNewAsgFileUrls] = useState<string[]>([]);
+  const [newAsgUrlInput, setNewAsgUrlInput] = useState('');
+  const [uploadProgressText, setUploadProgressText] = useState('');
   const [uploadingAsgFile, setUploadingAsgFile] = useState(false);
   const [publishingAsg, setPublishingAsg] = useState(false);
   const [selectedAsgForSubmissions, setSelectedAsgForSubmissions] = useState<any | null>(null);
@@ -379,6 +384,39 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
     }
   };
 
+  // Multi-file attachment handlers
+  const handleAddAsgFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const incoming = Array.from(files);
+    setNewAsgFiles(prev => {
+      // Avoid duplicate files with same name and size
+      const existingSignatures = new Set(prev.map(f => `${f.name}_${f.size}`));
+      const uniqueNew = incoming.filter(f => !existingSignatures.has(`${f.name}_${f.size}`));
+      return [...prev, ...uniqueNew];
+    });
+  };
+
+  const handleRemoveAsgFile = (index: number) => {
+    setNewAsgFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddExternalUrl = () => {
+    const trimmed = newAsgUrlInput.trim();
+    if (!trimmed) return;
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      triggerError('Please enter a valid URL starting with https:// or http://');
+      return;
+    }
+    if (!newAsgFileUrls.includes(trimmed)) {
+      setNewAsgFileUrls(prev => [...prev, trimmed]);
+      setNewAsgUrlInput('');
+    }
+  };
+
+  const handleRemoveExternalUrl = (index: number) => {
+    setNewAsgFileUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
   // Create Independent Cohort Assignment
   const handleCreateIndependentAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -388,28 +426,58 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
     }
     setPublishingAsg(true);
     try {
-      let finalAttachmentUrl = newAsgFileUrl.trim();
-      
-      // Upload file if selected
-      if (newAsgFile) {
-        setUploadingAsgFile(true);
-        const reader = new FileReader();
-        const fileData = await new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = (err) => reject(err);
-          reader.readAsDataURL(newAsgFile);
-        });
+      const attachmentsList: AssignmentAttachment[] = [];
 
-        const uploadRes = await fetchWithAuth('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileName: newAsgFile.name, fileData })
-        });
-        const uploadData = await uploadRes.json();
-        if (!uploadRes.ok) throw new Error(uploadData.error || 'Reference file upload failed.');
-        finalAttachmentUrl = uploadData.url;
+      // 1. Upload any selected files
+      if (newAsgFiles.length > 0) {
+        setUploadingAsgFile(true);
+        for (let i = 0; i < newAsgFiles.length; i++) {
+          const file = newAsgFiles[i];
+          setUploadProgressText(`Uploading (${i + 1}/${newAsgFiles.length}): ${file.name}...`);
+          
+          const reader = new FileReader();
+          const fileData = await new Promise<string>((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = (err) => reject(err);
+            reader.readAsDataURL(file);
+          });
+
+          const uploadRes = await fetchWithAuth('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileName: file.name, fileData })
+          });
+          const uploadData = await uploadRes.json();
+          if (!uploadRes.ok) throw new Error(uploadData.error || `Reference file upload failed for ${file.name}`);
+          
+          attachmentsList.push({
+            name: file.name,
+            url: uploadData.url,
+            size: file.size
+          });
+        }
         setUploadingAsgFile(false);
       }
+
+      // 2. Add external URLs
+      newAsgFileUrls.forEach(url => {
+        if (url.trim()) {
+          attachmentsList.push({
+            name: getCleanFileName(url.trim()),
+            url: url.trim()
+          });
+        }
+      });
+
+      // 3. Add single url input if user typed but forgot to click Add
+      if (newAsgUrlInput.trim() && !newAsgFileUrls.includes(newAsgUrlInput.trim())) {
+        attachmentsList.push({
+          name: getCleanFileName(newAsgUrlInput.trim()),
+          url: newAsgUrlInput.trim()
+        });
+      }
+
+      const finalAttachmentUrl = attachmentsList.length > 0 ? JSON.stringify(attachmentsList) : null;
 
       const targetCohortId = selectedCohort?.id || 1;
       const res = await fetchWithAuth(`/api/cohorts/${targetCohortId}/assignments`, {
@@ -419,7 +487,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
           title: newAsgTitle.trim(),
           description: newAsgDesc.trim(),
           due_date: newAsgDueDate,
-          attachment_url: finalAttachmentUrl || null,
+          attachment_url: finalAttachmentUrl,
           cohort_id: targetCohortId
         })
       });
@@ -427,18 +495,22 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to publish independent assignment.');
 
-      triggerSuccess(`Independent assignment "${newAsgTitle}" published for all cohort startups!`);
+      const attachedCountMsg = attachmentsList.length > 0 ? ` with ${attachmentsList.length} attachment(s)` : '';
+      triggerSuccess(`Independent assignment "${newAsgTitle}"${attachedCountMsg} published for all cohort startups!`);
       setNewAsgTitle('');
       setNewAsgDesc('');
       setNewAsgDueDate('');
-      setNewAsgFile(null);
-      setNewAsgFileUrl('');
+      setNewAsgFiles([]);
+      setNewAsgFileUrls([]);
+      setNewAsgUrlInput('');
+      setUploadProgressText('');
       fetchCohortAssignments(targetCohortId);
     } catch (err: any) {
       triggerError(err.message || 'Failed to publish assignment.');
     } finally {
       setPublishingAsg(false);
       setUploadingAsgFile(false);
+      setUploadProgressText('');
     }
   };
 
@@ -2305,26 +2377,117 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] text-gray-500 uppercase block font-semibold">Reference Attachment / Template</label>
-                <div className="flex flex-col gap-2">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] text-gray-500 uppercase block font-semibold">Reference Attachments & Templates</label>
+                  {(newAsgFiles.length > 0 || newAsgFileUrls.length > 0) && (
+                    <span className="text-[9px] font-bold text-primary font-mono">
+                      {newAsgFiles.length + newAsgFileUrls.length} item(s) attached
+                    </span>
+                  )}
+                </div>
+
+                {/* Multi-file selector drop area */}
+                <div className="border border-dashed border-gray-300 hover:border-primary rounded-xl p-3 bg-white text-center transition-colors">
                   <input
                     type="file"
+                    id="cohort-multi-asg-files"
+                    multiple
                     onChange={(e) => {
-                      if (e.target.files?.[0]) {
-                        setNewAsgFile(e.target.files[0]);
-                      }
+                      handleAddAsgFiles(e.target.files);
+                      e.target.value = ''; // Reset input to allow re-selection
                     }}
-                    className="text-[10px] text-gray-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer"
+                    className="hidden"
                   />
-                  <span className="text-[9px] text-gray-400 font-mono text-center">or paste link below</span>
-                  <input
-                    type="url"
-                    placeholder="https://drive.google.com/..."
-                    value={newAsgFileUrl}
-                    onChange={(e) => setNewAsgFileUrl(e.target.value)}
-                    className="w-full bg-white border border-gray-150 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-primary font-mono text-[10px]"
-                  />
+                  <label
+                    htmlFor="cohort-multi-asg-files"
+                    className="cursor-pointer flex flex-col items-center justify-center gap-1 text-[11px] text-gray-600 hover:text-primary font-medium"
+                  >
+                    <Paperclip className="h-4 w-4 text-gray-400" />
+                    <span>Click to select <strong>Multiple Files</strong> (PDF, PPTX, XLSX, DOCX, ZIP)</span>
+                    <span className="text-[9px] text-gray-400">Attach templates, rubrics, guides, or example sheets</span>
+                  </label>
+                </div>
+
+                {/* Selected Files List */}
+                {newAsgFiles.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <span className="text-[9px] font-bold text-gray-500 uppercase block font-mono">Selected Files to Upload ({newAsgFiles.length}):</span>
+                    <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                      {newAsgFiles.map((file, idx) => (
+                        <div
+                          key={`${file.name}_${idx}`}
+                          className="flex items-center justify-between p-1.5 bg-white border border-gray-200 rounded-lg text-[11px]"
+                        >
+                          <div className="flex items-center gap-1.5 truncate mr-2">
+                            <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <span className="font-semibold text-gray-800 truncate" title={file.name}>{file.name}</span>
+                            <span className="text-[9px] text-gray-400 font-mono shrink-0">({formatFileSize(file.size)})</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAsgFile(idx)}
+                            className="text-gray-400 hover:text-red-600 p-0.5 rounded hover:bg-red-50 cursor-pointer shrink-0 transition-colors"
+                            title="Remove file"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* External Resource URL Input */}
+                <div className="pt-1 space-y-1">
+                  <span className="text-[9px] text-gray-400 font-mono block">or attach external links (Google Drive, Figma, Notion):</span>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="url"
+                      placeholder="https://drive.google.com/... or https://notion.so/..."
+                      value={newAsgUrlInput}
+                      onChange={(e) => setNewAsgUrlInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddExternalUrl();
+                        }
+                      }}
+                      className="flex-1 bg-white border border-gray-150 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-primary font-mono text-[10px]"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddExternalUrl}
+                      className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[10px] rounded-lg cursor-pointer shrink-0 flex items-center gap-1"
+                    >
+                      <LinkIcon className="h-3 w-3" /> Add Link
+                    </button>
+                  </div>
+
+                  {/* External URLs List */}
+                  {newAsgFileUrls.length > 0 && (
+                    <div className="space-y-1 pt-1">
+                      {newAsgFileUrls.map((url, idx) => (
+                        <div
+                          key={`url_${idx}`}
+                          className="flex items-center justify-between p-1.5 bg-white border border-blue-100 rounded-lg text-[10px]"
+                        >
+                          <div className="flex items-center gap-1.5 truncate mr-2">
+                            <LinkIcon className="h-3 w-3 text-blue-600 shrink-0" />
+                            <span className="font-mono text-blue-700 truncate">{url}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExternalUrl(idx)}
+                            className="text-gray-400 hover:text-red-600 p-0.5 rounded hover:bg-red-50 cursor-pointer shrink-0 transition-colors"
+                            title="Remove link"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2336,12 +2499,12 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 {publishingAsg || uploadingAsgFile ? (
                   <>
                     <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Publishing Assignment...
+                    <span>{uploadProgressText || 'Publishing Assignment...'}</span>
                   </>
                 ) : (
                   <>
                     <Upload className="h-3.5 w-3.5" />
-                    Publish to All Cohort Founders
+                    <span>Publish to All Cohort Founders {newAsgFiles.length + newAsgFileUrls.length > 0 ? `(${newAsgFiles.length + newAsgFileUrls.length} Files)` : ''}</span>
                   </>
                 )}
               </button>
@@ -2399,17 +2562,48 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                           <p className="text-[11px] text-gray-600 leading-relaxed">{asg.description}</p>
                         )}
 
-                        {asg.attachment_url && (
-                          <div className="pt-1">
-                            <button
-                              type="button"
-                              onClick={() => downloadFileLocally(asg.attachment_url, getCleanFileName(asg.attachment_url))}
-                              className="inline-flex items-center gap-1 text-[10px] font-bold text-primary hover:underline bg-white px-2.5 py-1 rounded border border-gray-200 shadow-3xs cursor-pointer"
-                            >
-                              <Download className="h-3 w-3 text-primary" /> Download Reference Material
-                            </button>
-                          </div>
-                        )}
+                        {(() => {
+                          const attachments = parseAssignmentAttachments(asg.attachment_url);
+                          if (attachments.length === 0) return null;
+                          return (
+                            <div className="pt-1 space-y-1">
+                              <span className="text-[9px] font-bold text-gray-500 uppercase block font-mono">
+                                Attached Materials ({attachments.length}):
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {attachments.map((att, attIdx) => {
+                                  const isHttpLink = att.url.startsWith('http://') || att.url.startsWith('https://');
+                                  const isUploadFile = att.url.startsWith('/uploads/') || att.url.startsWith('data:') || att.url.startsWith('blob:');
+                                  return (
+                                    <button
+                                      key={`${att.url}_${attIdx}`}
+                                      type="button"
+                                      onClick={() => {
+                                        if (isUploadFile) {
+                                          downloadFileLocally(att.url, att.name);
+                                        } else {
+                                          window.open(att.url, '_blank', 'noopener,noreferrer');
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-1.5 text-[10px] font-bold text-gray-800 hover:text-primary bg-white hover:bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-200 shadow-3xs cursor-pointer transition-all max-w-xs truncate"
+                                      title={att.name || att.url}
+                                    >
+                                      {isUploadFile ? (
+                                        <Download className="h-3 w-3 text-primary shrink-0" />
+                                      ) : (
+                                        <ExternalLink className="h-3 w-3 text-blue-600 shrink-0" />
+                                      )}
+                                      <span className="truncate">{att.name || getCleanFileName(att.url)}</span>
+                                      {att.size && (
+                                        <span className="text-[8px] text-gray-400 font-mono">({formatFileSize(att.size)})</span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         <div className="flex justify-between items-center pt-2 border-t border-gray-200/60 text-[11px]">
                           <span className="font-bold text-emerald-700 flex items-center gap-1 font-mono">
@@ -2592,6 +2786,15 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       {/* SUBTAB: FOUNDER FEEDBACK */}
       {activeSubTab === 'cohort_feedback' && (
         <CohortFeedbackTab cohortId={selectedCohort?.id} />
+      )}
+
+      {/* SUBTAB: GENERALIZED FEEDBACK FORMS & SURVEYS */}
+      {(activeSubTab === 'cohort_feedback_forms' || activeSubTab === 'feedback_forms' || activeSubTab === 'cohort_surveys') && (
+        <FeedbackFormsTab 
+          cohortId={selectedCohort?.id} 
+          jwtToken={jwtToken}
+          sessions={sessions.map(s => ({ id: s.id, title: s.title, date: s.date }))}
+        />
       )}
 
       {/* STARTUP PROFILE MODAL WITH PIVOT HISTORY AND NOTES TABS */}

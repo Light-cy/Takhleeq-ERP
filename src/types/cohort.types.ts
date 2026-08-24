@@ -137,3 +137,66 @@ export interface MilestoneSubmission {
   submitted_at: string;
 }
 
+export type FeedbackQuestionType = 'rating_1_10' | 'short_text' | 'long_text';
+export type FeedbackFormStatus = 'Active' | 'Closed';
+
+export interface FeedbackQuestion {
+  id: number;
+  feedback_form_id: number;
+  question_text: string;
+  question_type: FeedbackQuestionType;
+  question_order: number;
+}
+
+export interface FeedbackForm {
+  id: number;
+  cohort_id: number;
+  title: string;
+  description?: string;
+  is_anonymous: boolean;
+  created_by?: number | null;
+  created_by_name?: string;
+  created_at: string;
+  expiry_date?: string | null;
+  status: FeedbackFormStatus;
+  session_id?: number | null;
+  session_title?: string | null;
+  questions?: FeedbackQuestion[];
+  response_count?: number;
+  total_startups?: number;
+  completion_rate?: number;
+  has_submitted?: boolean;
+}
+
+export interface FeedbackResponseItem {
+  id: number;
+  feedback_form_id: number;
+  question_id: number;
+  startup_id?: number;
+  startup_name?: string;
+  founder_name?: string;
+  answer_value: string;
+  submitted_at: string;
+}
+
+export interface FeedbackQuestionAnalytics {
+  question: FeedbackQuestion;
+  average_rating?: number;
+  rating_distribution?: Record<number, number>;
+  answers: {
+    id?: number;
+    answer_value: string;
+    startup_name?: string;
+    founder_name?: string;
+    submitted_at: string;
+  }[];
+}
+
+export interface FeedbackFormAnalytics {
+  form: FeedbackForm;
+  total_cohort_startups: number;
+  submitted_startups_count: number;
+  completion_rate_percent: number;
+  questions_analytics: FeedbackQuestionAnalytics[];
+}
+

@@ -40,7 +40,14 @@ import {
   submitCohortFeedback,
   getCohortFeedback,
   updateCohortFeedbackStatus,
-  deleteCohortFeedback
+  deleteCohortFeedback,
+  createFeedbackForm,
+  getFeedbackForms,
+  getPendingFeedbackForms,
+  submitFeedbackFormResponse,
+  getFeedbackFormResponses,
+  updateFeedbackFormStatus,
+  deleteFeedbackForm
 } from './cohorts.controller.ts';
 
 const router = Router();
@@ -117,5 +124,19 @@ router.post('/cohort-feedback', requireAuth, submitCohortFeedback);
 router.get('/cohort-feedback', requireAuth, getCohortFeedback);
 router.put('/cohort-feedback/:id/status', requireAuth, updateCohortFeedbackStatus);
 router.delete('/cohort-feedback/:id', requireAuth, deleteCohortFeedback);
+
+// Generalized Feedback Forms & Surveys System (FR-02 Feedback Builder & Anonymized Responses)
+router.post('/cohorts/:cohortId/feedback-forms', requireAuth, createFeedbackForm);
+router.post('/feedback-forms', requireAuth, createFeedbackForm);
+router.get('/cohorts/:cohortId/feedback-forms', requireAuth, getFeedbackForms);
+router.get('/feedback-forms', requireAuth, getFeedbackForms);
+router.get('/cohorts/:cohortId/feedback-forms/pending', requireAuth, getPendingFeedbackForms);
+router.get('/feedback-forms/pending', requireAuth, getPendingFeedbackForms);
+router.get('/feedback-forms/:id/responses', requireAuth, getFeedbackFormResponses);
+router.post('/feedback-forms/:id/responses', requireAuth, submitFeedbackFormResponse);
+router.post('/feedback-forms/:id/submit', requireAuth, submitFeedbackFormResponse);
+router.patch('/feedback-forms/:id/status', requireAuth, updateFeedbackFormStatus);
+router.put('/feedback-forms/:id/status', requireAuth, updateFeedbackFormStatus);
+router.delete('/feedback-forms/:id', requireAuth, deleteFeedbackForm);
 
 export default router;

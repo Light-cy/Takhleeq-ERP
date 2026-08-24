@@ -2121,4 +2121,451 @@ export const deleteCohortFeedback = async (req: AuthenticatedRequest, res: Respo
   }
 };
 
+// ==========================================
+// 8. GENERALIZED COHORT FEEDBACK FORMS MODULE
+// ==========================================
+
+export const createFeedbackForm = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const cohortIdParam = req.params.cohortId || req.body.cohort_id;
+    const cohortId = parseInt(cohortIdParam) || 1;
+    const { title, description, is_anonymous, expiry_date, session_id, questions } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ error: 'Form title is required.' });
+    }
+
+    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ error: 'At least one feedback question is required.' });
+    }
+
+    const createdBy = req.currentUser?.id || null;
+    const isAnon = is_anonymous === true || is_anonymous === 'true';
+    const sessId = session_id && !isNaN(parseInt(session_id)) ? parseInt(session_id) : null;
+    const expiryDateStr = expiry_date && String(expiry_date).trim() ? String(expiry_date).trim() : null;
+
+    // 1. Insert Feedback Form
+    const formRes = await query(
+      `INSERT INTO feedback_forms (cohort_id, title, description, is_anonymous, created_by, expiry_date, status, session_id)
+       VALUES ($1, $2, $3, $4, $5, $6, 'Active', $7)
+       RETURNING *`,
+      [cohortId, title.trim(), description?.trim() || null, isAnon, createdBy, expiryDateStr, sessId]
+    );
+
+    const newForm = formRes.rows[0];
+    const createdQuestions = [];
+
+    // 2. Insert Questions
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      if (!q.question_text || !q.question_text.trim()) continue;
+      const qType = ['rating_1_10', 'short_text', 'long_text'].includes(q.question_type) ? q.question_type : 'rating_1_10';
+      const qOrder = typeof q.question_order === 'number' ? q.question_order : i + 1;
+
+      const qRes = await query(
+        `INSERT INTO feedback_questions (feedback_form_id, question_text, question_type, question_order)
+         VALUES ($1, $2, $3, $4)
+         RETURNING *`,
+        [newForm.id, q.question_text.trim(), qType, qOrder]
+      );
+      createdQuestions.push(qRes.rows[0]);
+    }
+
+    res.status(201).json({
+      success: true,
+      form: {
+        ...newForm,
+        questions: createdQuestions
+      }
+    });
+  } catch (err: any) {
+    console.error('Failed to create feedback form:', err);
+    res.status(500).json({ error: err.message || 'Failed to create feedback form.' });
+  }
+};
+
+export const getFeedbackForms = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const cohortIdParam = req.params.cohortId || req.query.cohort_id;
+    const cohortId = cohortIdParam && !isNaN(parseInt(cohortIdParam as string)) ? parseInt(cohortIdParam as string) : null;
+
+    let formsSql = `SELECT ff.* FROM feedback_forms ff`;
+    const params: any[] = [];
+    if (cohortId) {
+      params.push(cohortId);
+      formsSql += ` WHERE ff.cohort_id = $1`;
+    }
+    formsSql += ` ORDER BY ff.created_at DESC`;
+
+    const formsRes = await query(formsSql, params);
+    const forms = formsRes.rows;
+
+    // Resolve user's applicant ID if founder is requesting
+    let currentApplicantId: number | null = null;
+    if (req.currentUser?.email) {
+      const appRes = await query(
+        `SELECT id FROM applicants WHERE LOWER(email) = LOWER($1) ORDER BY id DESC LIMIT 1`,
+        [req.currentUser.email.trim()]
+      );
+      if (appRes.rows.length > 0) {
+        currentApplicantId = appRes.rows[0].id;
+      }
+    }
+
+    const detailedForms = await Promise.all(
+      forms.map(async (form: any) => {
+        // Fetch questions
+        const qRes = await query(
+          `SELECT * FROM feedback_questions WHERE feedback_form_id = $1 ORDER BY question_order ASC, id ASC`,
+          [form.id]
+        );
+
+        // Fetch response count (unique startups)
+        const respRes = await query(
+          `SELECT DISTINCT startup_id FROM feedback_responses WHERE feedback_form_id = $1`,
+          [form.id]
+        );
+        const uniqueSubmissionsCount = respRes.rows.length;
+
+        // Fetch total cohort startups
+        const cohortAppRes = await query(
+          `SELECT COUNT(*) as total FROM applicants WHERE cohort_id = $1`,
+          [form.cohort_id]
+        );
+        const totalStartups = parseInt(cohortAppRes.rows[0]?.total || '0', 10);
+        const completionRate = totalStartups > 0 ? Math.round((uniqueSubmissionsCount / totalStartups) * 100) : 0;
+
+        // Check if current applicant submitted
+        let hasSubmitted = false;
+        if (currentApplicantId) {
+          const userSubRes = await query(
+            `SELECT id FROM feedback_responses WHERE feedback_form_id = $1 AND startup_id = $2 LIMIT 1`,
+            [form.id, currentApplicantId]
+          );
+          hasSubmitted = userSubRes.rows.length > 0;
+        }
+
+        return {
+          ...form,
+          questions: qRes.rows,
+          response_count: uniqueSubmissionsCount,
+          total_startups: totalStartups,
+          completion_rate: completionRate,
+          has_submitted: hasSubmitted
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      forms: detailedForms
+    });
+  } catch (err: any) {
+    console.error('Failed to get feedback forms:', err);
+    res.status(500).json({ error: err.message || 'Failed to get feedback forms.' });
+  }
+};
+
+export const getPendingFeedbackForms = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.currentUser?.email) {
+      return res.status(401).json({ error: 'Unauthorized.' });
+    }
+
+    // 1. Resolve logged in founder's applicant record
+    let applicantRes = await query(
+      `SELECT * FROM applicants WHERE LOWER(email) = LOWER($1) ORDER BY id DESC LIMIT 1`,
+      [req.currentUser.email.trim()]
+    );
+
+    if (applicantRes.rows.length === 0) {
+      // Fallback for demo/admin testing
+      applicantRes = await query(`SELECT * FROM applicants ORDER BY id ASC LIMIT 1`);
+    }
+
+    if (applicantRes.rows.length === 0) {
+      return res.json({ success: true, pendingForms: [] });
+    }
+
+    const applicant = applicantRes.rows[0];
+    const cohortId = applicant.cohort_id || parseInt(req.params.cohortId) || 1;
+
+    // 2. Fetch Active forms for this cohort
+    const formsRes = await query(
+      `SELECT * FROM feedback_forms WHERE cohort_id = $1 AND status = 'Active' ORDER BY created_at DESC`,
+      [cohortId]
+    );
+
+    const activeForms = formsRes.rows;
+    const pendingForms = [];
+
+    for (const form of activeForms) {
+      // Check if this startup already submitted any response for this form
+      const subCheck = await query(
+        `SELECT id FROM feedback_responses WHERE feedback_form_id = $1 AND startup_id = $2 LIMIT 1`,
+        [form.id, applicant.id]
+      );
+
+      if (subCheck.rows.length === 0) {
+        // Not submitted yet! Attach questions
+        const qRes = await query(
+          `SELECT * FROM feedback_questions WHERE feedback_form_id = $1 ORDER BY question_order ASC, id ASC`,
+          [form.id]
+        );
+        pendingForms.push({
+          ...form,
+          questions: qRes.rows
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      pendingForms,
+      startup_name: applicant.startup_name,
+      applicant_id: applicant.id
+    });
+  } catch (err: any) {
+    console.error('Failed to get pending feedback forms:', err);
+    res.status(500).json({ error: err.message || 'Failed to get pending feedback forms.' });
+  }
+};
+
+export const submitFeedbackFormResponse = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const formId = parseInt(req.params.id);
+    const { responses } = req.body;
+
+    if (!responses || !Array.isArray(responses) || responses.length === 0) {
+      return res.status(400).json({ error: 'Responses are required.' });
+    }
+
+    // 1. Verify form exists and is active
+    const formRes = await query(`SELECT * FROM feedback_forms WHERE id = $1`, [formId]);
+    if (formRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Feedback form not found.' });
+    }
+    const form = formRes.rows[0];
+    if (form.status === 'Closed') {
+      return res.status(400).json({ error: 'This feedback form is currently closed for responses.' });
+    }
+
+    // 2. Resolve Startup/Applicant ID
+    let applicantId: number | null = null;
+    if (req.currentUser?.email) {
+      const appRes = await query(
+        `SELECT id FROM applicants WHERE LOWER(email) = LOWER($1) ORDER BY id DESC LIMIT 1`,
+        [req.currentUser.email.trim()]
+      );
+      if (appRes.rows.length > 0) {
+        applicantId = appRes.rows[0].id;
+      }
+    }
+
+    if (!applicantId) {
+      // Fallback
+      const appRes = await query(`SELECT id FROM applicants ORDER BY id ASC LIMIT 1`);
+      applicantId = appRes.rows[0]?.id || 1;
+    }
+
+    const userId = req.currentUser?.id || null;
+
+    // 3. Prevent duplicate or overwrite responses
+    // Delete any previous responses by this startup for this form
+    await query(
+      `DELETE FROM feedback_responses WHERE feedback_form_id = $1 AND startup_id = $2`,
+      [formId, applicantId]
+    );
+
+    // 4. Batch insert response answers (startup_id ALWAYS stored in DB for audit trail/abuse prevention)
+    for (const r of responses) {
+      if (r.question_id && r.answer_value !== undefined && r.answer_value !== null) {
+        await query(
+          `INSERT INTO feedback_responses (feedback_form_id, question_id, startup_id, user_id, answer_value)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [formId, parseInt(r.question_id), applicantId, userId, String(r.answer_value)]
+        );
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Feedback submitted successfully. Thank you for your feedback!'
+    });
+  } catch (err: any) {
+    console.error('Failed to submit feedback response:', err);
+    res.status(500).json({ error: err.message || 'Failed to submit feedback response.' });
+  }
+};
+
+export const getFeedbackFormResponses = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const formId = parseInt(req.params.id);
+
+    // 1. Fetch Form
+    const formRes = await query(`SELECT * FROM feedback_forms WHERE id = $1`, [formId]);
+    if (formRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Feedback form not found.' });
+    }
+    const form = formRes.rows[0];
+    const isAnon = form.is_anonymous === true || form.is_anonymous === 'true';
+
+    // 2. Fetch Questions
+    const qRes = await query(
+      `SELECT * FROM feedback_questions WHERE feedback_form_id = $1 ORDER BY question_order ASC, id ASC`,
+      [formId]
+    );
+    const questions = qRes.rows;
+
+    // 3. Fetch Responses from database
+    const respRes = await query(
+      `SELECT * FROM feedback_responses WHERE feedback_form_id = $1 ORDER BY submitted_at ASC`,
+      [formId]
+    );
+    const rawResponses = respRes.rows;
+
+    // 4. Fetch applicants map for non-anonymous resolution
+    const applicantsRes = await query(`SELECT id, name, startup_name FROM applicants WHERE cohort_id = $1`, [form.cohort_id]);
+    const applicantsMap = new Map<number, { name: string; startup_name: string }>();
+    applicantsRes.rows.forEach((a: any) => {
+      applicantsMap.set(a.id, { name: a.name, startup_name: a.startup_name });
+    });
+
+    // Unique startups count who submitted
+    const uniqueStartupIds = new Set<number>();
+    rawResponses.forEach((r: any) => uniqueStartupIds.add(r.startup_id));
+    const submittedCount = uniqueStartupIds.size;
+    const totalStartups = applicantsRes.rows.length;
+    const completionRate = totalStartups > 0 ? Math.round((submittedCount / totalStartups) * 100) : 0;
+
+    // 5. Build question-by-question analytics
+    // CRITICAL: STRICT ANONYMITY ENFORCEMENT AT API LEVEL
+    // If is_anonymous = true, startup_id, user_id, startup_name, and founder_name MUST NOT be in the payload.
+    const questionsAnalytics = questions.map((q: any) => {
+      const qResponses = rawResponses.filter((r: any) => r.question_id === q.id);
+
+      let averageRating: number | undefined = undefined;
+      const ratingDistribution: Record<number, number> = {};
+
+      if (q.question_type === 'rating_1_10') {
+        for (let score = 1; score <= 10; score++) {
+          ratingDistribution[score] = 0;
+        }
+        let sum = 0;
+        let validCount = 0;
+        qResponses.forEach((r: any) => {
+          const num = parseInt(r.answer_value, 10);
+          if (!isNaN(num) && num >= 1 && num <= 10) {
+            sum += num;
+            validCount++;
+            ratingDistribution[num] = (ratingDistribution[num] || 0) + 1;
+          }
+        });
+        if (validCount > 0) {
+          averageRating = parseFloat((sum / validCount).toFixed(1));
+        }
+      }
+
+      // Format answers based on anonymity flag
+      const formattedAnswers = qResponses.map((r: any) => {
+        if (isAnon) {
+          // STRICT ANONYMITY: Omit ALL identifying keys completely
+          return {
+            id: r.id,
+            answer_value: r.answer_value,
+            submitted_at: r.submitted_at
+          };
+        } else {
+          // Non-anonymous: attach founder and startup names
+          const app = applicantsMap.get(r.startup_id);
+          return {
+            id: r.id,
+            startup_id: r.startup_id,
+            startup_name: app ? app.startup_name : `Startup #${r.startup_id}`,
+            founder_name: app ? app.name : 'Founder',
+            answer_value: r.answer_value,
+            submitted_at: r.submitted_at
+          };
+        }
+      });
+
+      return {
+        question: q,
+        average_rating: averageRating,
+        rating_distribution: q.question_type === 'rating_1_10' ? ratingDistribution : undefined,
+        answers: formattedAnswers
+      };
+    });
+
+    // Strip any identifying metadata from the returned form object if anonymous
+    const sanitizedForm = {
+      ...form,
+      is_anonymous: isAnon,
+      response_count: submittedCount,
+      total_startups: totalStartups,
+      completion_rate: completionRate
+    };
+
+    res.json({
+      success: true,
+      analytics: {
+        form: sanitizedForm,
+        total_cohort_startups: totalStartups,
+        submitted_startups_count: submittedCount,
+        completion_rate_percent: completionRate,
+        questions_analytics: questionsAnalytics
+      }
+    });
+  } catch (err: any) {
+    console.error('Failed to get feedback form responses:', err);
+    res.status(500).json({ error: err.message || 'Failed to get feedback form responses.' });
+  }
+};
+
+export const updateFeedbackFormStatus = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const formId = parseInt(req.params.id);
+    const { status, title, description, expiry_date } = req.body;
+
+    const existingRes = await query(`SELECT * FROM feedback_forms WHERE id = $1`, [formId]);
+    if (existingRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Feedback form not found.' });
+    }
+
+    const current = existingRes.rows[0];
+    const newStatus = status || current.status;
+    const newTitle = title !== undefined ? title : current.title;
+    const newDesc = description !== undefined ? description : current.description;
+    const newExpiry = expiry_date !== undefined ? expiry_date : current.expiry_date;
+
+    const updatedRes = await query(
+      `UPDATE feedback_forms 
+       SET status = $1, title = $2, description = $3, expiry_date = $4 
+       WHERE id = $5 
+       RETURNING *`,
+      [newStatus, newTitle, newDesc, newExpiry, formId]
+    );
+
+    res.json({
+      success: true,
+      form: updatedRes.rows[0]
+    });
+  } catch (err: any) {
+    console.error('Failed to update feedback form:', err);
+    res.status(500).json({ error: err.message || 'Failed to update feedback form.' });
+  }
+};
+
+export const deleteFeedbackForm = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const formId = parseInt(req.params.id);
+    await query(`DELETE FROM feedback_forms WHERE id = $1`, [formId]);
+    res.json({ success: true, message: 'Feedback form and all associated responses deleted successfully.' });
+  } catch (err: any) {
+    console.error('Failed to delete feedback form:', err);
+    res.status(500).json({ error: err.message || 'Failed to delete feedback form.' });
+  }
+};
+
+
 

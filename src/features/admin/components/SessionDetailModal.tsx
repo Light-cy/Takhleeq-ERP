@@ -18,9 +18,12 @@ import {
   Eye,
   AlertCircle,
   ArrowLeft,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Paperclip,
+  Link as LinkIcon,
+  ExternalLink
 } from 'lucide-react';
-import { downloadFileLocally, getCleanFileName } from '../../../utils/fileDownload';
+import { downloadFileLocally, getCleanFileName, parseAssignmentAttachments, formatFileSize, AssignmentAttachment } from '../../../utils/fileDownload';
 
 interface SessionDetailModalProps {
   session: any;
@@ -61,7 +64,10 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
   const [asgTitle, setAsgTitle] = useState('');
   const [asgDesc, setAsgDesc] = useState('');
   const [asgDueDate, setAsgDueDate] = useState('');
-  const [asgAttachmentUrl, setAsgAttachmentUrl] = useState('');
+  const [asgFiles, setAsgFiles] = useState<File[]>([]);
+  const [asgExternalUrls, setAsgExternalUrls] = useState<string[]>([]);
+  const [asgUrlInput, setAsgUrlInput] = useState('');
+  const [uploadProgressText, setUploadProgressText] = useState('');
   const [uploadingAsgFile, setUploadingAsgFile] = useState(false);
   const [creatingAsg, setCreatingAsg] = useState(false);
 
@@ -226,35 +232,36 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
     }
   };
 
-  // Assignment Attachment File Upload
-  const handleAssignmentAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Assignment Multi-File Attachment Handlers
+  const handleAddAsgFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const incoming = Array.from(files);
+    setAsgFiles(prev => {
+      const existingSignatures = new Set(prev.map(f => `${f.name}_${f.size}`));
+      const uniqueNew = incoming.filter(f => !existingSignatures.has(`${f.name}_${f.size}`));
+      return [...prev, ...uniqueNew];
+    });
+  };
 
-    try {
-      setUploadingAsgFile(true);
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        const fileData = reader.result as string;
-        const res = await fetchWithAuth('/api/upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fileName: file.name,
-            fileData
-          })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Upload failed.');
-        setAsgAttachmentUrl(data.url);
-        triggerSuccess('Attachment file uploaded.');
-      };
-    } catch (err: any) {
-      triggerError(err.message);
-    } finally {
-      setUploadingAsgFile(false);
+  const handleRemoveAsgFile = (index: number) => {
+    setAsgFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddExternalUrl = () => {
+    const trimmed = asgUrlInput.trim();
+    if (!trimmed) return;
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      triggerError('Please enter a valid URL starting with https:// or http://');
+      return;
     }
+    if (!asgExternalUrls.includes(trimmed)) {
+      setAsgExternalUrls(prev => [...prev, trimmed]);
+      setAsgUrlInput('');
+    }
+  };
+
+  const handleRemoveExternalUrl = (index: number) => {
+    setAsgExternalUrls(prev => prev.filter((_, i) => i !== index));
   };
 
   // Create Assignment
@@ -267,14 +274,67 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
 
     try {
       setCreatingAsg(true);
+      const attachmentsList: AssignmentAttachment[] = [];
+
+      // 1. Upload files in batch
+      if (asgFiles.length > 0) {
+        setUploadingAsgFile(true);
+        for (let i = 0; i < asgFiles.length; i++) {
+          const file = asgFiles[i];
+          setUploadProgressText(`Uploading (${i + 1}/${asgFiles.length}): ${file.name}...`);
+          
+          const reader = new FileReader();
+          const fileData = await new Promise<string>((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = (err) => reject(err);
+            reader.readAsDataURL(file);
+          });
+
+          const uploadRes = await fetchWithAuth('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileName: file.name, fileData })
+          });
+          const uploadData = await uploadRes.json();
+          if (!uploadRes.ok) throw new Error(uploadData.error || `Upload failed for ${file.name}`);
+
+          attachmentsList.push({
+            name: file.name,
+            url: uploadData.url,
+            size: file.size
+          });
+        }
+        setUploadingAsgFile(false);
+      }
+
+      // 2. Add external URLs
+      asgExternalUrls.forEach(url => {
+        if (url.trim()) {
+          attachmentsList.push({
+            name: getCleanFileName(url.trim()),
+            url: url.trim()
+          });
+        }
+      });
+
+      // 3. Add single url input if user typed but forgot to click Add
+      if (asgUrlInput.trim() && !asgExternalUrls.includes(asgUrlInput.trim())) {
+        attachmentsList.push({
+          name: getCleanFileName(asgUrlInput.trim()),
+          url: asgUrlInput.trim()
+        });
+      }
+
+      const finalAttachmentUrl = attachmentsList.length > 0 ? JSON.stringify(attachmentsList) : null;
+
       const res = await fetchWithAuth(`/api/sessions/${session.id}/assignments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: asgTitle,
-          description: asgDesc,
+          title: asgTitle.trim(),
+          description: asgDesc.trim(),
           due_date: asgDueDate,
-          attachment_url: asgAttachmentUrl
+          attachment_url: finalAttachmentUrl
         })
       });
       const data = await res.json();
@@ -285,12 +345,18 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
       setAsgTitle('');
       setAsgDesc('');
       setAsgDueDate('');
-      setAsgAttachmentUrl('');
-      triggerSuccess(`Assignment created: '${data.assignment.title}'.`);
+      setAsgFiles([]);
+      setAsgExternalUrls([]);
+      setAsgUrlInput('');
+      setUploadProgressText('');
+      const attMsg = attachmentsList.length > 0 ? ` with ${attachmentsList.length} attachment(s)` : '';
+      triggerSuccess(`Assignment created: '${data.assignment.title}'${attMsg}.`);
     } catch (err: any) {
       triggerError(err.message);
     } finally {
       setCreatingAsg(false);
+      setUploadingAsgFile(false);
+      setUploadProgressText('');
     }
   };
 
@@ -685,40 +751,136 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black uppercase text-gray-500 font-mono">Due Date *</label>
-                      <input
-                        type="date"
-                        required
-                        value={asgDueDate}
-                        onChange={e => setAsgDueDate(e.target.value)}
-                        className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold focus:outline-none"
-                      />
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black uppercase text-gray-500 font-mono">Reference Attachments & Templates (Optional)</label>
+                      {(asgFiles.length > 0 || asgExternalUrls.length > 0) && (
+                        <span className="text-[9px] font-bold text-primary font-mono">
+                          {asgFiles.length + asgExternalUrls.length} attached
+                        </span>
+                      )}
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black uppercase text-gray-500 font-mono">Reference File Attachment (Optional)</label>
-                      <div className="flex items-center gap-2">
-                        <label className="bg-white hover:bg-gray-100 border border-gray-200 text-gray-800 text-xs font-bold py-2 px-3 rounded-lg cursor-pointer flex items-center gap-1.5 transition-all">
-                          <Upload className="h-3.5 w-3.5 text-primary" />
-                          {uploadingAsgFile ? 'Uploading...' : asgAttachmentUrl ? 'Replace File' : 'Upload File'}
-                          <input type="file" onChange={handleAssignmentAttachmentUpload} disabled={uploadingAsgFile} className="hidden" />
-                        </label>
-                        {asgAttachmentUrl && (
-                          <span className="text-[11px] text-emerald-600 font-bold truncate">File attached</span>
-                        )}
+                    {/* Multi-file selector drop area */}
+                    <div className="border border-dashed border-gray-300 hover:border-primary rounded-xl p-3 bg-white text-center transition-colors">
+                      <input
+                        type="file"
+                        id="session-multi-asg-files"
+                        multiple
+                        onChange={(e) => {
+                          handleAddAsgFiles(e.target.files);
+                          e.target.value = '';
+                        }}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="session-multi-asg-files"
+                        className="cursor-pointer flex flex-col items-center justify-center gap-1 text-[11px] text-gray-600 hover:text-primary font-medium"
+                      >
+                        <Paperclip className="h-4 w-4 text-gray-400" />
+                        <span>Click to attach <strong>Multiple Files</strong> (PDF, PPTX, XLSX, DOCX, ZIP)</span>
+                        <span className="text-[9px] text-gray-400">Templates, worksheets, instructions, rubrics</span>
+                      </label>
+                    </div>
+
+                    {/* Selected Files List */}
+                    {asgFiles.length > 0 && (
+                      <div className="space-y-1 pt-1">
+                        <span className="text-[9px] font-bold text-gray-500 uppercase block font-mono">Files to Upload ({asgFiles.length}):</span>
+                        <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                          {asgFiles.map((file, idx) => (
+                            <div
+                              key={`${file.name}_${idx}`}
+                              className="flex items-center justify-between p-1.5 bg-white border border-gray-200 rounded-lg text-[11px]"
+                            >
+                              <div className="flex items-center gap-1.5 truncate mr-2">
+                                <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                                <span className="font-semibold text-gray-800 truncate" title={file.name}>{file.name}</span>
+                                <span className="text-[9px] text-gray-400 font-mono shrink-0">({formatFileSize(file.size)})</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAsgFile(idx)}
+                                className="text-gray-400 hover:text-red-600 p-0.5 rounded hover:bg-red-50 cursor-pointer shrink-0 transition-colors"
+                                title="Remove file"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
+                    )}
+
+                    {/* External Link Input */}
+                    <div className="pt-1 space-y-1">
+                      <span className="text-[9px] text-gray-400 font-mono block">or add link (Drive, Notion, Figma):</span>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="url"
+                          placeholder="https://drive.google.com/... or https://notion.so/..."
+                          value={asgUrlInput}
+                          onChange={(e) => setAsgUrlInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddExternalUrl();
+                            }
+                          }}
+                          className="flex-1 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-primary font-mono text-[10px]"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddExternalUrl}
+                          className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[10px] rounded-lg cursor-pointer shrink-0 flex items-center gap-1"
+                        >
+                          <LinkIcon className="h-3 w-3" /> Add Link
+                        </button>
+                      </div>
+
+                      {asgExternalUrls.length > 0 && (
+                        <div className="space-y-1 pt-1">
+                          {asgExternalUrls.map((url, idx) => (
+                            <div
+                              key={`url_${idx}`}
+                              className="flex items-center justify-between p-1.5 bg-white border border-blue-100 rounded-lg text-[10px]"
+                            >
+                              <div className="flex items-center gap-1.5 truncate mr-2">
+                                <LinkIcon className="h-3 w-3 text-blue-600 shrink-0" />
+                                <span className="font-mono text-blue-700 truncate">{url}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveExternalUrl(idx)}
+                                className="text-gray-400 hover:text-red-600 p-0.5 rounded hover:bg-red-50 cursor-pointer shrink-0 transition-colors"
+                                title="Remove link"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex justify-end pt-2">
                     <button
                       type="submit"
-                      disabled={creatingAsg}
-                      className="bg-primary hover:bg-[#5A0F0F] text-white py-2 px-5 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer"
+                      disabled={creatingAsg || uploadingAsgFile}
+                      className="bg-primary hover:bg-[#5A0F0F] text-white py-2 px-5 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer shadow-3xs disabled:opacity-50 flex items-center gap-2"
                     >
-                      {creatingAsg ? 'Publishing...' : 'Publish Assignment'}
+                      {creatingAsg || uploadingAsgFile ? (
+                        <>
+                          <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>{uploadProgressText || 'Publishing...'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-3.5 w-3.5" />
+                          <span>Publish Assignment {asgFiles.length + asgExternalUrls.length > 0 ? `(${asgFiles.length + asgExternalUrls.length} Files)` : ''}</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
@@ -748,15 +910,48 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
                               </span>
                             </div>
                             {asg.description && <p className="text-xs text-gray-600">{asg.description}</p>}
-                            {asg.attachment_url && (
-                              <button
-                                type="button"
-                                onClick={() => downloadFileLocally(asg.attachment_url, getCleanFileName(asg.attachment_url))}
-                                className="inline-flex items-center gap-1 text-[11px] text-primary font-bold hover:underline mt-1 cursor-pointer"
-                              >
-                                <Download className="h-3 w-3" /> Download Staff Reference File
-                              </button>
-                            )}
+                            {(() => {
+                              const attachments = parseAssignmentAttachments(asg.attachment_url);
+                              if (attachments.length === 0) return null;
+                              return (
+                                <div className="pt-1 space-y-1">
+                                  <span className="text-[9px] font-bold text-gray-500 uppercase block font-mono">
+                                    Attached Materials ({attachments.length}):
+                                  </span>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {attachments.map((att, attIdx) => {
+                                      const isHttpLink = att.url.startsWith('http://') || att.url.startsWith('https://');
+                                      const isUploadFile = att.url.startsWith('/uploads/') || att.url.startsWith('data:') || att.url.startsWith('blob:');
+                                      return (
+                                        <button
+                                          key={`${att.url}_${attIdx}`}
+                                          type="button"
+                                          onClick={() => {
+                                            if (isUploadFile) {
+                                              downloadFileLocally(att.url, att.name);
+                                            } else {
+                                              window.open(att.url, '_blank', 'noopener,noreferrer');
+                                            }
+                                          }}
+                                          className="inline-flex items-center gap-1.5 text-[10px] font-bold text-gray-800 hover:text-primary bg-white hover:bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-200 shadow-3xs cursor-pointer transition-all max-w-xs truncate"
+                                          title={att.name || att.url}
+                                        >
+                                          {isUploadFile ? (
+                                            <Download className="h-3 w-3 text-primary shrink-0" />
+                                          ) : (
+                                            <ExternalLink className="h-3 w-3 text-blue-600 shrink-0" />
+                                          )}
+                                          <span className="truncate">{att.name || getCleanFileName(att.url)}</span>
+                                          {att.size && (
+                                            <span className="text-[8px] text-gray-400 font-mono">({formatFileSize(att.size)})</span>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
 
                           <div className="flex items-center gap-2">
