@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { query, logAudit } from '../../db.ts';
 import { AuthenticatedRequest } from '../../shared/types/index.ts';
-import { sendApplicantStatusEmail, sendPerformanceWarningEmail, sendWarningResolutionEmail } from './cohort-email.service.ts';
+import { sendApplicantStatusEmail, sendPerformanceWarningEmail, sendWarningResolutionEmail, sendPivotNotificationEmail } from './cohort-email.service.ts';
 import { syncAcceptedStartupsInternal } from '../startups/startups.controller.ts';
 
 // Helper to generate a friendly Pakistani tracking token like TK-STR-5129
@@ -2566,6 +2566,301 @@ export const deleteFeedbackForm = async (req: AuthenticatedRequest, res: Respons
     res.status(500).json({ error: err.message || 'Failed to delete feedback form.' });
   }
 };
+
+// ==========================================
+// 27. STRATEGIC PIVOT REQUEST-APPROVAL WORKFLOW
+// ==========================================
+
+// Founder submits a new pivot request (creates status=PENDING, doesn't update profile yet)
+export const requestStartupPivot = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = req.currentUser;
+    const { startup_id, new_idea_description, new_industry, reason } = req.body;
+
+    if (!new_idea_description || !new_idea_description.trim()) {
+      return res.status(400).json({ error: 'New business idea / description is required.' });
+    }
+    if (!new_industry || !new_industry.trim()) {
+      return res.status(400).json({ error: 'Target new industry is required.' });
+    }
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: 'Reason for strategic pivot is required.' });
+    }
+
+    // Resolve startup ID for founder if not explicitly supplied
+    let targetStartupId = startup_id ? parseInt(startup_id) : null;
+    if (!targetStartupId && user?.email) {
+      const appRes = await query(`SELECT id FROM applicants WHERE LOWER(email) = LOWER($1) LIMIT 1`, [user.email]);
+      if (appRes.rows.length > 0) {
+        targetStartupId = appRes.rows[0].id;
+      }
+    }
+
+    if (!targetStartupId) {
+      return res.status(400).json({ error: 'Could not associate request with a valid startup venture.' });
+    }
+
+    // Check if there is already a PENDING pivot request for this startup
+    const existingPivotsRes = await query(`
+      SELECT * FROM startup_pivots 
+      WHERE startup_profile_id = $1 OR startup_id = $1
+    `, [targetStartupId]);
+    
+    const pendingRequest = (existingPivotsRes.rows || []).find((p: any) => p.status === 'PENDING');
+    if (pendingRequest) {
+      return res.status(400).json({ 
+        error: 'You already have an active pivot request pending administrative review. You cannot submit another until it is reviewed.',
+        pendingRequest 
+      });
+    }
+
+    // Lookup current startup profile information to snapshot previous values
+    const startupRes = await query(`SELECT * FROM startup_profiles WHERE id = $1 OR applicant_id = $1 LIMIT 1`, [targetStartupId]);
+    let prevIdea = '';
+    let prevIndustry = 'General Tech';
+    let prevIndId = null;
+
+    if (startupRes.rows.length > 0) {
+      const sp = startupRes.rows[0];
+      prevIdea = sp.description || '';
+      prevIndId = sp.industry_id || null;
+      if (prevIndId) {
+        const indRes = await query(`SELECT name FROM industries WHERE id = $1 LIMIT 1`, [prevIndId]);
+        if (indRes.rows.length > 0) {
+          prevIndustry = indRes.rows[0].name;
+        }
+      }
+    } else {
+      // Fallback to applicant row
+      const appRowRes = await query(`SELECT * FROM applicants WHERE id = $1 LIMIT 1`, [targetStartupId]);
+      if (appRowRes.rows.length > 0) {
+        prevIdea = appRowRes.rows[0].description || '';
+      }
+    }
+
+    // Lookup new industry id if available
+    let newIndId = null;
+    const newIndLookup = await query(`SELECT id FROM industries WHERE LOWER(name) = LOWER($1) LIMIT 1`, [new_industry.trim()]);
+    if (newIndLookup.rows.length > 0) {
+      newIndId = newIndLookup.rows[0].id;
+    }
+
+    // Insert pending pivot record
+    const insertRes = await query(`
+      INSERT INTO startup_pivots (
+        startup_profile_id,
+        previous_idea_description,
+        new_idea_description,
+        previous_industry,
+        new_industry,
+        reason,
+        status,
+        requested_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', CURRENT_TIMESTAMP)
+      RETURNING *;
+    `, [
+      targetStartupId,
+      prevIdea,
+      new_idea_description.trim(),
+      prevIndustry,
+      new_industry.trim(),
+      reason.trim(),
+      'PENDING'
+    ]);
+
+    const createdPivot = insertRes.rows[0];
+
+    // Log audit record
+    await logAudit(
+      user?.email || 'founder',
+      'PIVOT_REQUESTED',
+      'STARTUP',
+      String(targetStartupId),
+      `Founder requested strategic pivot to "${new_industry.trim()}". Reason: ${reason.trim()}`
+    );
+
+    res.json({
+      success: true,
+      message: 'Strategic pivot request submitted successfully and is now pending administrative approval.',
+      pivot: createdPivot
+    });
+  } catch (err: any) {
+    console.error('Failed to request startup pivot:', err);
+    res.status(500).json({ error: err.message || 'Failed to submit pivot request.' });
+  }
+};
+
+// List all pivot requests (supports filtering by ?status=PENDING/APPROVED/REJECTED or ?startup_id=123)
+export const getPivotRequests = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { status, startup_id } = req.query;
+
+    let q = `SELECT * FROM startup_pivots`;
+    const params: any[] = [];
+
+    if (startup_id) {
+      params.push(parseInt(startup_id as string));
+      q += ` WHERE startup_profile_id = $1`;
+    }
+
+    const result = await query(q, params);
+    let list = result.rows || [];
+
+    if (status && typeof status === 'string' && status.trim() !== '') {
+      list = list.filter((p: any) => (p.status || 'APPROVED').toUpperCase() === status.trim().toUpperCase());
+    }
+
+    res.json({
+      success: true,
+      pivots: list
+    });
+  } catch (err: any) {
+    console.error('Failed to get pivot requests:', err);
+    res.status(500).json({ error: err.message || 'Failed to retrieve pivot requests.' });
+  }
+};
+
+// Admin Review Pivot Request (Approve or Reject)
+export const reviewStartupPivot = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const admin = req.currentUser;
+    const pivotId = parseInt(req.params.id);
+    const { action, admin_remarks } = req.body; // action: 'APPROVE' | 'REJECT'
+
+    if (!action || !['APPROVE', 'REJECT'].includes(action.toUpperCase())) {
+      return res.status(400).json({ error: "Action must be either 'APPROVE' or 'REJECT'." });
+    }
+
+    const isApprove = action.toUpperCase() === 'APPROVE';
+    if (!isApprove && (!admin_remarks || !admin_remarks.trim())) {
+      return res.status(400).json({ error: "Admin remarks are required when rejecting a pivot request." });
+    }
+
+    // Fetch the pending pivot record
+    const pivotRes = await query(`SELECT * FROM startup_pivots WHERE id = $1 LIMIT 1`, [pivotId]);
+    if (pivotRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Pivot record not found.' });
+    }
+
+    const pivot = pivotRes.rows[0];
+    if (pivot.status !== 'PENDING') {
+      return res.status(400).json({ error: `This pivot request has already been reviewed (Status: ${pivot.status}).` });
+    }
+
+    const newStatus = isApprove ? 'APPROVED' : 'REJECTED';
+    const reviewedAt = new Date().toISOString();
+    const reviewerId = admin?.id || 1;
+    const reviewerEmail = admin?.email || 'admin@takhleeq.pk';
+
+    // Update pivot record
+    const updatedPivotRes = await query(`
+      UPDATE startup_pivots
+      SET status = $1,
+          reviewed_by = $2,
+          reviewed_at = $3,
+          admin_remarks = $4
+      WHERE id = $5
+      RETURNING *;
+    `, [newStatus, reviewerId, reviewedAt, admin_remarks ? admin_remarks.trim() : null, pivotId]);
+
+    const targetStartupId = pivot.startup_profile_id || pivot.startup_id;
+
+    // If APPROVED, update the startup's actual profile (description and industry)
+    let updatedProfile = null;
+    if (isApprove && targetStartupId) {
+      // Find industry ID if possible
+      let targetIndId = pivot.new_industry_id || null;
+      if (!targetIndId && pivot.new_industry) {
+        const indFind = await query(`SELECT id FROM industries WHERE LOWER(name) = LOWER($1) LIMIT 1`, [pivot.new_industry.trim()]);
+        if (indFind.rows.length > 0) {
+          targetIndId = indFind.rows[0].id;
+        }
+      }
+
+      const upRes = await query(`
+        UPDATE startup_profiles
+        SET description = $1,
+            industry_id = COALESCE($2, industry_id),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3 OR applicant_id = $3
+        RETURNING *;
+      `, [pivot.new_idea_description || pivot.new_idea, targetIndId, targetStartupId]);
+
+      if (upRes.rows.length > 0) {
+        updatedProfile = upRes.rows[0];
+      }
+
+      // Also update applicants table if applicable
+      await query(`
+        UPDATE applicants
+        SET description = $1
+        WHERE id = $2;
+      `, [pivot.new_idea_description || pivot.new_idea, targetStartupId]);
+
+      // Record audit log for startup
+      await query(`
+        INSERT INTO startup_audit_logs (
+          startup_profile_id,
+          changed_by_user_id,
+          changed_by_email,
+          field_name,
+          old_value,
+          new_value
+        ) VALUES ($1, $2, $3, 'PIVOT_APPROVED', $4, $5);
+      `, [
+        targetStartupId,
+        reviewerId,
+        reviewerEmail,
+        `Previous: ${pivot.previous_industry || 'General Tech'} - ${(pivot.previous_idea_description || '').substring(0, 40)}...`,
+        `New: ${pivot.new_industry || 'General Tech'} - ${(pivot.new_idea_description || '').substring(0, 40)}...`
+      ]);
+    }
+
+    // System audit log
+    await logAudit(
+      reviewerEmail,
+      isApprove ? 'PIVOT_APPROVED' : 'PIVOT_REJECTED',
+      'STARTUP_PIVOT',
+      String(pivotId),
+      `Admin ${reviewerEmail} ${isApprove ? 'approved' : 'rejected'} pivot request for startup #${targetStartupId}. Remarks: ${admin_remarks || 'None'}`
+    );
+
+    // Send email notification to founder
+    try {
+      const founderEmail = pivot.founder_email;
+      const founderName = pivot.founder_name || 'Founder';
+      const startupName = pivot.startup_name || 'Startup';
+
+      if (founderEmail) {
+        await sendPivotNotificationEmail({
+          founderEmail,
+          founderName,
+          startupName,
+          status: newStatus as 'APPROVED' | 'REJECTED',
+          previousIdea: pivot.previous_idea_description || pivot.previous_idea,
+          newIdea: pivot.new_idea_description || pivot.new_idea,
+          previousIndustry: pivot.previous_industry,
+          newIndustry: pivot.new_industry,
+          reason: pivot.reason,
+          adminRemarks: admin_remarks ? admin_remarks.trim() : undefined
+        });
+      }
+    } catch (emailErr) {
+      console.warn('Could not dispatch founder pivot decision notification email:', emailErr);
+    }
+
+    res.json({
+      success: true,
+      message: `Strategic pivot request successfully ${isApprove ? 'approved' : 'rejected'}.`,
+      pivot: updatedPivotRes.rows[0],
+      updatedProfile
+    });
+  } catch (err: any) {
+    console.error('Failed to review startup pivot:', err);
+    res.status(500).json({ error: err.message || 'Failed to review pivot request.' });
+  }
+};
+
 
 
 

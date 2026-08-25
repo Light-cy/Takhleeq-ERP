@@ -11,7 +11,8 @@ import {
   fetchStartupFullDetails, 
   adminUpdateStartupProfile,
   issueStartupWarning,
-  resolveStartupWarning
+  resolveStartupWarning,
+  reviewStartupPivot
 } from '../api/startupsApi';
 import { StartupCheckinsTab } from '../../checkins/components/StartupCheckinsTab';
 
@@ -164,6 +165,33 @@ export const StartupDetailView: React.FC<Props> = ({
       setErrorMsg(err.message || 'Failed to resolve warning');
     } finally {
       setResolvingWarning(false);
+    }
+  };
+
+  // Pivot Review State
+  const [reviewingPivotId, setReviewingPivotId] = useState<number | null>(null);
+  const [pivotReviewAction, setPivotReviewAction] = useState<'APPROVE' | 'REJECT'>('APPROVE');
+  const [pivotAdminRemarks, setPivotAdminRemarks] = useState('');
+  const [submittingPivotReview, setSubmittingPivotReview] = useState(false);
+
+  const handleReviewPivotSubmit = async (pivotId: number, action: 'APPROVE' | 'REJECT') => {
+    setSubmittingPivotReview(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const res = await reviewStartupPivot(pivotId, {
+        action,
+        admin_remarks: pivotAdminRemarks.trim() || undefined
+      });
+      setSuccessMsg(res.message || `Pivot request ${action.toLowerCase()}d successfully.`);
+      setReviewingPivotId(null);
+      setPivotAdminRemarks('');
+      await loadFullDetails();
+      if (onProfileUpdated) onProfileUpdated();
+    } catch (err: any) {
+      setErrorMsg(err.message || `Failed to ${action.toLowerCase()} pivot request`);
+    } finally {
+      setSubmittingPivotReview(false);
     }
   };
 
@@ -1205,29 +1233,194 @@ export const StartupDetailView: React.FC<Props> = ({
 
       {/* TAB 6: PIVOTS */}
       {activeTab === 'pivots' && (
-        <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
-          <div className="border-b border-gray-100 pb-3">
-            <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Startup Pivots & Model Changes</h3>
-            <p className="text-xs text-gray-500">Permanent record of core concept or business model pivots.</p>
+        <div className="space-y-6">
+          
+          {/* Header */}
+          <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">
+                  Strategic Pivots & Business Model Evolution
+                </h3>
+              </div>
+              <span className="text-xs font-mono font-bold text-gray-400">
+                Total Records: {pivots.length}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500">
+              Audit founder-submitted strategic direction changes, validate hypotheses, and approve profile transitions.
+            </p>
           </div>
 
-          <div className="space-y-3">
-            {pivots.length === 0 ? (
-              <p className="text-xs text-gray-400 py-6 text-center">No pivots logged for this startup.</p>
-            ) : (
-              pivots.map((p: any) => (
-                <div key={p.id} className="p-4 bg-gray-50 border border-gray-200 rounded-2xl space-y-2 text-xs">
-                  <div className="flex items-center justify-between font-bold text-gray-900">
-                    <span>Pivot Record #{p.id}</span>
-                    <span className="font-mono text-[10px] text-gray-400">{p.pivot_date ? new Date(p.pivot_date).toLocaleDateString() : ''}</span>
-                  </div>
-                  <p className="text-gray-700"><strong>New Idea:</strong> {p.new_idea}</p>
-                  <p className="text-gray-600"><strong>Reason:</strong> {p.reason}</p>
-                  <p className="text-gray-500 text-[11px]">Approved by: {p.approved_by_email}</p>
+          {/* Pending Reviews Section */}
+          {pivots.filter((p: any) => p.status === 'PENDING').length > 0 && (
+            <div className="bg-amber-50/60 border-2 border-amber-300/80 rounded-3xl p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-amber-200 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-2.5 w-2.5 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                  </span>
+                  <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider">
+                    Action Required: Pending Pivot Requests ({pivots.filter((p: any) => p.status === 'PENDING').length})
+                  </h4>
                 </div>
-              ))
+                <span className="text-[10px] font-bold text-amber-800 uppercase font-mono">Awaiting Decision</span>
+              </div>
+
+              <div className="space-y-4">
+                {pivots.filter((p: any) => p.status === 'PENDING').map((p: any) => (
+                  <div key={p.id} className="bg-white p-5 rounded-2xl border border-amber-200 space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between text-xs border-b border-gray-100 pb-2">
+                      <span className="font-extrabold text-gray-900">Request #{p.id}</span>
+                      <span className="font-mono text-gray-400 text-[11px]">
+                        Submitted: {p.requested_at ? new Date(p.requested_at).toLocaleDateString() : 'N/A'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      <div className="p-3 bg-gray-50 border border-gray-150 rounded-xl space-y-1">
+                        <span className="font-bold text-gray-400 uppercase text-[9px] block">Previous Baseline</span>
+                        <p className="font-bold text-gray-800">{p.previous_industry_name || p.previous_industry || profile.industry_name || 'Standard Baseline'}</p>
+                        <p className="text-gray-600 text-[11px]">{p.previous_idea_description || profile.description}</p>
+                      </div>
+
+                      <div className="p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl space-y-1">
+                        <span className="font-bold text-emerald-800 uppercase text-[9px] block">Proposed Pivot Target</span>
+                        <p className="font-extrabold text-emerald-950">{p.new_industry || p.new_industry_name}</p>
+                        <p className="text-emerald-900 text-[11px]">{p.new_idea_description || p.new_idea}</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-amber-50/50 border border-amber-100 rounded-xl text-xs space-y-1">
+                      <span className="font-bold text-amber-900 uppercase text-[9px] block">Founder Validation Reason & Hypothesis:</span>
+                      <p className="text-amber-950 font-medium">{p.reason}</p>
+                    </div>
+
+                    {/* Review Form / Buttons */}
+                    {reviewingPivotId === p.id ? (
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 animate-in fade-in text-xs">
+                        <label className="font-bold text-gray-700 uppercase text-[10px] block">
+                          Review Remarks / Feedback to Founder (Optional):
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={pivotAdminRemarks}
+                          onChange={(e) => setPivotAdminRemarks(e.target.value)}
+                          placeholder="e.g., Approved after discussion in weekly mentor checkin. Strategic fit with current market demand."
+                          className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-xs text-gray-800 focus:outline-none focus:border-primary"
+                        />
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReviewingPivotId(null);
+                              setPivotAdminRemarks('');
+                            }}
+                            className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            disabled={submittingPivotReview}
+                            onClick={() => handleReviewPivotSubmit(p.id, 'REJECT')}
+                            className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                            {submittingPivotReview ? 'Saving...' : 'Reject Request'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={submittingPivotReview}
+                            onClick={() => handleReviewPivotSubmit(p.id, 'APPROVE')}
+                            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                          >
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            {submittingPivotReview ? 'Applying...' : 'Approve & Update Profile'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReviewingPivotId(p.id);
+                            setPivotReviewAction('APPROVE');
+                            setPivotAdminRemarks('');
+                          }}
+                          className="px-4 py-1.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                        >
+                          <CheckCircle className="h-3.5 w-3.5" />
+                          Review Pivot Request
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Historical Resolved Pivots */}
+          <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
+            <div className="border-b border-gray-100 pb-3">
+              <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                <History className="h-4 w-4 text-gray-500" />
+                Historical Pivot Decisions ({pivots.filter((p: any) => p.status !== 'PENDING').length})
+              </h4>
+            </div>
+
+            {pivots.filter((p: any) => p.status !== 'PENDING').length === 0 ? (
+              <p className="text-xs text-gray-400 py-6 text-center">No resolved pivot history for this startup.</p>
+            ) : (
+              <div className="space-y-3">
+                {pivots.filter((p: any) => p.status !== 'PENDING').map((p: any) => (
+                  <div key={p.id} className="p-4 bg-gray-50 border border-gray-200 rounded-2xl space-y-3 text-xs">
+                    <div className="flex items-center justify-between font-bold text-gray-900 border-b border-gray-200 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span>Pivot Record #{p.id}</span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase font-mono ${
+                          p.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          {p.status}
+                        </span>
+                      </div>
+                      <span className="font-mono text-[10px] text-gray-400">
+                        {p.reviewed_at ? new Date(p.reviewed_at).toLocaleDateString() : p.pivot_date ? new Date(p.pivot_date).toLocaleDateString() : ''}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="p-2.5 bg-white border border-gray-150 rounded-xl">
+                        <span className="text-[9px] font-bold text-gray-400 uppercase block mb-0.5">Previous Scope</span>
+                        <p className="font-bold text-gray-800">{p.previous_industry_name || p.previous_industry || 'Baseline'}</p>
+                        <p className="text-gray-600 text-[11px] mt-0.5">{p.previous_idea_description || 'Original profile concept'}</p>
+                      </div>
+                      <div className="p-2.5 bg-emerald-50/40 border border-emerald-150 rounded-xl">
+                        <span className="text-[9px] font-bold text-emerald-800 uppercase block mb-0.5">New Direction</span>
+                        <p className="font-extrabold text-emerald-950">{p.new_industry || p.new_industry_name || 'Target Industry'}</p>
+                        <p className="text-emerald-900 text-[11px] mt-0.5">{p.new_idea_description || p.new_idea}</p>
+                      </div>
+                    </div>
+
+                    <div className="text-gray-700 bg-white p-2.5 rounded-xl border border-gray-150">
+                      <strong>Founder Validation Rationale:</strong> {p.reason}
+                    </div>
+
+                    {p.admin_remarks && (
+                      <div className="text-emerald-900 bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-200 text-[11px]">
+                        <strong>Review Remarks:</strong> {p.admin_remarks} (Reviewed by: {p.reviewed_by_email || p.approved_by_email || 'Incubator Admin'})
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
+
         </div>
       )}
 

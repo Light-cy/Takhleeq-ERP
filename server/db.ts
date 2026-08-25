@@ -2338,30 +2338,143 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: [newHist] };
   }
 
-  // 49. Startup Pivots
-  if (q.includes('from startup_pivots')) {
+  // 49. Startup Pivots (Request-Approval Workflow)
+  if (q.includes('from startup_pivots') && !q.includes('insert into') && !q.includes('update') && !q.includes('delete')) {
     if (!db.startup_pivots) db.startup_pivots = [];
-    if (q.includes('where startup_profile_id = $1')) {
+    let list = [...db.startup_pivots];
+
+    if (q.includes('where p.id = $1') || q.includes('where id = $1')) {
+      const pid = parseInt(params[0]);
+      list = list.filter((p: any) => p.id === pid);
+    } else if (q.includes('startup_profile_id = $1') || q.includes('startup_id = $1') || q.includes('p.startup_profile_id = $1') || q.includes('p.startup_id = $1')) {
       const spId = parseInt(params[0]);
-      return { rows: db.startup_pivots.filter((p: any) => p.startup_profile_id === spId) };
+      list = list.filter((p: any) => p.startup_profile_id === spId || p.startup_id === spId);
     }
-    return { rows: db.startup_pivots };
+
+    if (q.includes("status = 'PENDING'") || q.includes("status = $1") || q.includes("p.status = 'PENDING'") || q.includes("p.status = $1")) {
+      const statusParam = params.find((p: any) => ['PENDING', 'APPROVED', 'REJECTED'].includes(String(p).toUpperCase())) || 'PENDING';
+      list = list.filter((p: any) => (p.status || 'APPROVED').toUpperCase() === String(statusParam).toUpperCase());
+    }
+
+    // Enrich with startup, founder, and industry metadata
+    const enriched = list.map((p: any) => {
+      const spId = p.startup_profile_id || p.startup_id;
+      const sp = (db.startup_profiles || []).find((s: any) => s.id === spId || s.applicant_id === spId);
+      const app = sp ? (db.applicants || []).find((a: any) => a.id === sp.applicant_id) : (db.applicants || []).find((a: any) => a.id === spId);
+      
+      const prevIndId = p.previous_industry_id;
+      const newIndId = p.new_industry_id;
+      const prevInd = prevIndId ? (db.industries || []).find((i: any) => i.id === prevIndId) : null;
+      const newInd = newIndId ? (db.industries || []).find((i: any) => i.id === newIndId) : null;
+
+      const prevIndName = p.previous_industry || (prevInd ? prevInd.name : (p.previous_industry_name || 'General Tech'));
+      const newIndName = p.new_industry || (newInd ? newInd.name : (p.new_industry_name || 'General Tech'));
+
+      let reviewerName = null;
+      if (p.reviewed_by) {
+        const u = (db.users || []).find((usr: any) => usr.id === parseInt(p.reviewed_by) || usr.email === String(p.reviewed_by));
+        if (u) reviewerName = u.full_name || u.name || u.email;
+      }
+
+      return {
+        ...p,
+        startup_id: spId,
+        startup_profile_id: spId,
+        startup_name: sp?.startup_name || app?.startup_name || 'Startup',
+        founder_name: app?.name || 'Founder',
+        founder_email: app?.email || '',
+        previous_idea_description: p.previous_idea_description || p.previous_idea || p.previous_model || '',
+        new_idea_description: p.new_idea_description || p.new_idea || p.new_model || '',
+        previous_industry: prevIndName,
+        previous_industry_name: prevIndName,
+        new_industry: newIndName,
+        new_industry_name: newIndName,
+        status: p.status || 'APPROVED',
+        requested_at: p.requested_at || p.pivot_date || p.created_at || new Date().toISOString(),
+        reviewer_name: reviewerName
+      };
+    });
+
+    enriched.sort((a: any, b: any) => new Date(b.requested_at || b.pivot_date).getTime() - new Date(a.requested_at || a.pivot_date).getTime());
+    return { rows: enriched };
   }
+
   if (q.includes('insert into startup_pivots')) {
     if (!db.startup_pivots) db.startup_pivots = [];
     const id = Math.max(...db.startup_pivots.map((p: any) => p.id || 0), 0) + 1;
-    const newPivot = {
+    
+    // Support new full schema
+    let newPivot: any = {
       id,
       startup_profile_id: parseInt(params[0]),
+      startup_id: parseInt(params[0]),
+      previous_idea_description: params[1] || null,
+      previous_idea: params[1] || null,
+      new_idea_description: params[2] || '',
+      new_idea: params[2] || '',
+      previous_industry_id: params[3] ? (isNaN(parseInt(params[3])) ? null : parseInt(params[3])) : null,
+      previous_industry: typeof params[3] === 'string' && isNaN(parseInt(params[3])) ? params[3] : (params[5] || null),
+      new_industry_id: params[4] ? (isNaN(parseInt(params[4])) ? null : parseInt(params[4])) : null,
+      new_industry: typeof params[4] === 'string' && isNaN(parseInt(params[4])) ? params[4] : (params[6] || null),
+      reason: params[5] || params[3] || '',
+      status: params[6] || 'PENDING',
+      requested_at: new Date().toISOString(),
       pivot_date: new Date().toISOString(),
-      previous_model: params[1],
-      new_model: params[2],
-      reason: params[3],
-      logged_by_email: params[4]
+      reviewed_by: params[7] ? parseInt(params[7]) : null,
+      reviewed_at: params[8] || null,
+      admin_remarks: params[9] || null,
+      created_at: new Date().toISOString()
     };
+
+    // If param array has explicit fields passed from controller
+    if (params.length >= 7 && (params[6] === 'PENDING' || params[6] === 'APPROVED' || params[7] === 'PENDING')) {
+      newPivot = {
+        id,
+        startup_profile_id: parseInt(params[0]),
+        startup_id: parseInt(params[0]),
+        previous_idea_description: params[1] || null,
+        previous_idea: params[1] || null,
+        new_idea_description: params[2] || '',
+        new_idea: params[2] || '',
+        previous_industry: params[3] || null,
+        new_industry: params[4] || null,
+        previous_industry_id: !isNaN(parseInt(params[3])) ? parseInt(params[3]) : null,
+        new_industry_id: !isNaN(parseInt(params[4])) ? parseInt(params[4]) : null,
+        reason: params[5] || '',
+        status: params[6] || 'PENDING',
+        requested_at: new Date().toISOString(),
+        pivot_date: new Date().toISOString(),
+        reviewed_by: params[7] ? parseInt(params[7]) : null,
+        reviewed_at: params[8] || null,
+        admin_remarks: params[9] || null,
+        created_at: new Date().toISOString()
+      };
+    }
+
     db.startup_pivots.push(newPivot);
     saveLocalDB(db);
     return { rows: [newPivot] };
+  }
+
+  if (q.includes('update startup_pivots set')) {
+    if (!db.startup_pivots) db.startup_pivots = [];
+    const pid = parseInt(params[params.length - 1]);
+    const pivot = db.startup_pivots.find((p: any) => p.id === pid);
+    if (pivot) {
+      if (q.includes('status = $1')) {
+        pivot.status = params[0];
+        pivot.reviewed_by = params[1] !== undefined ? params[1] : pivot.reviewed_by;
+        pivot.reviewed_at = params[2] || new Date().toISOString();
+        pivot.admin_remarks = params[3] !== undefined ? params[3] : pivot.admin_remarks;
+      } else {
+        const setMatch = q.match(/set\s+([a-z0-9_]+)\s*=/i);
+        if (setMatch && setMatch[1]) {
+          pivot[setMatch[1].toLowerCase()] = params[0];
+        }
+      }
+      saveLocalDB(db);
+    }
+    return { rows: pivot ? [pivot] : [] };
   }
 
   // 50. Startup Audit Logs

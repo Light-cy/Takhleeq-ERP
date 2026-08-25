@@ -171,3 +171,22 @@ export async function resolveStartupWarning(warningId: number, payload: {
   const json = await parseResponse(res, 'Failed to resolve warning');
   return json;
 }
+
+export async function fetchCohortStartupPivotRequests(startupId: number): Promise<any[]> {
+  const res = await fetch(`/api/startups/${startupId}/pivots`);
+  const json = await parseResponse(res, 'Failed to fetch pivot requests');
+  return Array.isArray(json) ? json : [];
+}
+
+export async function reviewStartupPivot(pivotId: number, payload: {
+  action: 'APPROVE' | 'REJECT';
+  admin_remarks?: string;
+}): Promise<any> {
+  const res = await fetch(`/api/cohorts/pivots/${pivotId}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const json = await parseResponse(res, 'Failed to review pivot request');
+  return json;
+}

@@ -872,3 +872,133 @@ export async function sendCheckinNoShowEmail(params: {
   }
 }
 
+// Strategic Pivot Request Decision Notification
+export interface PivotNotificationEmailParams {
+  founderEmail: string;
+  founderName: string;
+  startupName: string;
+  status: 'APPROVED' | 'REJECTED';
+  previousIdea?: string;
+  newIdea?: string;
+  previousIndustry?: string;
+  newIndustry?: string;
+  reason?: string;
+  adminRemarks?: string;
+}
+
+export async function sendPivotNotificationEmail(params: PivotNotificationEmailParams): Promise<boolean> {
+  const mailTransporter = getTransporter();
+  const fromEmail = process.env.SMTP_FROM || 'no-reply-takhleeq@ucp.edu.pk';
+  const isApproved = params.status === 'APPROVED';
+
+  const htmlBody = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f5f7; margin: 0; padding: 20px;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+        <tr>
+          <td style="background-color: ${isApproved ? '#047857' : '#991b1b'}; padding: 25px 30px; text-align: left;">
+            <span style="font-size: 11px; font-weight: bold; color: rgba(255,255,255,0.85); text-transform: uppercase; letter-spacing: 1px;">Takhleeq Incubation &bull; Venture Governance</span>
+            <h2 style="margin: 6px 0 0 0; color: #ffffff; font-size: 20px; font-weight: bold;">
+              ${isApproved ? 'Strategic Pivot Approved' : 'Strategic Pivot Request Declined'}
+            </h2>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 30px; text-align: left;">
+            <p style="margin: 0 0 16px 0; color: #374151; font-size: 14px; line-height: 1.6;">
+              Dear <strong>${params.founderName}</strong> (${params.startupName}),
+            </p>
+            <p style="margin: 0 0 20px 0; color: #4b5563; font-size: 13px; line-height: 1.6;">
+              ${isApproved 
+                ? 'Your request for a strategic business model / product pivot has been <strong>APPROVED</strong> by the incubator review committee. Your startup profile description and industry classification have been synchronized across the Takhleeq ledger.'
+                : 'Your strategic pivot request was reviewed by incubator administration and has been <strong>DECLINED</strong> at this time. Please review the feedback and schedule an office hours session with your program manager.'}
+            </p>
+
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin: 0 0 20px 0;">
+              <h4 style="margin: 0 0 12px 0; color: #0f172a; font-size: 13px; font-weight: bold; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px;">
+                Pivot Request Summary
+              </h4>
+              <table style="width: 100%; font-size: 12px; color: #334155; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 4px 0; width: 140px; font-weight: bold; color: #64748b;">Status:</td>
+                  <td style="padding: 4px 0; font-weight: bold; color: ${isApproved ? '#047857' : '#991b1b'};">${params.status}</td>
+                </tr>
+                ${params.newIndustry ? `
+                <tr>
+                  <td style="padding: 4px 0; font-weight: bold; color: #64748b;">New Industry:</td>
+                  <td style="padding: 4px 0;">${params.newIndustry}</td>
+                </tr>` : ''}
+                ${params.newIdea ? `
+                <tr>
+                  <td style="padding: 4px 0; font-weight: bold; color: #64748b;">New Idea / Focus:</td>
+                  <td style="padding: 4px 0;">${params.newIdea}</td>
+                </tr>` : ''}
+                ${params.reason ? `
+                <tr>
+                  <td style="padding: 4px 0; font-weight: bold; color: #64748b;">Founder Reason:</td>
+                  <td style="padding: 4px 0;">${params.reason}</td>
+                </tr>` : ''}
+              </table>
+            </div>
+
+            ${params.adminRemarks ? `
+            <div style="background-color: ${isApproved ? '#ecfdf5' : '#fef2f2'}; border: 1px solid ${isApproved ? '#a7f3d0' : '#fecaca'}; border-radius: 8px; padding: 16px; margin: 0 0 20px 0;">
+              <strong style="color: ${isApproved ? '#065f46' : '#991b1b'}; font-size: 13px; display: block; margin-bottom: 4px;">
+                Admin Remarks / Reviewer Feedback:
+              </strong>
+              <p style="margin: 0; color: ${isApproved ? '#047857' : '#7f1d1d'}; font-size: 13px; line-height: 1.5;">
+                "${params.adminRemarks}"
+              </p>
+            </div>` : ''}
+
+            <p style="margin: 0; color: #6b7280; font-size: 12px; line-height: 1.5;">
+              You can track your venture evolution and pivot history anytime from your <a href="https://takhleeq-erp.ucp.edu.pk" style="color: #8B1A1A; font-weight: bold; text-decoration: underline;">Founder Dashboard</a>.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background-color: #f9fafb; padding: 15px 30px; text-align: center; border-top: 1px solid #f3f4f6;">
+            <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+              Takhleeq Innovation & Entrepreneurship Center &bull; University of Central Punjab
+            </p>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const subject = isApproved 
+    ? `✅ Strategic Pivot Approved: ${params.startupName}` 
+    : `⚠️ Strategic Pivot Request Update: ${params.startupName}`;
+
+  if (mailTransporter) {
+    try {
+      await mailTransporter.sendMail({
+        from: fromEmail,
+        to: params.founderEmail,
+        subject,
+        html: htmlBody,
+      });
+      console.log(`[SMTP] Sent pivot decision email to ${params.founderEmail}`);
+      return true;
+    } catch (err) {
+      console.error(`[SMTP Error] Failed to send pivot decision email to ${params.founderEmail}:`, err);
+      return false;
+    }
+  } else {
+    console.log('\n┌─────────────────────────────────────────────────────────────┐');
+    console.log(`│ [SMTP SIMULATOR] Dispatching Pivot Notification Email       │`);
+    console.log(`├─────────────────────────────────────────────────────────────┤`);
+    console.log(`│ TO:      ${params.founderEmail.padEnd(50)} │`);
+    console.log(`│ STARTUP: ${params.startupName.padEnd(50)} │`);
+    console.log(`│ STATUS:  ${params.status.padEnd(50)} │`);
+    console.log(`│ SUBJECT: ${subject.padEnd(50)} │`);
+    console.log(`└─────────────────────────────────────────────────────────────┘\n`);
+    return true;
+  }
+}
+
+

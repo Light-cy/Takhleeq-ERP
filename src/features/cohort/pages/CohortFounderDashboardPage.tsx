@@ -58,7 +58,9 @@ import {
   ShieldCheck,
   Paperclip,
   FileCheck,
-  X
+  X,
+  Send,
+  RotateCcw
 } from 'lucide-react';
 import { downloadFileLocally, formatFileSize, getCleanFileName, parseAssignmentAttachments } from '../../../utils/fileDownload';
 
@@ -266,11 +268,28 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   const [submittingSurvey, setSubmittingSurvey] = useState(false);
   const [surveySubmitError, setSurveySubmitError] = useState<string | null>(null);
 
-  const [showAddPivotModal, setShowAddPivotModal] = useState(false);
-  const [newPivotOld, setNewPivotOld] = useState('');
-  const [newPivotNew, setNewPivotNew] = useState('');
-  const [newPivotHypothesis, setNewPivotHypothesis] = useState('');
-  const [newPivotDate, setNewPivotDate] = useState('');
+  // Strategic Pivot Request-Approval Workflow States
+  const [pivotRequests, setPivotRequests] = useState<any[]>([]);
+  const [loadingPivotRequests, setLoadingPivotRequests] = useState(false);
+  const [showRequestPivotModal, setShowRequestPivotModal] = useState(false);
+  const [newPivotIdeaDesc, setNewPivotIdeaDesc] = useState('');
+  const [newPivotIndustry, setNewPivotIndustry] = useState('');
+  const [newPivotReason, setNewPivotReason] = useState('');
+  const [submittingPivotRequest, setSubmittingPivotRequest] = useState(false);
+  const [availableIndustries, setAvailableIndustries] = useState<string[]>([
+    'Artificial Intelligence & Machine Learning',
+    'FinTech & Banking',
+    'HealthTech & BioTech',
+    'EdTech & Learning',
+    'AgriTech & Food Security',
+    'CleanTech & Green Energy',
+    'E-Commerce & Retail Tech',
+    'Logistics & Supply Chain',
+    'B2B SaaS & Enterprise Software',
+    'Cybersecurity & Infrastructure',
+    'Gaming & Digital Media',
+    'Other / DeepTech'
+  ]);
 
   // Submit Assignment Modal State
   const [submitAssignmentTarget, setSubmitAssignmentTarget] = useState<AssignmentItem | null>(null);
@@ -427,6 +446,9 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
 
       // Pivot History
       setPivotHistory(pf.pivot_history || []);
+
+      // Fetch Pivot Requests from Backend
+      fetchPivotRequests(app?.id);
 
       // Fetch Cohort Feedback Forms & Surveys
       fetchFeedbackSurveys();
@@ -697,33 +719,78 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
     if (success) triggerToast('Member removed from team roster.');
   };
 
-  // Pivot Add Handler
-  const handleAddPivot = async (e: React.FormEvent) => {
+  // Strategic Pivot Workflow: Fetch Pivot Requests from DB
+  const fetchPivotRequests = async (startupId?: number) => {
+    const sId = startupId || applicant?.id;
+    if (!sId) return;
+    try {
+      setLoadingPivotRequests(true);
+      const res = await fetchWithAuth(`/api/startups/${sId}/pivots`);
+      if (res.ok) {
+        const data = await res.json();
+        setPivotRequests(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('Failed to load pivot requests:', err);
+    } finally {
+      setLoadingPivotRequests(false);
+    }
+  };
+
+  // Strategic Pivot Workflow: Submit New Pivot Request (PENDING Approval)
+  const handleRequestPivot = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPivotOld.trim() || !newPivotNew.trim()) {
-      triggerToast('Please detail previous and new strategic direction.', 'error');
+    if (!applicant?.id) {
+      triggerToast('Startup profile identifier missing.', 'error');
       return;
     }
 
-    const pivot: PivotRecord = {
-      id: 'pvt-' + Date.now(),
-      date: newPivotDate || new Date().toISOString().split('T')[0],
-      oldDirection: newPivotOld.trim(),
-      newDirection: newPivotNew.trim(),
-      hypothesis: newPivotHypothesis.trim()
-    };
+    if (!newPivotIdeaDesc.trim()) {
+      triggerToast('Please provide your new idea or business description.', 'error');
+      return;
+    }
+    if (!newPivotIndustry.trim()) {
+      triggerToast('Please select your target new industry.', 'error');
+      return;
+    }
+    if (!newPivotReason.trim()) {
+      triggerToast('Please state the hypothesis and justification for the pivot.', 'error');
+      return;
+    }
 
-    const updatedPivots = [pivot, ...pivotHistory];
-    setPivotHistory(updatedPivots);
-    setShowAddPivotModal(false);
-    setNewPivotOld('');
-    setNewPivotNew('');
-    setNewPivotHypothesis('');
-    setNewPivotDate('');
+    try {
+      setSubmittingPivotRequest(true);
+      const res = await fetchWithAuth(`/api/startups/${applicant.id}/pivots`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          new_idea_description: newPivotIdeaDesc.trim(),
+          new_industry: newPivotIndustry.trim(),
+          reason: newPivotReason.trim(),
+        }),
+      });
 
-    const success = await syncProfileToBackend({ pivot_history: updatedPivots });
-    if (success) triggerToast('Strategic pivot logged successfully.');
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to submit pivot request.');
+      }
+
+      triggerToast('Pivot request submitted successfully for Admin review!', 'success');
+      setShowRequestPivotModal(false);
+      setNewPivotIdeaDesc('');
+      setNewPivotIndustry('');
+      setNewPivotReason('');
+      await fetchPivotRequests(applicant.id);
+    } catch (err: any) {
+      triggerToast(err.message || 'Error submitting pivot request.', 'error');
+    } finally {
+      setSubmittingPivotRequest(false);
+    }
   };
+
+  // Check if there is an active pending pivot request
+  const hasPendingPivotRequest = pivotRequests.some((p: any) => p.status === 'PENDING');
+  const latestPendingPivot = pivotRequests.find((p: any) => p.status === 'PENDING');
 
   // Fetch my submitted feedback logs
   const fetchMyFeedbackLogs = async () => {
@@ -2714,138 +2781,241 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
         )}
 
         {/* ==================================================================== */}
-        {/* TAB 5: STRATEGIC PIVOTS & NOTES */}
+        {/* TAB 5: STRATEGIC PIVOTS & REQUESTS */}
         {/* ==================================================================== */}
         {activeTab === 'pivots' && (
-          <div className="space-y-6 animate-fade-in">
+          <div className="space-y-6 animate-fade-in text-left">
             
+            {/* Header / Action Card */}
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-black text-gray-900">Strategic Pivots & Business Model Evolution</h2>
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  <h2 className="text-lg font-black text-gray-900">Strategic Pivot Management</h2>
+                </div>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Track direction changes, hypothesis validation, and strategic milestones
+                  Submit strategic direction changes for Incubation Administration approval. Profile updates apply once reviewed.
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowAddPivotModal(true)}
-                className="px-4 py-2 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-              >
-                <Plus className="w-3.5 h-3.5" /> Log Strategic Pivot
-              </button>
+              {hasPendingPivotRequest ? (
+                <div className="px-4 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-800 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-600 animate-spin" />
+                  <span>Pending Request Under Review</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowRequestPivotModal(true)}
+                  className="px-4 py-2 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Request a Pivot
+                </button>
+              )}
             </div>
 
-            {pivotHistory.length === 0 ? (
+            {/* Active Pending Request Banner (if any) */}
+            {hasPendingPivotRequest && latestPendingPivot && (
+              <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-5 shadow-2xs space-y-3 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-2.5 w-2.5 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                    </span>
+                    <h3 className="text-xs font-black uppercase text-amber-950 tracking-wider">
+                      Pivot Request In Progress (Awaiting Admin Review)
+                    </h3>
+                  </div>
+                  <span className="text-[11px] font-mono text-amber-800">
+                    Requested on {new Date(latestPendingPivot.requested_at || latestPendingPivot.created_at || Date.now()).toLocaleDateString()}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-3 bg-white/80 border border-amber-100 rounded-xl text-xs">
+                    <span className="font-bold text-gray-500 uppercase text-[10px] block mb-0.5">Proposed New Industry</span>
+                    <p className="font-extrabold text-gray-900">{latestPendingPivot.new_industry || latestPendingPivot.new_industry_name || 'N/A'}</p>
+                  </div>
+                  <div className="p-3 bg-white/80 border border-amber-100 rounded-xl text-xs">
+                    <span className="font-bold text-gray-500 uppercase text-[10px] block mb-0.5">Current Industry</span>
+                    <p className="font-bold text-gray-700">{applicant?.industry_name || applicant?.industry || 'Current Baseline'}</p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-white/80 border border-amber-100 rounded-xl text-xs space-y-1">
+                  <span className="font-bold text-gray-500 uppercase text-[10px] block">Proposed Business Direction / Idea</span>
+                  <p className="text-gray-800">{latestPendingPivot.new_idea_description || latestPendingPivot.new_idea}</p>
+                </div>
+
+                <div className="p-3 bg-white/80 border border-amber-100 rounded-xl text-xs space-y-1">
+                  <span className="font-bold text-amber-800 uppercase text-[10px] block">Validation Hypothesis & Rationale</span>
+                  <p className="text-amber-950">{latestPendingPivot.reason}</p>
+                </div>
+
+                <p className="text-[11px] text-amber-800/80 italic">
+                  Note: You cannot submit another pivot request while this one is pending admin evaluation.
+                </p>
+              </div>
+            )}
+
+            {/* List of Pivot History & Logs */}
+            {loadingPivotRequests ? (
+              <div className="p-12 text-center text-xs text-gray-400">Loading pivot audit logs...</div>
+            ) : pivotRequests.length === 0 && pivotHistory.length === 0 ? (
               <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center text-xs text-gray-400 space-y-2">
                 <TrendingUp className="w-10 h-10 text-gray-300 mx-auto" />
-                <p className="font-bold text-gray-600 text-sm">No Pivots Logged Yet</p>
-                <p>Log strategic pivots in target market, business model, or product direction for mentor review.</p>
+                <p className="font-bold text-gray-600 text-sm">No Pivot Requests or History</p>
+                <p>Submit a pivot request if your startup is fundamentally altering its core value proposition, industry, or customer target.</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {pivotHistory.map((pvt) => (
-                  <div key={pvt.id} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-extrabold text-primary uppercase">Strategic Pivot Record</span>
-                      <span className="text-gray-400 font-mono">{pvt.date}</span>
+                {pivotRequests.map((pvt) => (
+                  <div key={pvt.id} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-gray-900">Pivot Record #{pvt.id}</span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          pvt.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
+                          pvt.status === 'REJECTED' ? 'bg-rose-100 text-rose-800' :
+                          'bg-amber-100 text-amber-800'
+                        }`}>
+                          {pvt.status}
+                        </span>
+                      </div>
+                      <span className="text-gray-400 font-mono text-[11px]">
+                        {new Date(pvt.requested_at || pvt.created_at || Date.now()).toLocaleDateString()}
+                      </span>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="p-3 bg-red-50/50 border border-red-100 rounded-xl text-xs text-red-950">
-                        <span className="font-bold text-red-800 uppercase block text-[10px]">Previous Direction</span>
-                        <p className="mt-0.5">{pvt.oldDirection}</p>
+                      <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs">
+                        <span className="font-bold text-gray-400 uppercase text-[10px] block mb-1">Previous Focus & Industry</span>
+                        <p className="font-bold text-gray-800">
+                          {pvt.previous_industry_name || pvt.previous_industry || 'Standard Base Industry'}
+                        </p>
+                        <p className="text-gray-600 mt-1 text-[11px]">
+                          {pvt.previous_idea_description || pvt.previous_idea || 'Initial registered startup scope'}
+                        </p>
                       </div>
 
-                      <div className="p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl text-xs text-emerald-950">
-                        <span className="font-bold text-emerald-800 uppercase block text-[10px]">New Strategic Focus</span>
-                        <p className="mt-0.5">{pvt.newDirection}</p>
+                      <div className="p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl text-xs">
+                        <span className="font-bold text-emerald-800 uppercase text-[10px] block mb-1">New Strategic Focus</span>
+                        <p className="font-extrabold text-emerald-950">
+                          {pvt.new_industry_name || pvt.new_industry || 'New Target Industry'}
+                        </p>
+                        <p className="text-emerald-900 mt-1 text-[11px]">
+                          {pvt.new_idea_description || pvt.new_idea}
+                        </p>
                       </div>
                     </div>
 
-                    {pvt.hypothesis && (
-                      <p className="text-xs text-gray-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                        <strong className="text-gray-900">Core Validation Hypothesis:</strong> {pvt.hypothesis}
-                      </p>
+                    <div className="text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-100 space-y-1">
+                      <strong className="text-gray-900 block text-[11px]">Founder Reason & Market Validation:</strong>
+                      <p className="text-gray-700">{pvt.reason}</p>
+                    </div>
+
+                    {/* Admin Review Feedback (if resolved) */}
+                    {pvt.reviewed_at && (
+                      <div className={`p-3.5 rounded-xl border text-xs space-y-1 ${
+                        pvt.status === 'APPROVED' 
+                          ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950' 
+                          : 'bg-rose-50/60 border-rose-200 text-rose-950'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <strong className="block text-[11px] font-bold uppercase">
+                            Admin Review ({pvt.status === 'APPROVED' ? 'Approved & Profile Updated' : 'Rejected'})
+                          </strong>
+                          <span className="text-[10px] font-mono text-gray-500">
+                            {new Date(pvt.reviewed_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        {pvt.admin_remarks && (
+                          <p className="mt-1">{pvt.admin_remarks}</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Modal: Add Pivot */}
-            {showAddPivotModal && (
+            {/* Modal: Request a Pivot */}
+            {showRequestPivotModal && (
               <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
                 <div className="bg-white border border-gray-200 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl animate-fade-in">
                   <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                    <h3 className="text-base font-bold text-gray-900">Log Strategic Pivot</h3>
+                    <div>
+                      <h3 className="text-base font-bold text-gray-900">Request Strategic Pivot</h3>
+                      <p className="text-xs text-gray-500">Submit proposed business transformation for Admin review</p>
+                    </div>
                     <button
-                      onClick={() => setShowAddPivotModal(false)}
-                      className="text-gray-400 hover:text-gray-600 text-sm font-bold"
+                      type="button"
+                      onClick={() => setShowRequestPivotModal(false)}
+                      className="text-gray-400 hover:text-gray-600 text-sm font-bold p-1 cursor-pointer"
                     >
                       ✕
                     </button>
                   </div>
 
-                  <form onSubmit={handleAddPivot} className="space-y-3">
+                  <form onSubmit={handleRequestPivot} className="space-y-4">
                     <div>
-                      <label className="text-xs font-bold text-gray-700 block mb-1">Previous Model / Direction *</label>
-                      <input
-                        type="text"
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Target New Industry *</label>
+                      <select
                         required
-                        value={newPivotOld}
-                        onChange={(e) => setNewPivotOld(e.target.value)}
-                        placeholder="e.g. B2C Subscription model for general consumers"
-                        className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
-                      />
+                        value={newPivotIndustry}
+                        onChange={(e) => setNewPivotIndustry(e.target.value)}
+                        className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none bg-white"
+                      >
+                        <option value="">-- Select Target Industry --</option>
+                        {availableIndustries.map((ind) => (
+                          <option key={ind} value={ind}>{ind}</option>
+                        ))}
+                      </select>
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold text-gray-700 block mb-1">New Strategic Focus *</label>
-                      <input
-                        type="text"
-                        required
-                        value={newPivotNew}
-                        onChange={(e) => setNewPivotNew(e.target.value)}
-                        placeholder="e.g. B2B Enterprise SaaS licensing for universities"
-                        className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-gray-700 block mb-1">Validation Hypothesis / Reason</label>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">New Business / Product Description *</label>
                       <textarea
-                        value={newPivotHypothesis}
-                        onChange={(e) => setNewPivotHypothesis(e.target.value)}
-                        placeholder="Why are you pivoting? What customer interview insights led to this decision?"
+                        required
+                        value={newPivotIdeaDesc}
+                        onChange={(e) => setNewPivotIdeaDesc(e.target.value)}
+                        placeholder="Detailed description of the new product, service offering, target customers, or business model..."
                         rows={3}
                         className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
                       />
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold text-gray-700 block mb-1">Pivot Effective Date</label>
-                      <input
-                        type="date"
-                        value={newPivotDate}
-                        onChange={(e) => setNewPivotDate(e.target.value)}
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Reason & Hypothesis for Pivot *</label>
+                      <textarea
+                        required
+                        value={newPivotReason}
+                        onChange={(e) => setNewPivotReason(e.target.value)}
+                        placeholder="What customer discovery, user interviews, or market realities prompted this pivot?"
+                        rows={3}
                         className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
                       />
+                    </div>
+
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-[11px] text-gray-500">
+                      💡 <strong>Approval Policy:</strong> Your startup profile and industry classification will automatically update in the system once an incubator admin reviews and approves this request.
                     </div>
 
                     <div className="flex items-center justify-end gap-2 pt-2">
                       <button
                         type="button"
-                        onClick={() => setShowAddPivotModal(false)}
-                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold"
+                        onClick={() => setShowRequestPivotModal(false)}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold cursor-pointer"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        className="px-5 py-2 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold"
+                        disabled={submittingPivotRequest}
+                        className="px-5 py-2 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
-                        Save Pivot Record
+                        {submittingPivotRequest ? 'Submitting...' : 'Submit Pivot Request'}
                       </button>
                     </div>
                   </form>

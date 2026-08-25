@@ -80,20 +80,35 @@ export interface StartupStageHistory {
   comments?: string | null;
 }
 
+export type PivotStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
 export interface StartupPivot {
   id: number;
-  startup_profile_id: number;
+  startup_profile_id?: number;
+  startup_id?: number;
   previous_idea?: string | null;
-  new_idea: string;
+  previous_idea_description?: string | null;
+  new_idea?: string;
+  new_idea_description?: string;
   previous_industry_id?: number | null;
+  previous_industry?: string | null;
   previous_industry_name?: string | null;
   new_industry_id?: number | null;
+  new_industry?: string | null;
   new_industry_name?: string | null;
-  pivot_date: string;
   reason: string;
+  status: PivotStatus;
+  requested_at: string;
+  pivot_date?: string;
+  reviewed_by?: number | string | null;
+  reviewed_at?: string | null;
+  admin_remarks?: string | null;
   approved_by_user_id?: number | null;
-  approved_by_email: string;
+  approved_by_email?: string | null;
   supporting_notes?: string | null;
+  startup_name?: string;
+  founder_name?: string;
+  founder_email?: string;
 }
 
 export interface StartupAuditLog {

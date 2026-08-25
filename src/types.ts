@@ -17,5 +17,6 @@ export type {
   StartupProfile, 
   StartupStageHistory, 
   StartupPivot, 
+  PivotStatus,
   StartupAuditLog 
 } from './types/startup.types';

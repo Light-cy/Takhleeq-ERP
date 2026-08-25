@@ -47,7 +47,10 @@ import {
   submitFeedbackFormResponse,
   getFeedbackFormResponses,
   updateFeedbackFormStatus,
-  deleteFeedbackForm
+  deleteFeedbackForm,
+  requestStartupPivot,
+  getPivotRequests,
+  reviewStartupPivot
 } from './cohorts.controller.ts';
 
 const router = Router();
@@ -138,5 +141,13 @@ router.post('/feedback-forms/:id/submit', requireAuth, submitFeedbackFormRespons
 router.patch('/feedback-forms/:id/status', requireAuth, updateFeedbackFormStatus);
 router.put('/feedback-forms/:id/status', requireAuth, updateFeedbackFormStatus);
 router.delete('/feedback-forms/:id', requireAuth, deleteFeedbackForm);
+
+// Strategic Pivot Request-Approval Workflow
+router.post('/pivots/request', requireAuth, requestStartupPivot);
+router.post('/startup-pivots/request', requireAuth, requestStartupPivot);
+router.get('/pivots', requireAuth, getPivotRequests);
+router.get('/startup-pivots', requireAuth, getPivotRequests);
+router.post('/pivots/:id/review', requireAuth, reviewStartupPivot);
+router.post('/startup-pivots/:id/review', requireAuth, reviewStartupPivot);
 
 export default router;
