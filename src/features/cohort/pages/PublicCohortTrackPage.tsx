@@ -25,10 +25,11 @@ import {
 } from '../../../constants/cohortStages';
 
 interface PublicCohortTrackPageProps {
+  currentPath?: string;
   onNavigate: (path: string) => void;
 }
 
-export const PublicCohortTrackPage: React.FC<PublicCohortTrackPageProps> = ({ onNavigate }) => {
+export const PublicCohortTrackPage: React.FC<PublicCohortTrackPageProps> = ({ currentPath, onNavigate }) => {
   const [tokenInput, setTokenInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +46,31 @@ export const PublicCohortTrackPage: React.FC<PublicCohortTrackPageProps> = ({ on
 
     return data;
   };
+
+  React.useEffect(() => {
+    let tokenParam: string | null = null;
+    if (currentPath && currentPath.includes('?')) {
+      const searchStr = currentPath.substring(currentPath.indexOf('?'));
+      const urlParams = new URLSearchParams(searchStr);
+      tokenParam = urlParams.get('token') || urlParams.get('id');
+    }
+    if (!tokenParam && typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      tokenParam = urlParams.get('token') || urlParams.get('id');
+    }
+    if (tokenParam) {
+      setTokenInput(tokenParam);
+      setLoading(true);
+      setError(null);
+      fetchTrackingData(tokenParam)
+        .then(data => setApplicant(data))
+        .catch(err => {
+          console.error(err);
+          setError(err.message || 'Verification Error: Check your tracking token format and retry.');
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [currentPath]);
 
   const handleTrackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

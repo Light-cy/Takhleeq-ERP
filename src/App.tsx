@@ -40,7 +40,10 @@ import { Room, Booking, Ban, CustomRole, User as ERPUser, AuditRecord, Cohort } 
 export default function App() {
   // Real path-based URL state
   const [currentPath, setCurrentPath] = useState<string>(() => {
-    return window.location.pathname || '/';
+    if (typeof window !== 'undefined') {
+      return (window.location.pathname + window.location.search + window.location.hash) || '/';
+    }
+    return '/';
   });
 
   // Current tab for staff back-office (/staff/dashboard)
@@ -86,7 +89,9 @@ export default function App() {
   // Sync back & forward browser navigation
   useEffect(() => {
     const handlePopState = () => {
-      setCurrentPath(window.location.pathname);
+      if (typeof window !== 'undefined') {
+        setCurrentPath((window.location.pathname + window.location.search + window.location.hash) || '/');
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -410,7 +415,9 @@ export default function App() {
       );
     }
 
-    if (currentPath.startsWith('/admissions/applications')) {
+    const normalizedPath = currentPath.split('?')[0].split('#')[0];
+
+    if (normalizedPath.startsWith('/admissions/applications')) {
       if (!jwtToken || !activeUser) {
         return (
           <LoginPage 
@@ -452,7 +459,7 @@ export default function App() {
       );
     }
 
-    if (currentPath.startsWith('/admin/checkins')) {
+    if (normalizedPath.startsWith('/admin/checkins')) {
       if (!jwtToken || !activeUser) {
         return (
           <LoginPage 
@@ -494,7 +501,7 @@ export default function App() {
       );
     }
 
-    if (currentPath.startsWith('/admin/sessions')) {
+    if (normalizedPath.startsWith('/admin/sessions')) {
       if (!jwtToken || !activeUser) {
         return (
           <LoginPage 
@@ -536,7 +543,7 @@ export default function App() {
       );
     }
 
-    switch (currentPath) {
+    switch (normalizedPath) {
       case '/':
         return <LandingPage onNavigate={navigate} activeUser={activeUser} />;
         
@@ -591,6 +598,7 @@ export default function App() {
               bookings={bookings}
               currentUserEmail={activeUser?.email || ''}
               jwtToken={jwtToken}
+              currentPath={currentPath}
               onRefresh={fetchStateData}
               onNavigate={navigate}
             />
@@ -628,7 +636,7 @@ export default function App() {
             onNavigate={navigate}
             onLogout={handleLogout}
           >
-            <PublicCohortTrackPage onNavigate={navigate} />
+            <PublicCohortTrackPage currentPath={currentPath} onNavigate={navigate} />
           </PublicLayout>
         );
 

@@ -20,11 +20,12 @@ interface TrackPageProps {
   bookings: Booking[];
   currentUserEmail: string;
   jwtToken: string | null;
+  currentPath?: string;
   onRefresh: () => void;
   onNavigate: (path: string) => void;
 }
 
-export function TrackPage({ bookings, currentUserEmail, jwtToken, onRefresh, onNavigate }: TrackPageProps) {
+export function TrackPage({ bookings, currentUserEmail, jwtToken, currentPath, onRefresh, onNavigate }: TrackPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState<Booking[] | null>(null);
   
@@ -55,12 +56,20 @@ export function TrackPage({ bookings, currentUserEmail, jwtToken, onRefresh, onN
 
   // Parse initial token query parameter from URL (e.g., /track?token=TBK-2026-001)
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const tokenParam = urlParams.get('token') || urlParams.get('id');
+    let tokenParam: string | null = null;
+    if (currentPath && currentPath.includes('?')) {
+      const searchStr = currentPath.substring(currentPath.indexOf('?'));
+      const urlParams = new URLSearchParams(searchStr);
+      tokenParam = urlParams.get('token') || urlParams.get('id');
+    }
+    if (!tokenParam && typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      tokenParam = urlParams.get('token') || urlParams.get('id');
+    }
     if (tokenParam) {
       setSearchQuery(tokenParam);
     }
-  }, []);
+  }, [currentPath]);
 
   // Re-run search if bookings or searchQuery update
   useEffect(() => {

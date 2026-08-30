@@ -1827,25 +1827,32 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
 
   // 30. INSERT INTO users
   if (q.includes('insert into users') && (q.includes('returning id') || q.includes('returning *'))) {
-    let email = params[0];
-    let full_name = params[1];
+    let email = null;
+    let full_name = null;
     let password = null;
     let microsoft_id = null;
 
-    if (params.length === 3 && typeof params[2] === 'string') {
-      email = params[0];
-      full_name = params[1];
-      password = params[2];
-    } else if (params.length > 3) {
+    if (q.includes('microsoft_id')) {
+      // Form: INSERT INTO users (microsoft_id, email, full_name, ...) VALUES ($1, $2, $3, ...)
       microsoft_id = params[0];
       email = params[1];
       full_name = params[2];
+    } else if (q.includes('password') || (params.length === 3 && typeof params[2] === 'string')) {
+      // Form: INSERT INTO users (email, full_name, is_active, password) VALUES ($1, $2, TRUE, $3)
+      email = params[0];
+      full_name = params[1];
+      password = params[2];
+    } else {
+      // Form: INSERT INTO users (email, full_name, is_active) VALUES ($1, $2, TRUE)
+      email = params[0];
+      full_name = params[1];
     }
 
     // Check if user already exists in db.users
     let existingUser = db.users.find((u: any) => u.email.toLowerCase() === String(email).toLowerCase());
     if (existingUser) {
       if (password) existingUser.password = password;
+      if (microsoft_id && !existingUser.microsoft_id) existingUser.microsoft_id = microsoft_id;
       saveLocalDB(db);
       return { rows: [{ id: existingUser.id }] };
     }
