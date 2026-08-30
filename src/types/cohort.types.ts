@@ -71,7 +71,59 @@ export interface CohortSession {
   start_time: string;
   end_time: string;
   mentor_name: string | null;
+  attendance_summary?: string;
+  assignments_summary?: string;
+  feedback_count?: number;
+  average_rating?: number;
+  feedback_status?: 'UPCOMING' | 'ACTIVE' | 'EXPIRED';
+  days_remaining?: number;
+  feedback_summary?: string;
   created_at: string;
+}
+
+export interface SessionFeedbackSubmission {
+  id: number;
+  cohort_id: number;
+  session_id: number;
+  user_id?: number | null;
+  applicant_id?: number | null;
+  founder_name: string;
+  startup_name: string;
+  feedback_type: string;
+  rating: number;
+  title?: string;
+  comment?: string;
+  is_anonymous: boolean;
+  status: string;
+  staff_response?: string | null;
+  created_at: string;
+}
+
+export interface SessionFeedbackSummary {
+  session_id: number;
+  session_title: string;
+  session_date: string;
+  start_time?: string;
+  end_time?: string;
+  mentor_name?: string | null;
+  cohort_id: number;
+  total_startups: number;
+  total_submissions: number;
+  average_rating: number;
+  rating_breakdown: {
+    5: number;
+    4: number;
+    3: number;
+    2: number;
+    1: number;
+  };
+  feedback_status: 'UPCOMING' | 'ACTIVE' | 'EXPIRED';
+  days_remaining: number;
+  window_opens_date: string;
+  window_closes_date: string;
+  current_user_submitted: boolean;
+  current_user_feedback?: SessionFeedbackSubmission | null;
+  feedbacks: SessionFeedbackSubmission[];
 }
 
 export interface SessionAttendance {

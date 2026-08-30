@@ -22,34 +22,35 @@ function initializeLocalDB() {
   }
 
   const allAdminPermissions = [
-    "SUBMIT_BOOKING",
-    "CANCEL_OWN_BOOKING",
-    "VIEW_PENDING_QUEUE",
-    "APPROVE_BOOKING",
-    "REJECT_BOOKING",
-    "APPROVE_REJECT_BOOKINGS",
-    "BOOKING_OVERRIDE",
-    "ISSUE_BAN",
-    "MANAGE_ROOMS",
-    "CONFIGURE_ROOMS",
-    "CONFIGURE_POLICIES",
-    "VIEW_ANALYTICS_DASHBOARD",
-    "EXPORT_AUDIT_LOGS",
-    "MANAGE_ROLES",
-    "MANAGE_USERS",
-    "VIEW_AUDIT_LOGS",
-    "LIFT_BAN",
-    "MANAGE_BANS",
-    "MANAGE_BOOKING_TYPES",
+    "cohort:dashboard_view",
+    "cohort:settings_manage",
     "cohort:form_manage",
     "cohort:applicant_review",
+    "cohort:startups_manage",
     "cohort:session_manage",
+    "cohort:assignment_manage",
+    "cohort:feedback_view",
+    "cohort:feedback_forms_manage",
     "cohort:attendance_write",
     "cohort:checkin_log",
     "cohort:warning_write",
     "cohort:profile_write",
     "cohort:feedback_submit",
-    "cohort:assignment_upload"
+    "cohort:assignment_upload",
+    "SUBMIT_BOOKING",
+    "CANCEL_OWN_BOOKING",
+    "VIEW_PENDING_QUEUE",
+    "APPROVE_REJECT_BOOKINGS",
+    "BOOKING_OVERRIDE",
+    "MANAGE_ROOMS",
+    "MANAGE_BOOKING_TYPES",
+    "VIEW_BOOKING_ANALYTICS",
+    "MANAGE_ROLES",
+    "MANAGE_USERS",
+    "ISSUE_BAN",
+    "VIEW_ANALYTICS_DASHBOARD",
+    "VIEW_AUDIT_LOGS",
+    "EXPORT_AUDIT_LOGS"
   ];
 
   if (db) {
@@ -105,7 +106,15 @@ function initializeLocalDB() {
             app.program_status = app.status;
             app.status = 'CONFIRMED';
             updated = true;
-          } else if (app.status === 'CONFIRMED' || app.status === 'ACCEPTED' || app.cohort_id) {
+          } else if (app.status === 'CONFIRMED' || app.status === 'ENROLLED') {
+            app.program_status = 'ACTIVE';
+            updated = true;
+          } else {
+            app.program_status = 'NOT_ENROLLED';
+            updated = true;
+          }
+        } else if (!['ACTIVE', 'PAUSED', 'GRADUATED', 'KICKED_OUT', 'NOT_ENROLLED'].includes(app.program_status)) {
+          if (app.status === 'CONFIRMED' || app.status === 'ENROLLED') {
             app.program_status = 'ACTIVE';
             updated = true;
           } else {
@@ -324,7 +333,7 @@ function initializeLocalDB() {
       { id: 7, microsoft_id: null, email: 'banned-test@ucp.edu.pk', full_name: 'Banned Student (Testing)', is_active: false, last_login: new Date().toISOString(), created_at: new Date().toISOString() }
     ],
     roles: [
-      { id: 1, name: 'Administrator', description: 'Full access and policy management capabilities', permissions: ["SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_BOOKING", "REJECT_BOOKING", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "ISSUE_BAN", "MANAGE_ROOMS", "CONFIGURE_ROOMS", "CONFIGURE_POLICIES", "VIEW_ANALYTICS_DASHBOARD", "EXPORT_AUDIT_LOGS", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "LIFT_BAN", "MANAGE_BANS", "MANAGE_BOOKING_TYPES"], ban_duration_ceiling: 'permanent', created_by: null, created_at: new Date().toISOString() },
+      { id: 1, name: 'Administrator', description: 'Full access and policy management capabilities', permissions: ["cohort:dashboard_view", "cohort:settings_manage", "cohort:form_manage", "cohort:applicant_review", "cohort:startups_manage", "cohort:session_manage", "cohort:assignment_manage", "cohort:feedback_view", "cohort:feedback_forms_manage", "cohort:attendance_write", "cohort:checkin_log", "cohort:warning_write", "cohort:profile_write", "cohort:feedback_submit", "cohort:assignment_upload", "SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "MANAGE_ROOMS", "MANAGE_BOOKING_TYPES", "VIEW_BOOKING_ANALYTICS", "MANAGE_ROLES", "MANAGE_USERS", "ISSUE_BAN", "VIEW_ANALYTICS_DASHBOARD", "VIEW_AUDIT_LOGS", "EXPORT_AUDIT_LOGS"], ban_duration_ceiling: 'permanent', created_by: null, created_at: new Date().toISOString() },
       { id: 2, name: 'Booking Manager', description: 'Approve, reject bookings, and issue bans up to 90 days', permissions: ["VIEW_PENDING_QUEUE", "APPROVE_REJECT_BOOKINGS", "ISSUE_BAN"], ban_duration_ceiling: '90', created_by: null, created_at: new Date().toISOString() },
       { id: 3, name: 'Facility Coordinator', description: 'View queue, apply manual time/room overrides, issue bans up to 7 days', permissions: ["VIEW_PENDING_QUEUE", "BOOKING_OVERRIDE", "ISSUE_BAN"], ban_duration_ceiling: '7', created_by: null, created_at: new Date().toISOString() },
       { id: 4, name: 'UCP Member', description: 'Regular student or staff member with standard public booking access', permissions: [], ban_duration_ceiling: null, created_by: null, created_at: new Date().toISOString() },
@@ -447,9 +456,13 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       const cid = parseInt(params[0]);
       return { rows: (db.applicants || []).filter((a: any) => a.cohort_id === cid) };
     }
-    if (q.includes('lower(email) =')) {
-      const em = String(params[0] || '').toLowerCase();
-      return { rows: (db.applicants || []).filter((a: any) => String(a.email).toLowerCase() === em) };
+    if (q.includes('lower(email) =') || q.includes('email = $1')) {
+      const em = String(params[0] || '').toLowerCase().trim();
+      return { rows: (db.applicants || []).filter((a: any) => String(a.email || '').toLowerCase().trim() === em) };
+    }
+    if (q.includes('replace(cnic')) {
+      const c = String(params[0] || '').replace(/-/g, '').trim();
+      return { rows: (db.applicants || []).filter((a: any) => String(a.cnic || '').replace(/-/g, '').trim() === c) };
     }
     return { rows: db.applicants || [] };
   }
@@ -515,19 +528,19 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
         app.founder_password = params[0];
       } else if (q.includes('status = $1') && q.includes('program_status = $2') && q.includes('cohort_id = $3')) {
         app.status = params[0];
-        app.program_status = typeof params[1] === 'string' && params[1] !== '{}' ? params[1] : (app.cohort_id || params[2] ? 'ACTIVE' : 'NOT_ENROLLED');
+        app.program_status = typeof params[1] === 'string' && params[1] !== '{}' ? params[1] : (['CONFIRMED', 'ENROLLED'].includes(app.status) ? 'ACTIVE' : 'NOT_ENROLLED');
         app.cohort_id = params[2] ? parseInt(params[2]) : null;
       } else if (q.includes('program_status = $1')) {
         app.program_status = typeof params[0] === 'string' && params[0] !== '{}' ? params[0] : 'NOT_ENROLLED';
       } else if (q.includes('status = $1') && q.includes('cohort_id = $2')) {
         app.status = params[0];
         app.cohort_id = params[1] ? parseInt(params[1]) : null;
-        if (app.status === 'CONFIRMED' && (!app.program_status || app.program_status === '{}' || app.program_status === 'NOT_ENROLLED')) {
+        if (['CONFIRMED', 'ENROLLED'].includes(app.status) && (!app.program_status || app.program_status === '{}' || app.program_status === 'NOT_ENROLLED')) {
           app.program_status = 'ACTIVE';
         }
       } else if (q.includes('status = $1')) {
         app.status = params[0];
-        if (app.status === 'CONFIRMED' && (!app.program_status || app.program_status === '{}' || app.program_status === 'NOT_ENROLLED')) {
+        if (['CONFIRMED', 'ENROLLED'].includes(app.status) && (!app.program_status || app.program_status === '{}' || app.program_status === 'NOT_ENROLLED')) {
           app.program_status = 'ACTIVE';
         }
       } else if (q.includes('cohort_id = $1')) {
@@ -536,21 +549,42 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
         app.panel_scores = params[0] ? (typeof params[0] === 'string' ? JSON.parse(params[0]) : params[0]) : null;
       } else if (q.includes('orientation_conducted = $1')) {
         app.orientation_conducted = params[0] === true || params[0] === 'true';
-      } else if (q.includes('phone = $1') && q.includes('startup_description = $2')) {
+      } else if (q.includes('phone = $1') && q.includes('startup_description = $2') && q.includes('form_data = $3')) {
         app.phone = params[0];
         app.startup_description = params[1];
         app.form_data = params[2] ? (typeof params[2] === 'string' ? JSON.parse(params[2]) : params[2]) : app.form_data;
+      } else if (q.includes('phone = $1') && q.includes('startup_description = $2')) {
+        app.phone = params[0];
+        app.startup_description = params[1];
+        if (params[2]) {
+          app.form_data = typeof params[2] === 'string' ? JSON.parse(params[2]) : params[2];
+        }
       } else if (q.includes('phone = $1') && q.includes('form_data = $2')) {
         app.phone = params[0];
         app.form_data = params[1] ? (typeof params[1] === 'string' ? JSON.parse(params[1]) : params[1]) : app.form_data;
+      } else if (q.includes('form_data = $1')) {
+        app.form_data = params[0] ? (typeof params[0] === 'string' ? JSON.parse(params[0]) : params[0]) : app.form_data;
+      } else if (q.includes('stage = $1')) {
+        app.stage = params[0];
       }
+
+      // Synchronize linked startup_profile
+      if (db.startup_profiles && Array.isArray(db.startup_profiles)) {
+        const matchingProfile = db.startup_profiles.find((p: any) => p.applicant_id === app.id || (p.startup_name && p.startup_name.toLowerCase() === app.startup_name.toLowerCase()));
+        if (matchingProfile) {
+          if (app.program_status) matchingProfile.program_status = app.program_status;
+          if (app.cohort_id) matchingProfile.cohort_id = app.cohort_id;
+          matchingProfile.updated_at = new Date().toISOString();
+        }
+      }
+
       saveLocalDB(db);
     }
     return { rows: app ? [app] : [] };
   }
 
   // 4. Cohort Sessions Interceptors
-  if (q.includes('cohort_sessions')) {
+  if (q.includes('cohort_sessions') && !q.includes('from assignments') && !q.includes('assignments a') && !q.includes('delete from assignments') && !q.includes('insert into assignments')) {
     if (q.includes('update cohort_sessions')) {
       const photoUrl = params[0];
       const sid = parseInt(params[1]);
@@ -676,35 +710,67 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     let deleted = null;
     if (idx !== -1) {
       deleted = db.assignments.splice(idx, 1)[0];
-      db.assignment_submissions = (db.assignment_submissions || []).filter((s: any) => s.assignment_id !== aid);
-      saveLocalDB(db);
     }
+    db.assignment_submissions = (db.assignment_submissions || []).filter((s: any) => s.assignment_id !== aid);
+
+    // Deep clean from applicants and startup profiles to avoid any resurrection
+    if (db.applicants && Array.isArray(db.applicants)) {
+      db.applicants.forEach((app: any) => {
+        if (app.form_data) {
+          const fd = typeof app.form_data === 'string' ? JSON.parse(app.form_data) : app.form_data;
+          if (fd.profile && Array.isArray(fd.profile.assignments)) {
+            fd.profile.assignments = fd.profile.assignments.filter((pa: any) => 
+              String(pa.id) !== String(aid) && 
+              (!deleted || !deleted.title || !pa.title || pa.title.toLowerCase().trim() !== deleted.title.toLowerCase().trim())
+            );
+            app.form_data = fd;
+          }
+        }
+      });
+    }
+
+    if (db.startup_profiles && Array.isArray(db.startup_profiles)) {
+      db.startup_profiles.forEach((sp: any) => {
+        if (sp.assignments && Array.isArray(sp.assignments)) {
+          sp.assignments = sp.assignments.filter((pa: any) => 
+            String(pa.id) !== String(aid) && 
+            (!deleted || !deleted.title || !pa.title || pa.title.toLowerCase().trim() !== deleted.title.toLowerCase().trim())
+          );
+        }
+      });
+    }
+
+    saveLocalDB(db);
     return { rows: deleted ? [deleted] : [] };
   }
+
   if (q.includes('insert into assignments')) {
     db.assignments = db.assignments || [];
     const id = Math.max(...db.assignments.map((a: any) => a.id), 0) + 1;
-    let cohort_id: number | null = null;
+    let cohort_id: number | null = 1;
     let session_id: number | null = null;
     let title = '';
     let description: string | null = null;
     let due_date = '';
     let attachment_url: string | null = null;
+    let created_by_user_id: number | null = null;
 
     if (q.includes('(cohort_id, session_id')) {
-      cohort_id = params[0] ? parseInt(params[0]) : null;
+      cohort_id = (params[0] !== undefined && params[0] !== null && !isNaN(parseInt(params[0]))) ? parseInt(params[0]) : 1;
       session_id = null;
       title = params[1] || '';
       description = params[2] || null;
       due_date = params[3] || '';
       attachment_url = params[4] || null;
+      created_by_user_id = params[5] ? parseInt(params[5]) : null;
     } else if (q.includes('(session_id, cohort_id')) {
-      session_id = params[0] ? parseInt(params[0]) : null;
-      cohort_id = params[1] ? parseInt(params[1]) : null;
+      session_id = (params[0] !== undefined && params[0] !== null && !isNaN(parseInt(params[0]))) ? parseInt(params[0]) : null;
+      cohort_id = (params[1] !== undefined && params[1] !== null && !isNaN(parseInt(params[1]))) ? parseInt(params[1]) : 1;
       title = params[2] || '';
       description = params[3] || null;
       due_date = params[4] || '';
       attachment_url = params[5] || null;
+      created_by_user_id = params[6] ? parseInt(params[6]) : null;
     } else {
       title = params[0] || '';
       due_date = params[1] || '';
@@ -718,12 +784,14 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       description,
       due_date,
       attachment_url,
+      created_by_user_id,
       created_at: new Date().toISOString()
     };
     db.assignments.push(newAsg);
     saveLocalDB(db);
     return { rows: [newAsg] };
   }
+
   if (q.includes('session_id = $1') || q.includes('a.session_id = $1')) {
     const sid = parseInt(params[0]);
     const list = (db.assignments || []).filter((a: any) => a.session_id === sid).map((asg: any) => {
@@ -732,23 +800,30 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     });
     return { rows: list };
   }
+
   if (q.includes('session_id is null') || q.includes('a.session_id is null')) {
     db.assignments = db.assignments || [];
-    const targetCohortId = (params && params[0] && !isNaN(parseInt(params[0]))) ? parseInt(params[0]) : null;
+    const targetCohortId = (params && params[0] !== undefined && params[0] !== null && !isNaN(parseInt(params[0]))) ? parseInt(params[0]) : null;
     let list = db.assignments.filter((a: any) => !a.session_id);
     if (targetCohortId !== null) {
-      list = list.filter((a: any) => a.cohort_id === targetCohortId);
+      list = list.filter((a: any) => {
+        const cId = a.cohort_id ? parseInt(a.cohort_id) : null;
+        return cId === targetCohortId || cId === null;
+      });
     }
+    list = list.map((a: any) => ({ ...a, session_title: null }));
     return { rows: list };
   }
+
   if (q.includes('select * from assignments where id = $1')) {
     const aid = parseInt(params[0]);
     const found = (db.assignments || []).find((a: any) => a.id === aid);
     return { rows: found ? [found] : [] };
   }
+
   if (q.includes('select') && q.includes('assignments')) {
     db.assignments = db.assignments || [];
-    const targetCohortId = (params && params[0] && !isNaN(parseInt(params[0]))) ? parseInt(params[0]) : null;
+    const targetCohortId = (params && params[0] !== undefined && params[0] !== null && !isNaN(parseInt(params[0]))) ? parseInt(params[0]) : null;
     let list = db.assignments.map((asg: any) => {
       let session_title = null;
       if (asg.session_id) {
@@ -758,14 +833,16 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       return { ...asg, session_title };
     });
 
-    // Standalone assignments filtering rule: must NOT have a session_id
-    list = list.filter((a: any) => {
-      if (a.session_id) return false; // Strictly exclude session-scoped assignments from standalone list
-      if (targetCohortId !== null) {
-        return a.cohort_id === targetCohortId;
-      }
-      return true;
-    });
+    if (q.includes('session_id is null') || q.includes('a.session_id is null')) {
+      list = list.filter((a: any) => !a.session_id);
+    }
+
+    if (targetCohortId !== null) {
+      list = list.filter((a: any) => {
+        const cId = a.cohort_id ? parseInt(a.cohort_id) : null;
+        return cId === targetCohortId || cId === null;
+      });
+    }
 
     return { rows: list };
   }
@@ -893,16 +970,27 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   }
 
   // 7b. Cohort Feedback Interceptors
-  if (q.includes('from cohort_feedback') || q.includes('select * from cohort_feedback')) {
+  if (q.includes('from cohort_feedback') || q.includes('select * from cohort_feedback') || q.includes('select rating from cohort_feedback')) {
     db.cohort_feedback = db.cohort_feedback || [];
     let list = [...db.cohort_feedback];
-    if (q.includes('cohort_id = $1')) {
-      const cid = parseInt(params[0]);
+    if (q.includes('cohort_id = $1') || q.includes('cohort_id = $2')) {
+      const cIndex = q.indexOf('cohort_id = $1') !== -1 ? 0 : 1;
+      const cid = parseInt(params[cIndex]);
       if (cid) list = list.filter((f: any) => f.cohort_id === cid);
     }
     if (q.includes('session_id = $1') || q.includes('session_id = $2')) {
-      const sid = parseInt(params[q.includes('session_id = $1') ? 0 : 1]);
+      const sIndex = q.indexOf('session_id = $1') !== -1 ? 0 : 1;
+      const sid = parseInt(params[sIndex]);
       if (sid) list = list.filter((f: any) => f.session_id === sid);
+    }
+    if (q.includes('applicant_id = $2') || q.includes('applicant_id = $1')) {
+      const aIndex = q.indexOf('applicant_id = $2') !== -1 ? 1 : 0;
+      const aid = parseInt(params[aIndex]);
+      if (aid) list = list.filter((f: any) => f.applicant_id === aid);
+    }
+    if (q.includes('feedback_type = $')) {
+      const fType = params.find((p: any) => typeof p === 'string' && ['SESSION', 'PROGRAM', 'MENTORSHIP', 'FACILITY', 'CURRICULUM', 'OTHER'].includes(p));
+      if (fType) list = list.filter((f: any) => f.feedback_type === fType);
     }
     const processed = list.map((f: any) => {
       const isAnon = f.is_anonymous === true || f.is_anonymous === 'true';
@@ -919,6 +1007,19 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     });
     processed.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return { rows: processed };
+  }
+
+  if (q.includes('delete from cohort_feedback')) {
+    db.cohort_feedback = db.cohort_feedback || [];
+    if (q.includes('where id = $1')) {
+      const targetId = parseInt(params[0]);
+      db.cohort_feedback = db.cohort_feedback.filter((f: any) => f.id !== targetId);
+    } else if (q.includes('where session_id = $1')) {
+      const sid = parseInt(params[0]);
+      db.cohort_feedback = db.cohort_feedback.filter((f: any) => f.session_id !== sid);
+    }
+    saveLocalDB(db);
+    return { rows: [] };
   }
 
   if (q.includes('insert into cohort_feedback')) {
@@ -952,6 +1053,20 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     const idVal = parseInt(params[params.length - 1]);
     const item = db.cohort_feedback.find((f: any) => f.id === idVal);
     if (item) {
+      if (q.includes('rating = $1')) {
+        item.rating = parseInt(params[0]) || 5;
+        item.title = params[1] || item.title;
+        item.comment = params[2] || item.comment;
+        item.is_anonymous = params[3] === true || params[3] === 'true';
+        if (item.is_anonymous) {
+          item.founder_name = 'Anonymous Founder';
+          item.startup_name = 'Anonymous Startup';
+        } else {
+          item.founder_name = params[4] || item.founder_name;
+          item.startup_name = params[5] || item.startup_name;
+        }
+        item.status = 'SUBMITTED';
+      }
       if (q.includes('status = $1')) item.status = params[0];
       if (q.includes('staff_response = $2')) item.staff_response = params[1];
       saveLocalDB(db);
@@ -1097,7 +1212,16 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: [newResp] };
   }
 
-  if (q.includes('from feedback_responses') && !q.includes('insert into')) {
+  if (q.includes('delete from feedback_responses')) {
+    db.feedback_responses = db.feedback_responses || [];
+    const fid = parseInt(params[0]);
+    const sid = parseInt(params[1]);
+    db.feedback_responses = db.feedback_responses.filter((r: any) => !(r.feedback_form_id === fid && r.startup_id === sid));
+    saveLocalDB(db);
+    return { rows: [] };
+  }
+
+  if (q.includes('from feedback_responses') && !q.includes('insert into') && !q.includes('delete')) {
     db.feedback_responses = db.feedback_responses || [];
     let list = [...db.feedback_responses];
     if (q.includes('feedback_form_id = $1')) {
@@ -1106,7 +1230,10 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     }
     if (q.includes('startup_id = $2') || q.includes('startup_id = $1')) {
       const sid = parseInt(params[q.includes('startup_id = $2') ? 1 : 0]);
-      if (sid) list = list.filter((r: any) => r.startup_id === sid);
+      const uid = params[2] ? parseInt(params[2]) : null;
+      if (sid) {
+        list = list.filter((r: any) => r.startup_id === sid || (uid && r.user_id === uid));
+      }
     }
     return { rows: list };
   }
@@ -2293,6 +2420,16 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
         }
       }
       profile.updated_at = new Date().toISOString();
+
+      // Synchronize linked applicant
+      if (db.applicants && Array.isArray(db.applicants)) {
+        const matchingApp = db.applicants.find((a: any) => a.id === profile.applicant_id || (a.startup_name && a.startup_name.toLowerCase() === profile.startup_name.toLowerCase()));
+        if (matchingApp) {
+          if (profile.program_status) matchingApp.program_status = profile.program_status;
+          if (profile.cohort_id) matchingApp.cohort_id = profile.cohort_id;
+        }
+      }
+
       saveLocalDB(db);
     }
     return { rows: profile ? [profile] : [] };
@@ -2644,7 +2781,7 @@ async function ensureDBReady() {
         console.log("Synchronizing default Administrator role with new permission nodes...");
         await pool.query(`
           UPDATE roles 
-          SET permissions = '["SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_BOOKING", "REJECT_BOOKING", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "ISSUE_BAN", "MANAGE_ROOMS", "CONFIGURE_ROOMS", "CONFIGURE_POLICIES", "VIEW_ANALYTICS_DASHBOARD", "EXPORT_AUDIT_LOGS", "MANAGE_ROLES", "MANAGE_USERS", "VIEW_AUDIT_LOGS", "LIFT_BAN", "MANAGE_BANS", "MANAGE_BOOKING_TYPES", "cohort:form_manage", "cohort:applicant_review", "cohort:session_manage", "cohort:attendance_write", "cohort:checkin_log", "cohort:warning_write", "cohort:profile_write", "cohort:feedback_submit", "cohort:assignment_upload"]'::jsonb
+          SET permissions = '["cohort:dashboard_view", "cohort:settings_manage", "cohort:form_manage", "cohort:applicant_review", "cohort:startups_manage", "cohort:session_manage", "cohort:assignment_manage", "cohort:feedback_view", "cohort:feedback_forms_manage", "cohort:attendance_write", "cohort:checkin_log", "cohort:warning_write", "cohort:profile_write", "cohort:feedback_submit", "cohort:assignment_upload", "SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "MANAGE_ROOMS", "MANAGE_BOOKING_TYPES", "VIEW_BOOKING_ANALYTICS", "MANAGE_ROLES", "MANAGE_USERS", "ISSUE_BAN", "VIEW_ANALYTICS_DASHBOARD", "VIEW_AUDIT_LOGS", "EXPORT_AUDIT_LOGS"]'::jsonb
           WHERE name = 'Administrator';
         `);
       } catch (syncAdminErr: any) {

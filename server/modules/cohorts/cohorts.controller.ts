@@ -98,6 +98,12 @@ export const submitApplicant = async (req: AuthenticatedRequest, res: Response) 
     return res.status(400).json({ error: 'Baseline criteria error: Name, Email, Phone, CNIC, Startup Name, and Startup Description are strictly required.' });
   }
 
+  const normalizedEmail = String(email).toLowerCase().trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(normalizedEmail)) {
+    return res.status(400).json({ error: 'Please provide a valid email address.' });
+  }
+
   try {
     // Check if form is currently active
     const settingsRes = await query('SELECT is_active FROM cohort_form_settings LIMIT 1');
@@ -106,14 +112,29 @@ export const submitApplicant = async (req: AuthenticatedRequest, res: Response) 
       return res.status(403).json({ error: 'Application Closed: The admission intake window for Takhleeq Cohort is currently offline.' });
     }
 
-    // Check for previous application by same email or CNIC to set parent link
+    // STRICT UNIQUE EMAIL CHECK: Prevent duplicate submissions with the same email address
+    const existingAppByEmail = await query(
+      `SELECT id, tracking_token, startup_name, created_at FROM applicants WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+      [normalizedEmail]
+    );
+
+    if (existingAppByEmail.rows && existingAppByEmail.rows.length > 0) {
+      const existing = existingAppByEmail.rows[0];
+      return res.status(400).json({
+        error: `An application with the email '${normalizedEmail}' has already been submitted for startup '${existing.startup_name}'. Each email address can only be used once. Please track your previous submission with your tracking token.`,
+        existing_token: existing.tracking_token,
+        is_duplicate_email: true
+      });
+    }
+
+    // Check for previous application by CNIC to set parent link (if re-applying with new verified email)
     const prevAppRes = await query(
-      `SELECT id, tracking_token FROM applicants WHERE LOWER(email) = LOWER($1) OR REPLACE(cnic, '-', '') = REPLACE($2, '-', '') ORDER BY id DESC LIMIT 1`,
-      [email.trim(), cnic.trim()]
+      `SELECT id, tracking_token FROM applicants WHERE REPLACE(cnic, '-', '') = REPLACE($1, '-', '') ORDER BY id DESC LIMIT 1`,
+      [cnic.trim()]
     );
     
     let parent_applicant_id: number | null = null;
-    if (prevAppRes.rows.length > 0) {
+    if (prevAppRes.rows && prevAppRes.rows.length > 0) {
       parent_applicant_id = prevAppRes.rows[0].id;
     }
 
@@ -124,7 +145,7 @@ export const submitApplicant = async (req: AuthenticatedRequest, res: Response) 
       `INSERT INTO applicants (tracking_token, name, email, phone, cnic, startup_name, startup_description, status, program_status, panel_scores, parent_applicant_id, form_data, orientation_conducted)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'SUBMITTED', 'NOT_ENROLLED', NULL, $8, $9, FALSE)
        RETURNING *`,
-      [token, name.trim(), email.toLowerCase().trim(), phone.trim(), cnic.trim(), startup_name.trim(), startup_description.trim(), parent_applicant_id, cleanFormData]
+      [token, name.trim(), normalizedEmail, phone.trim(), cnic.trim(), startup_name.trim(), startup_description.trim(), parent_applicant_id, cleanFormData]
     );
 
     const newApplicant = insertRes.rows[0];
@@ -338,7 +359,16 @@ export const updateApplicantStatus = async (req: AuthenticatedRequest, res: Resp
     }
     const prev = prevRes.rows[0];
     const newStatus = status || prev.status;
-    let newProgramStatus = program_status || prev.program_status || 'NOT_ENROLLED';
+    let newProgramStatus = program_status;
+    if (!newProgramStatus) {
+      if (['CONFIRMED', 'ENROLLED'].includes(newStatus)) {
+        newProgramStatus = 'ACTIVE';
+      } else if (['REJECTED', 'APPLIED', 'SUBMITTED', 'UNDER_REVIEW', 'IN_REVIEW', 'SHORTLISTED_FOR_PRESENTATION', 'PRESENTATION_CONDUCTED', 'BACKUP_CANDIDATE', 'WAITLISTED'].includes(newStatus)) {
+        newProgramStatus = 'NOT_ENROLLED';
+      } else {
+        newProgramStatus = prev.program_status || 'NOT_ENROLLED';
+      }
+    }
 
     // Enforce role and permission constraints:
     if (!admin) {
@@ -366,16 +396,22 @@ export const updateApplicantStatus = async (req: AuthenticatedRequest, res: Resp
       }
     }
 
-    if (newStatus === 'CONFIRMED' && (!program_status || program_status === 'NOT_ENROLLED')) {
-      newProgramStatus = 'ACTIVE';
-    }
-
     const result = await query(
       `UPDATE applicants SET status = $1, program_status = $2, cohort_id = $3 WHERE id = $4 RETURNING *`,
       [newStatus, newProgramStatus, assignedCohortId, parseInt(id)]
     );
 
     const updated = result.rows[0];
+
+    // Synchronize startup_profiles if exists
+    try {
+      await query(
+        `UPDATE startup_profiles SET program_status = $1, cohort_id = $2, updated_at = CURRENT_TIMESTAMP WHERE applicant_id = $3 OR LOWER(startup_name) = LOWER($4)`,
+        [newProgramStatus, assignedCohortId, parseInt(id), prev.startup_name]
+      );
+    } catch (spErr) {
+      console.error('Failed to sync startup_profile on status update:', spErr);
+    }
 
     // Log to applicant_stage_history table
     const remarksText = comments || remarks || null;
@@ -580,6 +616,16 @@ export const updateApplicantProgramStatus = async (req: AuthenticatedRequest, re
 
     const updated = result.rows[0];
 
+    // Synchronize linked startup_profiles
+    try {
+      await query(
+        `UPDATE startup_profiles SET program_status = $1, updated_at = CURRENT_TIMESTAMP WHERE applicant_id = $2 OR LOWER(startup_name) = LOWER($3)`,
+        [program_status, parseInt(id), prev.startup_name]
+      );
+    } catch (spErr) {
+      console.error('Failed to sync startup_profile in updateApplicantProgramStatus:', spErr);
+    }
+
     await logAudit(
       `Program status updated for startup '${prev.startup_name}': Changed program_status from '${prev.program_status}' to '${program_status}'.`,
       'program_status',
@@ -653,9 +699,20 @@ export const createCohort = async (req: AuthenticatedRequest, res: Response) => 
   }
 
   try {
+    // Enforce business rule: A new cohort cannot be created until all existing cohorts are COMPLETED (Bulk Graduated)
+    const existingCohortsRes = await query(`SELECT * FROM cohorts ORDER BY id DESC`);
+    const existingCohorts = existingCohortsRes.rows || [];
+    const uncompletedCohort = existingCohorts.find((c: any) => c.status !== 'COMPLETED');
+
+    if (uncompletedCohort) {
+      return res.status(400).json({
+        error: `Cannot create a new cohort. Previous cohort '${uncompletedCohort.name}' is currently '${uncompletedCohort.status}'. Please bulk graduate and complete the previous cohort first.`
+      });
+    }
+
     const result = await query(
       `INSERT INTO cohorts (name, status) VALUES ($1, $2) RETURNING *`,
-      [name.trim(), status || 'DRAFT']
+      [name.trim(), status || 'ACTIVE']
     );
 
     const cohort = result.rows[0];
@@ -704,9 +761,9 @@ export const updateCohortStatus = async (req: AuthenticatedRequest, res: Respons
       );
       const blockedIds = activeWarnings.rows.map(w => w.applicant_id);
 
-      // We retrieve all confirmed founders
+      // We retrieve all enrolled/active founders
       const founders = await query(
-        `SELECT id FROM applicants WHERE cohort_id = $1 AND status = 'CONFIRMED'`,
+        `SELECT id, startup_name FROM applicants WHERE cohort_id = $1 AND (status = 'CONFIRMED' OR status = 'ENROLLED' OR program_status = 'ACTIVE')`,
         [parseInt(id)]
       );
 
@@ -714,10 +771,17 @@ export const updateCohortStatus = async (req: AuthenticatedRequest, res: Respons
 
       for (const f of toGraduate) {
         await query(
-          `UPDATE applicants SET status = 'CONFIRMED' WHERE id = $1`, // wait, status can remain CONFIRMED but cohort graduates, or we set status to 'ACCEPTED'/'COMPLETED'. But wait, in our enum, 'CONFIRMED' means active seat. Let's keep status as 'CONFIRMED' but can mark cohort as completed.
-          // Or wait, let's keep status 'CONFIRMED' (or we can mark them 'CONFIRMED' but associate with a completed cohort. In UI we display them as "Graduated").
+          `UPDATE applicants SET program_status = 'GRADUATED' WHERE id = $1`,
           [f.id]
         );
+        try {
+          await query(
+            `UPDATE startup_profiles SET program_status = 'GRADUATED', updated_at = CURRENT_TIMESTAMP WHERE applicant_id = $1 OR LOWER(startup_name) = LOWER($2)`,
+            [f.id, f.startup_name]
+          );
+        } catch (e) {
+          // ignore
+        }
         bulkGraduatedCount++;
       }
     }
@@ -781,10 +845,59 @@ export const getCohortSessions = async (req: AuthenticatedRequest, res: Response
         assignments_summary = `${asgCount} assignment${asgCount > 1 ? 's' : ''} · ${subCount} submission${subCount === 1 ? '' : 's'}`;
       }
 
+      // Session Feedback Statistics & 7-Day Window Status
+      const feedRes = await query(
+        `SELECT rating FROM cohort_feedback WHERE session_id = $1`,
+        [sess.id]
+      );
+      const feedRows = feedRes.rows || [];
+      const feedCount = feedRows.length;
+      const avgRating = feedCount > 0 
+        ? Number((feedRows.reduce((acc: number, r: any) => acc + (Number(r.rating) || 5), 0) / feedCount).toFixed(1))
+        : 0;
+
+      const todayStr = getTodayDateStringServer();
+      const sessDate = sess.date || '';
+      let feedback_status: 'UPCOMING' | 'ACTIVE' | 'EXPIRED' = 'UPCOMING';
+      let days_remaining = 0;
+      if (sessDate) {
+        if (todayStr < sessDate) {
+          feedback_status = 'UPCOMING';
+          days_remaining = 0;
+        } else {
+          const dSess = new Date(sessDate);
+          const dToday = new Date(todayStr);
+          const diffDays = Math.floor((dToday.getTime() - dSess.getTime()) / (1000 * 3600 * 24));
+          if (diffDays <= 7) {
+            feedback_status = 'ACTIVE';
+            days_remaining = Math.max(0, 7 - diffDays);
+          } else {
+            feedback_status = 'EXPIRED';
+            days_remaining = 0;
+          }
+        }
+      }
+
+      let feedback_summary = "No feedback submitted yet";
+      if (feedCount > 0) {
+        feedback_summary = `★ ${avgRating} (${feedCount} review${feedCount > 1 ? 's' : ''})`;
+      } else if (feedback_status === 'ACTIVE') {
+        feedback_summary = `Feedback open (${days_remaining}d left)`;
+      } else if (feedback_status === 'UPCOMING') {
+        feedback_summary = `Opens on session date`;
+      } else {
+        feedback_summary = `Window closed`;
+      }
+
       return {
         ...sess,
         attendance_summary,
-        assignments_summary
+        assignments_summary,
+        feedback_count: feedCount,
+        average_rating: avgRating,
+        feedback_status,
+        days_remaining,
+        feedback_summary
       };
     }));
 
@@ -894,9 +1007,10 @@ export const deleteCohortSession = async (req: AuthenticatedRequest, res: Respon
     }
     const sess = sessRes.rows[0];
 
-    // Delete attendance records & assignments first
+    // Delete attendance records, assignments, and session feedback first
     await query('DELETE FROM session_attendance WHERE session_id = $1', [parseInt(id)]);
     await query('DELETE FROM assignments WHERE session_id = $1', [parseInt(id)]);
+    await query('DELETE FROM cohort_feedback WHERE session_id = $1', [parseInt(id)]);
     
     // Delete session
     await query('DELETE FROM cohort_sessions WHERE id = $1', [parseInt(id)]);
@@ -926,9 +1040,40 @@ export const getSessionAttendance = async (req: AuthenticatedRequest, res: Respo
     }
     const sess = sessRes.rows[0];
 
-    let applicantsRes = await query('SELECT id, name, startup_name, email FROM applicants WHERE cohort_id = $1 OR status = \'CONFIRMED\'', [sess.cohort_id]);
+    // Determine lock state based on session date vs today's date
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const sessionDateStr = sess.date ? String(sess.date).slice(0, 10) : todayStr;
+    const isLocked = sessionDateStr > todayStr;
+
+    // Filter out startups who are KICKED_OUT, PAUSED, SUSPENDED, DROPPED, or REJECTED
+    let applicantsRes = await query(
+      `SELECT id, name, startup_name, email, status, program_status 
+       FROM applicants 
+       WHERE (cohort_id = $1 OR status = 'CONFIRMED' OR status = 'ENROLLED' OR status = 'ORIENTATION_CONDUCTED' OR status = 'ACCEPTED')
+         AND (program_status IS NULL OR program_status NOT IN ('PAUSED', 'KICKED_OUT', 'SUSPENDED', 'DROPPED'))
+         AND (status NOT IN ('PAUSED', 'KICKED_OUT', 'SUSPENDED', 'DROPPED', 'REJECTED'))
+       ORDER BY id ASC`,
+      [sess.cohort_id]
+    );
+
     if (applicantsRes.rows.length === 0) {
-      applicantsRes = await query('SELECT id, name, startup_name, email FROM applicants ORDER BY id ASC');
+      const fallbackRes = await query('SELECT id, name, startup_name, email, status, program_status FROM applicants ORDER BY id ASC');
+      applicantsRes = {
+        rows: (fallbackRes.rows || []).filter((a: any) => {
+          const ps = String(a.program_status || '').toUpperCase();
+          const st = String(a.status || '').toUpperCase();
+          return !['PAUSED', 'KICKED_OUT', 'SUSPENDED', 'DROPPED'].includes(ps) &&
+                 !['PAUSED', 'KICKED_OUT', 'SUSPENDED', 'DROPPED', 'REJECTED'].includes(st);
+        })
+      };
+    } else {
+      // Further memory filter just in case of non-standard casing
+      applicantsRes.rows = applicantsRes.rows.filter((a: any) => {
+        const ps = String(a.program_status || '').toUpperCase();
+        const st = String(a.status || '').toUpperCase();
+        return !['PAUSED', 'KICKED_OUT', 'SUSPENDED', 'DROPPED'].includes(ps) &&
+               !['PAUSED', 'KICKED_OUT', 'SUSPENDED', 'DROPPED', 'REJECTED'].includes(st);
+      });
     }
 
     const attendanceRes = await query('SELECT * FROM session_attendance WHERE session_id = $1', [parseInt(id)]);
@@ -953,7 +1098,9 @@ export const getSessionAttendance = async (req: AuthenticatedRequest, res: Respo
       success: true,
       session: sess,
       attendance: records,
-      attendance_sheet_photo_url: sess.attendance_sheet_photo_url || null
+      attendance_sheet_photo_url: sess.attendance_sheet_photo_url || null,
+      is_locked: isLocked,
+      lock_message: isLocked ? `Attendance is locked until the scheduled session date (${sessionDateStr}).` : null
     });
   } catch (err: any) {
     console.error('Failed to fetch session attendance:', err);
@@ -971,11 +1118,20 @@ export const saveSessionAttendance = async (req: AuthenticatedRequest, res: Resp
   }
 
   try {
-    const sessRes = await query('SELECT title, cohort_id FROM cohort_sessions WHERE id = $1', [parseInt(id)]);
+    const sessRes = await query('SELECT title, cohort_id, date FROM cohort_sessions WHERE id = $1', [parseInt(id)]);
     if (sessRes.rows.length === 0) {
       return res.status(404).json({ error: 'Session not found.' });
     }
     const sess = sessRes.rows[0];
+
+    // Date Lock Verification: Session attendance cannot be marked before the session's scheduled date
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const sessionDateStr = sess.date ? String(sess.date).slice(0, 10) : todayStr;
+    if (sessionDateStr > todayStr) {
+      return res.status(400).json({ 
+        error: `Attendance Locked: You cannot record attendance before the scheduled session date (${sessionDateStr}). Attendance opens on the session date.` 
+      });
+    }
 
     if (attendance_sheet_photo_url !== undefined) {
       await query('UPDATE cohort_sessions SET attendance_sheet_photo_url = $1 WHERE id = $2', [
@@ -986,6 +1142,18 @@ export const saveSessionAttendance = async (req: AuthenticatedRequest, res: Resp
 
     const saved = [];
     for (const record of attendance) {
+      // Check if applicant is active (exclude paused, kicked out, suspended or dropped startups)
+      const appCheck = await query('SELECT id, status, program_status FROM applicants WHERE id = $1', [parseInt(record.applicant_id)]);
+      const app = appCheck.rows[0];
+      if (app) {
+        const ps = String(app.program_status || '').toUpperCase();
+        const st = String(app.status || '').toUpperCase();
+        if (['PAUSED', 'KICKED_OUT', 'SUSPENDED', 'DROPPED'].includes(ps) || ['PAUSED', 'KICKED_OUT', 'SUSPENDED', 'DROPPED', 'REJECTED'].includes(st)) {
+          // Skip inactive / kicked-out / paused startup from session attendance
+          continue;
+        }
+      }
+
       const insRes = await query(
         `INSERT INTO session_attendance (session_id, applicant_id, status)
          VALUES ($1, $2, $3)`,
@@ -995,22 +1163,30 @@ export const saveSessionAttendance = async (req: AuthenticatedRequest, res: Resp
     }
 
     await logAudit(
-      `Marked attendance list for session '${sess.title}': ${attendance.filter(a => a.status === 'present' || a.status === 'PRESENT').length} present, ${attendance.filter(a => a.status === 'absent' || a.status === 'ABSENT').length} absent.`,
+      `Marked attendance list for session '${sess.title}': ${saved.filter(a => a?.status === 'present' || a?.status === 'PRESENT').length} present, ${saved.filter(a => a?.status === 'absent' || a?.status === 'ABSENT').length} absent.`,
       'session_attendance',
       String(id),
       admin?.email || 'Admin',
       null,
-      { presentCount: attendance.filter(a => a.status === 'present' || a.status === 'PRESENT').length, totalCount: attendance.length }
+      { presentCount: saved.filter(a => a?.status === 'present' || a?.status === 'PRESENT').length, totalCount: saved.length }
     );
 
     res.json({ success: true, attendance: saved, attendance_sheet_photo_url: attendance_sheet_photo_url || null });
   } catch (err: any) {
     console.error('Failed to save session attendance:', err);
-    res.status(500).json({ error: 'Internal Server Error while saving attendance.' });
+    res.status(500).json({ error: err.message || 'Internal Server Error while saving attendance.' });
   }
 };
 
 // --- ASSIGNMENTS & SUBMISSIONS ---
+const getTodayDateStringServer = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const createCohortAssignment = async (req: AuthenticatedRequest, res: Response) => {
   const admin = req.currentUser;
   const { id } = req.params; // cohort_id
@@ -1018,6 +1194,11 @@ export const createCohortAssignment = async (req: AuthenticatedRequest, res: Res
 
   if (!title || !due_date) {
     return res.status(400).json({ error: 'Title and due date are required for an assignment.' });
+  }
+
+  const todayStr = getTodayDateStringServer();
+  if (due_date && due_date.trim() < todayStr) {
+    return res.status(400).json({ error: 'Assignment due date cannot be in the past. Please select today or a future date.' });
   }
 
   try {
@@ -1046,6 +1227,7 @@ export const createCohortAssignment = async (req: AuthenticatedRequest, res: Res
 };
 
 export const syncProfileAssignmentsToDatabase = async () => {
+  // Safe helper: only synchronizes submissions for existing assignments, does not resurrect deleted assignments
   try {
     const allAppsRes = await query('SELECT id, cohort_id, form_data FROM applicants');
     const existingAsgsRes = await query('SELECT * FROM assignments');
@@ -1064,26 +1246,6 @@ export const syncProfileAssignmentsToDatabase = async () => {
             String(a.id) === String(pa.id) || 
             (a.title && pa.title && a.title.toLowerCase().trim() === pa.title.toLowerCase().trim())
           );
-
-          if (!dbAsg) {
-            // Create assignment in DB table
-            const targetCohortId = app.cohort_id || 1;
-            const insRes = await query(
-              `INSERT INTO assignments (cohort_id, session_id, title, description, due_date, attachment_url)
-               VALUES ($1, NULL, $2, $3, $4, $5) RETURNING *`,
-              [
-                targetCohortId,
-                pa.title.trim(),
-                pa.description || 'Independent Cohort Deliverable',
-                pa.deadline || pa.due_date || 'No deadline',
-                pa.attachmentUrl || null
-              ]
-            );
-            if (insRes.rows && insRes.rows[0]) {
-              dbAsg = insRes.rows[0];
-              existingAsgsRes.rows.push(dbAsg);
-            }
-          }
 
           if (dbAsg && (pa.status === 'SUBMITTED' || pa.fileName)) {
             // Check if submission exists
@@ -1117,15 +1279,12 @@ export const syncProfileAssignmentsToDatabase = async () => {
 export const getCohortAssignments = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params; // cohort_id
   try {
-    await syncProfileAssignmentsToDatabase();
-
     const cohortId = (id && !isNaN(parseInt(id))) ? parseInt(id) : null;
     const result = await query(
       `SELECT a.*, cs.title as session_title 
        FROM assignments a 
        LEFT JOIN cohort_sessions cs ON a.session_id = cs.id
-       WHERE a.session_id IS NULL 
-         AND ($1::integer IS NULL OR a.cohort_id = $1)
+       WHERE ($1::integer IS NULL OR a.cohort_id = $1)
        ORDER BY a.created_at DESC`,
       [cohortId]
     );
@@ -1159,6 +1318,11 @@ export const createSessionAssignment = async (req: AuthenticatedRequest, res: Re
 
   if (!title || !due_date) {
     return res.status(400).json({ error: 'Title and due date are required for an assignment.' });
+  }
+
+  const todayStr = getTodayDateStringServer();
+  if (due_date && due_date.trim() < todayStr) {
+    return res.status(400).json({ error: 'Assignment due date cannot be in the past. Please select today or a future date.' });
   }
 
   try {
@@ -1243,6 +1407,11 @@ export const updateAssignment = async (req: AuthenticatedRequest, res: Response)
     const newDesc = description !== undefined && description !== null ? description.trim() : current.description;
     const newDueDate = due_date !== undefined && due_date !== null ? due_date.trim() : current.due_date;
 
+    const todayStr = getTodayDateStringServer();
+    if (newDueDate && newDueDate < todayStr) {
+      return res.status(400).json({ error: 'Assignment due date cannot be in the past. Please select today or a future date.' });
+    }
+
     const result = await query(
       `UPDATE assignments SET title = $1, description = $2, due_date = $3 WHERE id = $4 RETURNING *`,
       [newTitle, newDesc, newDueDate, asgId]
@@ -1258,8 +1427,6 @@ export const updateAssignment = async (req: AuthenticatedRequest, res: Response)
 export const getAssignmentSubmissions = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params; // assignment_id
   try {
-    await syncProfileAssignmentsToDatabase();
-
     const asgRes = await query('SELECT * FROM assignments WHERE id = $1', [parseInt(id)]);
     if (asgRes.rows.length === 0) {
       return res.status(404).json({ error: 'Assignment not found.' });
@@ -1718,8 +1885,6 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
     );
 
     // 4. Fetch Assignments and founder's submissions
-    await syncProfileAssignmentsToDatabase();
-
     let assignmentsList: any[] = [];
     const allAsgsRes = await query(
       `SELECT a.*, cs.title as session_title 
@@ -1939,7 +2104,6 @@ export const updateApplicantProfile = async (req: AuthenticatedRequest, res: Res
     }
 
     const updatedApplicant = result.rows[0];
-    await syncProfileAssignmentsToDatabase();
     updatedApplicant.panel_scores = updatedApplicant.panel_scores && typeof updatedApplicant.panel_scores === 'string' ? JSON.parse(updatedApplicant.panel_scores) : updatedApplicant.panel_scores;
     updatedApplicant.form_data = updatedApplicant.form_data && typeof updatedApplicant.form_data === 'string' ? JSON.parse(updatedApplicant.form_data) : updatedApplicant.form_data;
 
@@ -2121,6 +2285,256 @@ export const deleteCohortFeedback = async (req: AuthenticatedRequest, res: Respo
   }
 };
 
+// --- DEDICATED SESSION FEEDBACK & 7-DAY WINDOW MODULE ---
+
+export const getSessionFeedback = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params; // session_id
+  const sessId = parseInt(id);
+
+  try {
+    const sessRes = await query('SELECT * FROM cohort_sessions WHERE id = $1', [sessId]);
+    if (sessRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found.' });
+    }
+    const session = sessRes.rows[0];
+
+    // Total startups count in this cohort
+    const appCountRes = await query(
+      `SELECT COUNT(*) as total FROM applicants WHERE cohort_id = $1 OR status = 'CONFIRMED'`,
+      [session.cohort_id]
+    );
+    const totalStartups = parseInt(appCountRes.rows[0]?.total || '0', 10);
+
+    // Fetch all feedbacks for this session
+    const feedRes = await query(
+      'SELECT * FROM cohort_feedback WHERE session_id = $1 ORDER BY created_at DESC',
+      [sessId]
+    );
+    const rawFeedbacks = feedRes.rows || [];
+
+    // Current user's applicant ID
+    let currentApplicantId: number | null = null;
+    const currentUserId = req.currentUser?.id || null;
+    if (req.currentUser?.email) {
+      const appRes = await query(
+        `SELECT id FROM applicants WHERE LOWER(email) = LOWER($1) ORDER BY id DESC LIMIT 1`,
+        [req.currentUser.email.trim()]
+      );
+      if (appRes.rows.length > 0) {
+        currentApplicantId = appRes.rows[0].id;
+      }
+    }
+
+    // Check if current user/applicant has submitted
+    let currentUserSubmitted = false;
+    let currentUserFeedback: any = null;
+    if (currentApplicantId || currentUserId) {
+      const userFeed = rawFeedbacks.find((f: any) => 
+        (currentApplicantId && f.applicant_id === currentApplicantId) ||
+        (currentUserId && f.user_id === currentUserId)
+      );
+      if (userFeed) {
+        currentUserSubmitted = true;
+        currentUserFeedback = userFeed;
+      }
+    }
+
+    // Calculate ratings
+    const totalSubmissions = rawFeedbacks.length;
+    let ratingSum = 0;
+    const ratingBreakdown: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+
+    const sanitizedFeedbacks = rawFeedbacks.map((f: any) => {
+      const r = parseInt(f.rating) || 5;
+      ratingSum += r;
+      if (ratingBreakdown[r] !== undefined) {
+        ratingBreakdown[r]++;
+      }
+      const isAnon = f.is_anonymous === true || f.is_anonymous === 'true';
+      return {
+        ...f,
+        rating: r,
+        founder_name: isAnon ? 'Anonymous Founder' : (f.founder_name || 'Cohort Founder'),
+        startup_name: isAnon ? 'Anonymous Startup' : (f.startup_name || 'Cohort Startup'),
+        user_id: isAnon ? null : f.user_id,
+        applicant_id: isAnon ? null : f.applicant_id
+      };
+    });
+
+    const averageRating = totalSubmissions > 0 ? Number((ratingSum / totalSubmissions).toFixed(1)) : 0;
+
+    // Calculate timing window (Opens after session date, closes after 7 days)
+    const todayStr = getTodayDateStringServer();
+    const sessDate = session.date || '';
+    let feedbackStatus: 'UPCOMING' | 'ACTIVE' | 'EXPIRED' = 'UPCOMING';
+    let daysRemaining = 0;
+    let windowOpensDate = sessDate;
+    let windowClosesDate = sessDate;
+
+    if (sessDate) {
+      const dSess = new Date(sessDate);
+      const dCloses = new Date(sessDate);
+      dCloses.setDate(dCloses.getDate() + 7);
+      windowClosesDate = dCloses.toISOString().split('T')[0];
+
+      if (todayStr < sessDate) {
+        feedbackStatus = 'UPCOMING';
+        daysRemaining = 0;
+      } else {
+        const dToday = new Date(todayStr);
+        const diffDays = Math.floor((dToday.getTime() - dSess.getTime()) / (1000 * 3600 * 24));
+        if (diffDays <= 7) {
+          feedbackStatus = 'ACTIVE';
+          daysRemaining = Math.max(0, 7 - diffDays);
+        } else {
+          feedbackStatus = 'EXPIRED';
+          daysRemaining = 0;
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      session_id: session.id,
+      session_title: session.title,
+      session_date: session.date,
+      start_time: session.start_time,
+      end_time: session.end_time,
+      mentor_name: session.mentor_name,
+      cohort_id: session.cohort_id,
+      total_startups: totalStartups,
+      total_submissions: totalSubmissions,
+      average_rating: averageRating,
+      rating_breakdown: ratingBreakdown,
+      feedback_status: feedbackStatus,
+      days_remaining: daysRemaining,
+      window_opens_date: windowOpensDate,
+      window_closes_date: windowClosesDate,
+      current_user_submitted: currentUserSubmitted,
+      current_user_feedback: currentUserFeedback,
+      feedbacks: sanitizedFeedbacks
+    });
+  } catch (err: any) {
+    console.error('Failed to get session feedback:', err);
+    res.status(500).json({ error: 'Failed to retrieve session feedback.' });
+  }
+};
+
+export const submitSessionFeedback = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params; // session_id
+  const sessId = parseInt(id);
+  const { rating, title, comment, is_anonymous } = req.body;
+
+  if (!rating || parseInt(rating) < 1 || parseInt(rating) > 5) {
+    return res.status(400).json({ error: 'Valid rating between 1 and 5 stars is required.' });
+  }
+
+  try {
+    const sessRes = await query('SELECT * FROM cohort_sessions WHERE id = $1', [sessId]);
+    if (sessRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found.' });
+    }
+    const session = sessRes.rows[0];
+
+    // Validate date window (Opens on/after session date, closes after 7 days)
+    const todayStr = getTodayDateStringServer();
+    const sessDate = session.date || '';
+
+    if (sessDate && todayStr < sessDate) {
+      return res.status(400).json({ 
+        error: `Session feedback is not open yet. Feedback will become available once the session is conducted on ${sessDate}.` 
+      });
+    }
+
+    if (sessDate) {
+      const dSess = new Date(sessDate);
+      const dToday = new Date(todayStr);
+      const diffDays = Math.floor((dToday.getTime() - dSess.getTime()) / (1000 * 3600 * 24));
+      if (diffDays > 7) {
+        return res.status(400).json({ 
+          error: 'The 7-day feedback window for this session has expired. Feedback can only be submitted within 7 days of the session date.' 
+        });
+      }
+    }
+
+    const userId = req.currentUser?.id || null;
+    const founderName = (req.currentUser as any)?.name || (req.currentUser as any)?.full_name || 'Cohort Founder';
+    let startupName = 'Cohort Startup';
+    let applicantId: number | null = null;
+
+    if (req.currentUser?.email) {
+      const appRes = await query(
+        `SELECT id, startup_name FROM applicants WHERE LOWER(email) = LOWER($1) ORDER BY id DESC LIMIT 1`,
+        [req.currentUser.email.trim()]
+      );
+      if (appRes.rows.length > 0) {
+        applicantId = appRes.rows[0].id;
+        startupName = appRes.rows[0].startup_name || startupName;
+      }
+    }
+
+    const isAnonBool = is_anonymous === true || is_anonymous === 'true';
+
+    // Check if feedback already exists for this session & user/applicant to update rather than duplicate
+    const existing = await query(
+      `SELECT id FROM cohort_feedback WHERE session_id = $1 AND (applicant_id = $2 OR (user_id = $3 AND user_id IS NOT NULL))`,
+      [sessId, applicantId || 0, userId || 0]
+    );
+
+    let feedbackRecord;
+    if (existing.rows && existing.rows.length > 0) {
+      const existingId = existing.rows[0].id;
+      const updateRes = await query(
+        `UPDATE cohort_feedback 
+         SET rating = $1, title = $2, comment = $3, is_anonymous = $4, founder_name = $5, startup_name = $6, status = 'SUBMITTED'
+         WHERE id = $7
+         RETURNING *`,
+        [
+          parseInt(rating),
+          title ? title.trim() : null,
+          comment ? comment.trim() : null,
+          isAnonBool,
+          isAnonBool ? 'Anonymous Founder' : founderName,
+          isAnonBool ? 'Anonymous Startup' : startupName,
+          existingId
+        ]
+      );
+      feedbackRecord = updateRes.rows[0];
+    } else {
+      const insertRes = await query(
+        `INSERT INTO cohort_feedback 
+         (cohort_id, session_id, user_id, applicant_id, founder_name, startup_name, feedback_type, rating, title, comment, is_anonymous, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'SESSION', $7, $8, $9, $10, 'SUBMITTED')
+         RETURNING *`,
+        [
+          session.cohort_id,
+          sessId,
+          userId,
+          applicantId,
+          isAnonBool ? 'Anonymous Founder' : founderName,
+          isAnonBool ? 'Anonymous Startup' : startupName,
+          parseInt(rating),
+          title ? title.trim() : null,
+          comment ? comment.trim() : null,
+          isAnonBool
+        ]
+      );
+      feedbackRecord = insertRes.rows[0];
+    }
+
+    res.json({
+      success: true,
+      message: isAnonBool 
+        ? 'Anonymous session feedback recorded securely! Your identity is protected.' 
+        : 'Session feedback submitted successfully. Thank you for your feedback!',
+      feedback: feedbackRecord
+    });
+  } catch (err: any) {
+    console.error('Failed to submit session feedback:', err);
+    res.status(500).json({ error: 'Failed to record session feedback.' });
+  }
+};
+
 // ==========================================
 // 8. GENERALIZED COHORT FEEDBACK FORMS MODULE
 // ==========================================
@@ -2211,6 +2625,21 @@ export const getFeedbackForms = async (req: AuthenticatedRequest, res: Response)
         currentApplicantId = appRes.rows[0].id;
       }
     }
+    if (!currentApplicantId && req.currentUser?.id) {
+      const appRes = await query(
+        `SELECT id FROM applicants WHERE user_id = $1 ORDER BY id DESC LIMIT 1`,
+        [req.currentUser.id]
+      );
+      if (appRes.rows.length > 0) {
+        currentApplicantId = appRes.rows[0].id;
+      }
+    }
+    if (!currentApplicantId) {
+      const appRes = await query(`SELECT id FROM applicants ORDER BY id ASC LIMIT 1`);
+      currentApplicantId = appRes.rows[0]?.id || 1;
+    }
+
+    const currentUserId = req.currentUser?.id || 0;
 
     const detailedForms = await Promise.all(
       forms.map(async (form: any) => {
@@ -2235,12 +2664,12 @@ export const getFeedbackForms = async (req: AuthenticatedRequest, res: Response)
         const totalStartups = parseInt(cohortAppRes.rows[0]?.total || '0', 10);
         const completionRate = totalStartups > 0 ? Math.round((uniqueSubmissionsCount / totalStartups) * 100) : 0;
 
-        // Check if current applicant submitted
+        // Check if current applicant or user submitted
         let hasSubmitted = false;
         if (currentApplicantId) {
           const userSubRes = await query(
-            `SELECT id FROM feedback_responses WHERE feedback_form_id = $1 AND startup_id = $2 LIMIT 1`,
-            [form.id, currentApplicantId]
+            `SELECT id FROM feedback_responses WHERE feedback_form_id = $1 AND (startup_id = $2 OR user_id = $3) LIMIT 1`,
+            [form.id, currentApplicantId, currentUserId]
           );
           hasSubmitted = userSubRes.rows.length > 0;
         }
@@ -2251,7 +2680,8 @@ export const getFeedbackForms = async (req: AuthenticatedRequest, res: Response)
           response_count: uniqueSubmissionsCount,
           total_startups: totalStartups,
           completion_rate: completionRate,
-          has_submitted: hasSubmitted
+          has_submitted: hasSubmitted,
+          user_submitted: hasSubmitted
         };
       })
     );
@@ -2299,11 +2729,13 @@ export const getPendingFeedbackForms = async (req: AuthenticatedRequest, res: Re
     const activeForms = formsRes.rows;
     const pendingForms = [];
 
+    const currentUserId = req.currentUser?.id || 0;
+
     for (const form of activeForms) {
       // Check if this startup already submitted any response for this form
       const subCheck = await query(
-        `SELECT id FROM feedback_responses WHERE feedback_form_id = $1 AND startup_id = $2 LIMIT 1`,
-        [form.id, applicant.id]
+        `SELECT id FROM feedback_responses WHERE feedback_form_id = $1 AND (startup_id = $2 OR user_id = $3) LIMIT 1`,
+        [form.id, applicant.id, currentUserId]
       );
 
       if (subCheck.rows.length === 0) {
@@ -2334,11 +2766,13 @@ export const getPendingFeedbackForms = async (req: AuthenticatedRequest, res: Re
 export const submitFeedbackFormResponse = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const formId = parseInt(req.params.id);
-    const { responses } = req.body;
+    const rawResponses = req.body.responses || req.body.answers || (Array.isArray(req.body) ? req.body : []);
 
-    if (!responses || !Array.isArray(responses) || responses.length === 0) {
+    if (!rawResponses || !Array.isArray(rawResponses) || rawResponses.length === 0) {
       return res.status(400).json({ error: 'Responses are required.' });
     }
+
+    const responses = rawResponses;
 
     // 1. Verify form exists and is active
     const formRes = await query(`SELECT * FROM feedback_forms WHERE id = $1`, [formId]);

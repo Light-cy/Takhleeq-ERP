@@ -25,6 +25,7 @@ export const PublicCohortApplyPage: React.FC<PublicCohortApplyPageProps> = ({ on
   const [formSettings, setFormSettings] = useState<{ is_active: boolean; fields: FormField[] } | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateEmailError, setDuplicateEmailError] = useState<{ isDuplicate: boolean; message: string; existingToken?: string } | null>(null);
 
   // Form State
   const [name, setName] = useState('');
@@ -99,6 +100,7 @@ export const PublicCohortApplyPage: React.FC<PublicCohortApplyPageProps> = ({ on
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    setDuplicateEmailError(null);
 
     // Dynamic field responses mapping
     const finalFormData: Record<string, any> = {};
@@ -119,18 +121,25 @@ export const PublicCohortApplyPage: React.FC<PublicCohortApplyPageProps> = ({ on
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          name,
-          email,
-          phone,
-          cnic,
-          startup_name: startupName,
-          startup_description: startupDesc,
+          name: name.trim(),
+          email: email.toLowerCase().trim(),
+          phone: phone.trim(),
+          cnic: cnic.trim(),
+          startup_name: startupName.trim(),
+          startup_description: startupDesc.trim(),
           form_data: finalFormData
         })
       });
 
       const resData = await response.json();
       if (!response.ok) {
+        if (resData.is_duplicate_email || (resData.error && resData.error.toLowerCase().includes('already been submitted'))) {
+          setDuplicateEmailError({
+            isDuplicate: true,
+            message: resData.error,
+            existingToken: resData.existing_token
+          });
+        }
         throw new Error(resData.error || 'Failed to submit application.');
       }
 
@@ -267,11 +276,42 @@ export const PublicCohortApplyPage: React.FC<PublicCohortApplyPageProps> = ({ on
             </p>
           </div>
 
-          {error && (
+          {duplicateEmailError ? (
+            <div className="p-5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 text-left space-y-3 shadow-3xs">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="font-black text-rose-900 text-sm">Email Address Already Registered</h4>
+                  <p className="leading-relaxed">{duplicateEmailError.message}</p>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-rose-200/60 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/cohort-track')}
+                  className="px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-xl font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-3xs"
+                >
+                  <Search className="h-3.5 w-3.5" />
+                  Track Existing Application
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDuplicateEmailError(null);
+                    setError(null);
+                    setEmail('');
+                  }}
+                  className="px-3.5 py-2 bg-white hover:bg-rose-100/50 text-rose-700 border border-rose-200 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Use a Different Email
+                </button>
+              </div>
+            </div>
+          ) : error ? (
             <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-xs text-rose-700 text-left leading-relaxed">
               {error}
             </div>
-          )}
+          ) : null}
 
           <form onSubmit={handleSubmit} className="bg-white border border-gray-100 shadow-3xs rounded-2xl p-6 md:p-10 space-y-8 text-left">
             
@@ -330,15 +370,35 @@ export const PublicCohortApplyPage: React.FC<PublicCohortApplyPageProps> = ({ on
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 font-mono">Email Address *</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 font-mono">Email Address *</label>
+                    <span className="text-[10px] text-gray-400 font-medium">1 application per email</span>
+                  </div>
                   <input
                     type="email"
                     required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (duplicateEmailError) setDuplicateEmailError(null);
+                      if (error) setError(null);
+                    }}
                     placeholder="founder@startup.pk"
-                    className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-3 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-primary focus:bg-white transition-all font-bold"
+                    className={`w-full border rounded-xl px-4 py-3 text-xs text-gray-800 placeholder-gray-400 focus:outline-none transition-all font-bold ${
+                      duplicateEmailError?.isDuplicate 
+                        ? 'bg-rose-50/50 border-rose-400 focus:border-rose-500 focus:bg-white text-rose-900' 
+                        : 'bg-gray-50 border-gray-150 focus:border-primary focus:bg-white'
+                    }`}
                   />
+                  {duplicateEmailError?.isDuplicate ? (
+                    <span className="text-[10px] font-bold text-rose-600 block">
+                      This email is already in use. Please enter a different email address.
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 block">
+                      Confirmation token and program updates will be delivered here.
+                    </span>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">

@@ -299,9 +299,15 @@ export const StartupDetailView: React.FC<Props> = ({
                 <span className={`px-3 py-1 rounded-full text-xs font-black uppercase font-mono border ${
                   profile.program_status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' :
                   profile.program_status === 'PAUSED' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' :
+                  profile.program_status === 'GRADUATED' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' :
+                  profile.program_status === 'NOT_ENROLLED' ? 'bg-gray-500/20 text-gray-300 border-gray-500/40' :
                   'bg-rose-500/20 text-rose-300 border-rose-500/40'
                 }`}>
-                  {profile.program_status === 'ACTIVE' ? '🟢 Active Startup' : profile.program_status === 'PAUSED' ? '🟡 Temporarily Blocked' : '🔴 Kicked Out / Terminated'}
+                  {profile.program_status === 'ACTIVE' ? '🟢 Active Startup' : 
+                   profile.program_status === 'PAUSED' ? '🟡 Paused' : 
+                   profile.program_status === 'GRADUATED' ? '🎓 Graduated' : 
+                   profile.program_status === 'NOT_ENROLLED' ? '⚪ Not Enrolled' : 
+                   '🔴 Kicked Out / Terminated'}
                 </span>
               </div>
               <p className="text-xs text-gray-300 font-medium mt-1 line-clamp-2 max-w-2xl">
@@ -349,29 +355,37 @@ export const StartupDetailView: React.FC<Props> = ({
           <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-2 flex flex-col justify-between">
             <div>
               <label className="text-xs font-black text-gray-700 uppercase tracking-wide block mb-2">Account & Program Status</label>
-              <div className="grid grid-cols-3 gap-1">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
                 <button
                   onClick={() => handleAdminSave({ program_status: 'ACTIVE' })}
                   disabled={saving || profile.program_status === 'ACTIVE'}
-                  className="py-2 px-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
+                  className="py-1.5 px-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
                 >
-                  <PlayCircle className="h-3.5 w-3.5 shrink-0" />
+                  <PlayCircle className="h-3 w-3 shrink-0" />
                   <span>Active</span>
                 </button>
                 <button
                   onClick={() => handleAdminSave({ program_status: 'PAUSED' })}
                   disabled={saving || profile.program_status === 'PAUSED'}
-                  className="py-2 px-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
+                  className="py-1.5 px-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
                 >
-                  <Ban className="h-3.5 w-3.5 shrink-0" />
+                  <Ban className="h-3 w-3 shrink-0" />
                   <span>Pause</span>
+                </button>
+                <button
+                  onClick={() => handleAdminSave({ program_status: 'GRADUATED' })}
+                  disabled={saving || profile.program_status === 'GRADUATED'}
+                  className="py-1.5 px-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
+                >
+                  <Award className="h-3 w-3 shrink-0" />
+                  <span>Graduate</span>
                 </button>
                 <button
                   onClick={() => handleAdminSave({ program_status: 'KICKED_OUT' })}
                   disabled={saving || profile.program_status === 'KICKED_OUT'}
-                  className="py-2 px-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-bold flex flex-col sm:flex-row items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
+                  className="py-1.5 px-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
                 >
-                  <ShieldX className="h-3.5 w-3.5 shrink-0" />
+                  <ShieldX className="h-3 w-3 shrink-0" />
                   <span>Kick Out</span>
                 </button>
               </div>

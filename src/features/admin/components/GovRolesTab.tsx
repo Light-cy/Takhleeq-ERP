@@ -23,15 +23,23 @@ export interface PermissionNodeDef {
 }
 
 export const PERMISSION_NODES: PermissionNodeDef[] = [
-  // --- COHORT & INCUBATION MANAGEMENT NODES ---
-  { key: 'cohort:form_manage', label: 'Form Builder & Cohort Settings', category: 'INCUBATION', description: 'Configure application intake fields, toggle portal status, create & manage cohorts' },
-  { key: 'cohort:applicant_review', label: 'Applicant Screening & Admissions', category: 'INCUBATION', description: 'Review startup applications, score interviews/pitches, manage stage transitions & credentials' },
-  { key: 'cohort:session_manage', label: 'Session Scheduling & Curriculum', category: 'INCUBATION', description: 'Schedule workshop lectures, assign mentors, manage syllabus & assignment deliverables' },
-  { key: 'cohort:attendance_write', label: 'Attendance Tracking & Compliance', category: 'INCUBATION', description: 'Mark session attendance (Present/Late/Absent), log orientation compliance & review submissions' },
+  // --- COHORT & INCUBATION GRANULAR SECTION NODES ---
+  { key: 'cohort:dashboard_view', label: '1. Cohort Dashboard & KPIs', category: 'INCUBATION', description: 'Access incubator dashboard, venture overview, milestone metrics, and cohort health stats' },
+  { key: 'cohort:settings_manage', label: '2. Cohort Settings & Status', category: 'INCUBATION', description: 'Create cohorts, modify timeline configurations, adjust batch parameters, and toggle cohort status' },
+  { key: 'cohort:form_manage', label: '3. Application Form Configuration', category: 'INCUBATION', description: 'Configure application intake fields, custom form questions, and application portal state' },
+  { key: 'cohort:applicant_review', label: '4. Review Applications & Admissions', category: 'INCUBATION', description: 'Screen startup applications, score interviews/pitches, change admissions pipeline stage & issue credentials' },
+  { key: 'cohort:startups_manage', label: '5. Active Startups Directory', category: 'INCUBATION', description: 'Browse and manage incubated startups, team profiles, founder metrics, and venture progress' },
+  { key: 'cohort:session_manage', label: '6. Workshop & Session Scheduling', category: 'INCUBATION', description: 'Schedule workshop lectures, assign guest mentors, update masterclass calendar & manage curriculum' },
+  { key: 'cohort:assignment_manage', label: '7. Assignments & Deliverables', category: 'INCUBATION', description: 'Create cohort milestone assignments, set submission deadlines, and evaluate founder deliverables' },
+  { key: 'cohort:feedback_view', label: '8. Founder Feedback Monitor', category: 'INCUBATION', description: 'View submitted founder ratings, mentor satisfaction surveys, and workshop feedback responses' },
+  { key: 'cohort:feedback_forms_manage', label: '9. Feedback Forms & Surveys', category: 'INCUBATION', description: 'Create, distribute, and manage custom evaluation survey forms and feedback questionnaires' },
+
+  // --- COHORT OPERATIONAL SUB-PERMISSIONS ---
+  { key: 'cohort:attendance_write', label: 'Attendance & Compliance Marking', category: 'INCUBATION', description: 'Mark session attendance (Present/Late/Absent), log orientation compliance & review submissions' },
   { key: 'cohort:checkin_log', label: 'Mentorship Check-ins & Progress', category: 'INCUBATION', description: 'Log team check-ins, record founder progress scores, mentor notes & velocity metrics' },
   { key: 'cohort:warning_write', label: 'Probation Notices & Warnings', category: 'INCUBATION', description: 'Issue official performance/attendance warnings to startups and resolve probation status' },
   { key: 'cohort:profile_write', label: 'Founder Startup Self-Service', category: 'INCUBATION', description: 'Founder access to manage startup profile, team members, pitch details & metrics' },
-  { key: 'cohort:feedback_submit', label: 'Founder Workshop Feedback', category: 'INCUBATION', description: 'Founder access to rate workshop sessions and submit mentor feedback' },
+  { key: 'cohort:feedback_submit', label: 'Founder Workshop Feedback Submit', category: 'INCUBATION', description: 'Founder access to rate workshop sessions and submit mentor feedback' },
   { key: 'cohort:assignment_upload', label: 'Founder Deliverable Uploads', category: 'INCUBATION', description: 'Founder access to upload completed assignment deliverables and milestone proofs' },
 
   // --- FACILITY & RESERVATION NODES ---
@@ -42,13 +50,15 @@ export const PERMISSION_NODES: PermissionNodeDef[] = [
   { key: 'BOOKING_OVERRIDE', label: 'Booking Schedule Override', category: 'FACILITY', description: 'Override existing room bookings and resolve calendar scheduling conflicts' },
   { key: 'MANAGE_ROOMS', label: 'Facility Spaces & Rooms', category: 'FACILITY', description: 'Configure room attributes, operating parameters, and add new facility spaces' },
   { key: 'MANAGE_BOOKING_TYPES', label: 'Booking Classifications', category: 'FACILITY', description: 'Manage classification categories and policy constraints for space requests' },
+  { key: 'VIEW_BOOKING_ANALYTICS', label: 'Booking Analytics & Utilization', category: 'FACILITY', description: 'Inspect room booking analytics, peak usage heatmaps, and facility utilization stats' },
 
   // --- GOVERNANCE & SECURITY NODES ---
   { key: 'MANAGE_ROLES', label: 'Role & Policy Compiler', category: 'GOVERNANCE', description: 'Create, edit, and assign custom RBAC roles and permission node policies' },
   { key: 'MANAGE_USERS', label: 'User Directory & Role Mapping', category: 'GOVERNANCE', description: 'Register workspace user profiles and map security roles' },
   { key: 'ISSUE_BAN', label: 'Blacklist & Account Bans', category: 'GOVERNANCE', description: 'Suspend user facility/portal access and manage active ban records' },
   { key: 'VIEW_ANALYTICS_DASHBOARD', label: 'Executive Analytics', category: 'GOVERNANCE', description: 'Access executive analytics dashboards, facility utilization, and cohort KPIs' },
-  { key: 'EXPORT_AUDIT_LOGS', label: 'Audit Logs & PDF Reports', category: 'GOVERNANCE', description: 'Inspect system audit trails and export compliance audit reports' },
+  { key: 'VIEW_AUDIT_LOGS', label: 'View System Audit Logs', category: 'GOVERNANCE', description: 'Inspect system compliance audit ledger and user activity records' },
+  { key: 'EXPORT_AUDIT_LOGS', label: 'Export Audit Reports (PDF)', category: 'GOVERNANCE', description: 'Download executive compliance audit summaries and PDF reports' },
 ];
 
 export function GovRolesTab({
@@ -99,13 +109,26 @@ export function GovRolesTab({
         keysToSelect = ['cohort:applicant_review'];
         break;
       case 'INCUBATOR_STAFF':
-        keysToSelect = ['cohort:session_manage', 'cohort:attendance_write', 'cohort:checkin_log', 'cohort:warning_write', 'cohort:applicant_review'];
+        keysToSelect = [
+          'cohort:dashboard_view',
+          'cohort:settings_manage',
+          'cohort:form_manage',
+          'cohort:applicant_review',
+          'cohort:startups_manage',
+          'cohort:session_manage',
+          'cohort:assignment_manage',
+          'cohort:feedback_view',
+          'cohort:feedback_forms_manage',
+          'cohort:attendance_write',
+          'cohort:checkin_log',
+          'cohort:warning_write'
+        ];
         break;
       case 'FOUNDER':
         keysToSelect = ['cohort:profile_write', 'cohort:feedback_submit', 'cohort:assignment_upload'];
         break;
       case 'FACILITY_MGR':
-        keysToSelect = ['SUBMIT_BOOKING', 'CANCEL_OWN_BOOKING', 'VIEW_PENDING_QUEUE', 'APPROVE_REJECT_BOOKINGS', 'BOOKING_OVERRIDE', 'MANAGE_ROOMS'];
+        keysToSelect = ['SUBMIT_BOOKING', 'CANCEL_OWN_BOOKING', 'VIEW_PENDING_QUEUE', 'APPROVE_REJECT_BOOKINGS', 'BOOKING_OVERRIDE', 'MANAGE_ROOMS', 'MANAGE_BOOKING_TYPES', 'VIEW_BOOKING_ANALYTICS'];
         break;
       case 'CLEAR':
         keysToSelect = [];

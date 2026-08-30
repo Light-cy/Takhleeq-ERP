@@ -127,6 +127,29 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
     }
   };
 
+  const [updatingProgramStatus, setUpdatingProgramStatus] = useState<boolean>(false);
+
+  const handleUpdateProgramStatus = async (newProgramStatus: string) => {
+    if (!applicant) return;
+    setUpdatingProgramStatus(true);
+    try {
+      const res = await fetchWithAuth(`/api/applicants/${applicant.id}/program-status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ program_status: newProgramStatus })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update program status');
+      setApplicant({ ...applicant, program_status: newProgramStatus });
+      triggerSuccess(`Startup program status set to ${newProgramStatus} across all views.`);
+      loadStageHistory();
+    } catch (err: any) {
+      triggerError(err.message || 'Failed to update program status.');
+    } finally {
+      setUpdatingProgramStatus(false);
+    }
+  };
+
   // Close kebab menu on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -310,8 +333,14 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
               </span>
               <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md border font-mono ${
                 applicant.program_status === 'ACTIVE' 
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-                  : 'bg-gray-100 text-gray-700 border-gray-200'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+                applicant.program_status === 'PAUSED'
+                  ? 'bg-amber-50 text-amber-800 border-amber-200' :
+                applicant.program_status === 'GRADUATED'
+                  ? 'bg-indigo-50 text-indigo-800 border-indigo-200' :
+                applicant.program_status === 'KICKED_OUT'
+                  ? 'bg-rose-50 text-rose-800 border-rose-200' :
+                  'bg-gray-100 text-gray-700 border-gray-200'
               }`}>
                 Program Status: {applicant.program_status || 'NOT_ENROLLED'}
               </span>
@@ -335,21 +364,48 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
           </div>
         </div>
 
-        {/* Orientation Toggle Bar */}
-        <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
-          <span className="text-gray-500 font-medium">Onboarding Orientation State:</span>
-          <button
-            onClick={handleToggleOrientation}
-            disabled={updatingOrientation}
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-extrabold transition-all cursor-pointer ${
-              applicant.orientation_conducted 
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100' 
-                : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
-            }`}
-          >
-            {applicant.orientation_conducted ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Clock className="h-3.5 w-3.5 text-gray-400" />}
-            <span>Orientation {applicant.orientation_conducted ? 'Conducted' : 'Pending'}</span>
-          </button>
+        {/* Program Status Quick Switch & Orientation Bar */}
+        <div className="pt-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-gray-500 font-bold text-[11px] uppercase font-mono">Program Status:</span>
+            <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50 text-[10px] font-bold">
+              {(['NOT_ENROLLED', 'ACTIVE', 'PAUSED', 'GRADUATED', 'KICKED_OUT'] as const).map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  disabled={updatingProgramStatus || (applicant.program_status || 'NOT_ENROLLED') === st}
+                  onClick={() => handleUpdateProgramStatus(st)}
+                  className={`px-2 py-1 rounded-md font-mono transition-all cursor-pointer ${
+                    (applicant.program_status || 'NOT_ENROLLED') === st
+                      ? st === 'ACTIVE' ? 'bg-emerald-600 text-white font-black shadow-xs'
+                        : st === 'PAUSED' ? 'bg-amber-600 text-white font-black shadow-xs'
+                        : st === 'GRADUATED' ? 'bg-indigo-600 text-white font-black shadow-xs'
+                        : st === 'KICKED_OUT' ? 'bg-rose-600 text-white font-black shadow-xs'
+                        : 'bg-gray-700 text-white font-black shadow-xs'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                  }`}
+                >
+                  {st.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500 font-medium">Orientation:</span>
+            <button
+              onClick={handleToggleOrientation}
+              disabled={updatingOrientation}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-extrabold transition-all cursor-pointer ${
+                applicant.orientation_conducted 
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100' 
+                  : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
+              }`}
+            >
+              {applicant.orientation_conducted ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Clock className="h-3.5 w-3.5 text-gray-400" />}
+              <span>{applicant.orientation_conducted ? 'Conducted' : 'Pending'}</span>
+            </button>
+          </div>
         </div>
       </div>
 

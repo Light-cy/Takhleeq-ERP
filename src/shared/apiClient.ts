@@ -8,9 +8,12 @@ export const getClientHeaders = (customToken?: string | null) => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  const activeToken = customToken !== undefined ? customToken : token;
-  if (activeToken) {
-    headers['Authorization'] = `Bearer ${activeToken}`;
+  const activeToken = customToken !== undefined 
+    ? customToken 
+    : (token || (typeof localStorage !== 'undefined' ? (localStorage.getItem('jwtToken') || localStorage.getItem('token')) : null));
+    
+  if (activeToken && typeof activeToken === 'string' && activeToken.trim() !== '' && activeToken !== 'null' && activeToken !== 'undefined') {
+    headers['Authorization'] = `Bearer ${activeToken.trim()}`;
   }
   return headers;
 };
@@ -18,6 +21,7 @@ export const getClientHeaders = (customToken?: string | null) => {
 const handle401 = () => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('jwtToken');
+    localStorage.removeItem('token');
     localStorage.removeItem('currentUser');
     window.dispatchEvent(new Event('auth:session_expired'));
   }

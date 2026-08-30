@@ -7,16 +7,30 @@ import {
   StartupProgressStage
 } from '../../../types/startup.types';
 
+function getAuthHeaders(existingHeaders: Record<string, string> = {}) {
+  const token = typeof localStorage !== 'undefined' 
+    ? (localStorage.getItem('jwtToken') || localStorage.getItem('token')) 
+    : null;
+  const headers: Record<string, string> = { ...existingHeaders };
+  if (token && typeof token === 'string' && token.trim() !== '' && token !== 'null' && token !== 'undefined') {
+    headers['Authorization'] = `Bearer ${token.trim()}`;
+  }
+  return headers;
+}
+
 async function parseResponse(res: Response, fallbackError: string) {
   const text = await res.text();
   let json: any = {};
   try {
     json = text ? JSON.parse(text) : {};
   } catch (e) {
-    throw new Error(fallbackError || `Server error (${res.status}): ${text.slice(0, 100)}`);
+    if (!res.ok) {
+      throw new Error(fallbackError || `Server error (${res.status})`);
+    }
+    return { success: true, data: [] };
   }
   if (!res.ok || json.success === false) {
-    throw new Error(json.error || fallbackError);
+    throw new Error(json.error || json.message || fallbackError);
   }
   return json;
 }
@@ -173,18 +187,22 @@ export async function resolveStartupWarning(warningId: number, payload: {
 }
 
 export async function fetchCohortStartupPivotRequests(startupId: number): Promise<any[]> {
-  const res = await fetch(`/api/startups/${startupId}/pivots`);
+  const res = await fetch(`/api/startups/${startupId}/pivots`, {
+    headers: getAuthHeaders()
+  });
   const json = await parseResponse(res, 'Failed to fetch pivot requests');
-  return Array.isArray(json) ? json : [];
+  if (Array.isArray(json)) return json;
+  if (Array.isArray(json.data)) return json.data;
+  return [];
 }
 
 export async function reviewStartupPivot(pivotId: number, payload: {
   action: 'APPROVE' | 'REJECT';
   admin_remarks?: string;
 }): Promise<any> {
-  const res = await fetch(`/api/cohorts/pivots/${pivotId}/review`, {
+  const res = await fetch(`/api/startups/pivots/${pivotId}/review`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload)
   });
   const json = await parseResponse(res, 'Failed to review pivot request');

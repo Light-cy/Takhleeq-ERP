@@ -28,7 +28,7 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
     token = token.slice(1, -1);
   }
 
-  if (!token || token === 'undefined' || token === 'null') {
+  if (!token || token === 'undefined' || token === 'null' || token.split('.').length !== 3) {
     req.currentUser = null;
     return next();
   }
@@ -83,11 +83,6 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
       req.currentUser = null;
     }
   } catch (err: any) {
-    if (err.name === 'TokenExpiredError' || err.message === 'jwt expired') {
-      console.warn("JWT token expired for incoming request");
-    } else {
-      console.warn("JWT verification failed:", err.message);
-    }
     req.currentUser = null;
   }
   next();

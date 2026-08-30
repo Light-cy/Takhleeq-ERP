@@ -7,7 +7,7 @@
       "full_name": "Qaseeb Ahmed",
       "password": "Tk#304544",
       "is_active": true,
-      "last_login": "2026-08-11T07:21:24.851Z",
+      "last_login": "2026-08-30T08:54:54.962Z",
       "created_at": "2026-08-09T13:44:11.773Z"
     },
     {
@@ -107,34 +107,35 @@
       "name": "Administrator",
       "description": "Full access and policy management capabilities",
       "permissions": [
-        "SUBMIT_BOOKING",
-        "CANCEL_OWN_BOOKING",
-        "VIEW_PENDING_QUEUE",
-        "APPROVE_BOOKING",
-        "REJECT_BOOKING",
-        "APPROVE_REJECT_BOOKINGS",
-        "BOOKING_OVERRIDE",
-        "ISSUE_BAN",
-        "MANAGE_ROOMS",
-        "CONFIGURE_ROOMS",
-        "CONFIGURE_POLICIES",
-        "VIEW_ANALYTICS_DASHBOARD",
-        "EXPORT_AUDIT_LOGS",
-        "MANAGE_ROLES",
-        "MANAGE_USERS",
-        "VIEW_AUDIT_LOGS",
-        "LIFT_BAN",
-        "MANAGE_BANS",
-        "MANAGE_BOOKING_TYPES",
+        "cohort:dashboard_view",
+        "cohort:settings_manage",
         "cohort:form_manage",
         "cohort:applicant_review",
+        "cohort:startups_manage",
         "cohort:session_manage",
+        "cohort:assignment_manage",
+        "cohort:feedback_view",
+        "cohort:feedback_forms_manage",
         "cohort:attendance_write",
         "cohort:checkin_log",
         "cohort:warning_write",
         "cohort:profile_write",
         "cohort:feedback_submit",
-        "cohort:assignment_upload"
+        "cohort:assignment_upload",
+        "SUBMIT_BOOKING",
+        "CANCEL_OWN_BOOKING",
+        "VIEW_PENDING_QUEUE",
+        "APPROVE_REJECT_BOOKINGS",
+        "BOOKING_OVERRIDE",
+        "MANAGE_ROOMS",
+        "MANAGE_BOOKING_TYPES",
+        "VIEW_BOOKING_ANALYTICS",
+        "MANAGE_ROLES",
+        "MANAGE_USERS",
+        "ISSUE_BAN",
+        "VIEW_ANALYTICS_DASHBOARD",
+        "VIEW_AUDIT_LOGS",
+        "EXPORT_AUDIT_LOGS"
       ],
       "ban_duration_ceiling": "permanent",
       "created_by": null,
@@ -920,6 +921,36 @@
         "permissions": []
       },
       "timestamp": "2026-08-11T07:34:05.554Z"
+    },
+    {
+      "id": 50,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-30T08:42:56.218Z"
+    },
+    {
+      "id": 51,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-30T08:49:03.145Z"
+    },
+    {
+      "id": 52,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-08-30T08:54:54.965Z"
     }
   ],
   "rooms": [
@@ -1542,5 +1573,6 @@
       "is_completed": false,
       "created_at": "2026-08-10T11:34:24.122Z"
     }
-  ]
+  ],
+  "cohort_feedback": []
 }

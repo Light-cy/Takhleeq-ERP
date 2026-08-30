@@ -34,7 +34,9 @@ import {
   CheckSquare,
   User,
   Paperclip,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Lock,
+  AlertTriangle
 } from 'lucide-react';
 import { downloadFileLocally, getCleanFileName, parseAssignmentAttachments, formatFileSize, AssignmentAttachment } from '../../../../utils/fileDownload';
 import { CohortFeedbackTab } from '../../components/CohortFeedbackTab';
@@ -51,6 +53,14 @@ import { StartupDirectoryTab } from '../../../startups/components/StartupDirecto
 import { ApplicationDetailsPage } from './ApplicationDetailsPage';
 import { SessionDetailModal } from '../../components/SessionDetailModal';
 import { CheckinDetailPage } from '../../../checkins/pages/CheckinDetailPage';
+
+const getTodayDateString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 interface CohortManagementPageProps {
   currentUser: any;
@@ -263,6 +273,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   // Independent Cohort Assignments State
   const [cohortAssignments, setCohortAssignments] = useState<any[]>([]);
   const [loadingCohortAssignments, setLoadingCohortAssignments] = useState(false);
+  const [asgFilter, setAsgFilter] = useState<'ALL' | 'INDEPENDENT' | 'SESSION'>('ALL');
   const [newAsgTitle, setNewAsgTitle] = useState('');
   const [newAsgDesc, setNewAsgDesc] = useState('');
   const [newAsgDueDate, setNewAsgDueDate] = useState('');
@@ -424,6 +435,11 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       triggerError('Please provide an assignment title and due date.');
       return;
     }
+    const todayStr = getTodayDateString();
+    if (newAsgDueDate < todayStr) {
+      triggerError('Submission due date cannot be in the past. Please select today or a future date.');
+      return;
+    }
     setPublishingAsg(true);
     try {
       const attachmentsList: AssignmentAttachment[] = [];
@@ -497,6 +513,10 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
       const attachedCountMsg = attachmentsList.length > 0 ? ` with ${attachmentsList.length} attachment(s)` : '';
       triggerSuccess(`Independent assignment "${newAsgTitle}"${attachedCountMsg} published for all cohort startups!`);
+      if (data.assignment) {
+        setCohortAssignments(prev => [data.assignment, ...prev.filter(a => a.id !== data.assignment.id)]);
+        setAssignments(prev => [data.assignment, ...prev.filter(a => a.id !== data.assignment.id)]);
+      }
       setNewAsgTitle('');
       setNewAsgDesc('');
       setNewAsgDueDate('');
@@ -504,7 +524,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       setNewAsgFileUrls([]);
       setNewAsgUrlInput('');
       setUploadProgressText('');
-      fetchCohortAssignments(targetCohortId);
+      await fetchCohortAssignments(targetCohortId);
     } catch (err: any) {
       triggerError(err.message || 'Failed to publish assignment.');
     } finally {
@@ -540,25 +560,31 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
     try {
       setDeletingAsgId(null);
       setCohortAssignments(prev => prev.filter(a => a.id !== asgId));
+      setAssignments(prev => prev.filter(a => a.id !== asgId));
       if (selectedAsgForSubmissions?.id === asgId) setSelectedAsgForSubmissions(null);
 
       const res = await fetchWithAuth(`/api/assignments/${asgId}`, { method: 'DELETE' });
       if (res.ok) {
         triggerSuccess('Assignment deleted successfully.');
-        fetchCohortAssignments();
+        await fetchCohortAssignments(selectedCohort?.id);
       } else {
         triggerError('Failed to delete assignment.');
-        fetchCohortAssignments();
+        await fetchCohortAssignments(selectedCohort?.id);
       }
     } catch (err) {
       triggerError('Failed to delete assignment.');
-      fetchCohortAssignments();
+      await fetchCohortAssignments(selectedCohort?.id);
     }
   };
 
   const handleSaveAssignmentUpdate = async () => {
     if (!editingAssignment || !editingAssignment.due_date) {
       triggerError('Due date is required.');
+      return;
+    }
+    const todayStr = getTodayDateString();
+    if (editingAssignment.due_date < todayStr) {
+      triggerError('Due date cannot be in the past. Please select today or a future date.');
       return;
     }
     setIsUpdatingAssignment(true);
@@ -788,9 +814,24 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   };
 
   // --- SUBTAB 3: COHORT & WORKSHOP SCHEDULER ---
+  const uncompletedCohort = cohorts.find(c => c.status !== 'COMPLETED');
+
+  const handleOpenCreateCohortModal = () => {
+    if (uncompletedCohort) {
+      triggerError(`Cannot create a new cohort until '${uncompletedCohort.name}' is bulk graduated and marked as Completed.`);
+      return;
+    }
+    setShowCreateCohortForm(true);
+  };
+
   const handleCreateCohort = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCohortName.trim()) return;
+
+    if (uncompletedCohort) {
+      triggerError(`Cannot create a new cohort. Previous cohort '${uncompletedCohort.name}' is still '${uncompletedCohort.status}'. Please bulk graduate (complete) the previous cohort first.`);
+      return;
+    }
 
     try {
       const res = await fetchWithAuth('/api/cohorts', {
@@ -801,13 +842,31 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to initiate cohort.');
 
-      setCohorts(prev => [...prev, data.cohort]);
-      setSelectedCohort(data.cohort);
+      const newCohortObj = data.cohort;
+      setCohorts(prev => [...prev.filter(c => c.id !== newCohortObj.id), newCohortObj]);
+      setSelectedCohort(newCohortObj);
+      if (setSelectedCohortId) {
+        setSelectedCohortId(newCohortObj.id);
+      }
+      setSessions([]);
+      setCheckins([]);
+      setWarnings([]);
+      setCohortAssignments([]);
+      setAssignments([]);
+      setSelectedSession(null);
       setNewCohortName('');
       setShowCreateCohortForm(false);
-      triggerSuccess(`Cohort Incubator Program '${data.cohort.name}' created successfully.`);
+      triggerSuccess(`Cohort Incubator Program '${newCohortObj.name}' created successfully.`);
+
+      if (onRefresh) {
+        try {
+          await onRefresh();
+        } catch (e) {
+          console.error('Error refreshing parent context:', e);
+        }
+      }
     } catch (err: any) {
-      triggerError(err.message);
+      triggerError(err.message || 'Failed to create cohort.');
     }
   };
 
@@ -830,8 +889,16 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       const applicantsRes = await fetchWithAuth('/api/applicants');
       const applicantsData = await applicantsRes.json();
       setApplicants(Array.isArray(applicantsData) ? applicantsData : []);
+
+      if (onRefresh) {
+        try {
+          await onRefresh();
+        } catch (e) {
+          console.error('Error refreshing parent context:', e);
+        }
+      }
     } catch (err: any) {
-      triggerError(err.message);
+      triggerError(err.message || 'Failed to change cohort state.');
     }
   };
 
@@ -899,6 +966,14 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
   const handleSaveAttendance = async () => {
     if (!selectedSession) return;
+
+    // Date Lock Verification
+    const todayStr = getTodayDateString();
+    const sessionDateStr = selectedSession.date ? String(selectedSession.date).slice(0, 10) : todayStr;
+    if (sessionDateStr > todayStr) {
+      triggerError(`Attendance is locked until the scheduled session date (${sessionDateStr}).`);
+      return;
+    }
     
     // Structure attendance array
     const attendanceArray = confirmedCohortStartups.map(s => ({
@@ -912,7 +987,8 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ attendance: attendanceArray })
       });
-      if (!res.ok) throw new Error('Failed to record attendance logs.');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to record attendance logs.');
       triggerSuccess(`Attendance sheet synchronized successfully for '${selectedSession.title}'.`);
     } catch (err: any) {
       triggerError(err.message);
@@ -1030,18 +1106,24 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
     triggerSuccess('Internal staff note recorded.');
   };
 
-  // Computed arrays for selected cohort
+  // Computed arrays for selected cohort (excluding paused / kicked out startups)
   const safeApplicantsList = Array.isArray(applicants) ? applicants : [];
   const confirmedCohortStartups = safeApplicantsList.filter(a => {
     const cId = selectedCohort?.id;
     const matchesCohort = !cId || String(a.cohort_id) === String(cId) || (!a.cohort_id && String(cId) === '1');
-    const ps = typeof a.program_status === 'string' && a.program_status !== '{}' ? a.program_status : '';
-    const matchesStatus = a.status === 'CONFIRMED' || 
-                          a.status === 'ACCEPTED' || 
-                          a.status === 'ENROLLED' || 
-                          a.status === 'ORIENTATION_CONDUCTED' || 
-                          ['ACTIVE', 'PAUSED', 'GRADUATED'].includes(ps) ||
-                          (a.cohort_id && !['REJECTED', 'APPLIED', 'SUBMITTED', 'IN_REVIEW', 'UNDER_REVIEW', 'SHORTLISTED_FOR_PRESENTATION'].includes(a.status));
+    const ps = typeof a.program_status === 'string' && a.program_status !== '{}' ? a.program_status.toUpperCase() : '';
+    const s = String(a.status || '').toUpperCase();
+
+    // Explicitly exclude paused, kicked-out, suspended, dropped, or rejected startups
+    if (['PAUSED', 'KICKED_OUT', 'SUSPENDED', 'DROPPED'].includes(ps)) return false;
+    if (['PAUSED', 'KICKED_OUT', 'SUSPENDED', 'DROPPED', 'REJECTED'].includes(s)) return false;
+
+    const matchesStatus = s === 'CONFIRMED' || 
+                          s === 'ACCEPTED' || 
+                          s === 'ENROLLED' || 
+                          s === 'ORIENTATION_CONDUCTED' || 
+                          ['ACTIVE', 'GRADUATED'].includes(ps) ||
+                          (a.cohort_id && !['REJECTED', 'APPLIED', 'SUBMITTED', 'IN_REVIEW', 'UNDER_REVIEW', 'SHORTLISTED_FOR_PRESENTATION'].includes(s));
     return matchesCohort && matchesStatus;
   });
 
@@ -1081,6 +1163,12 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
         return { title: 'Sessions & Workshops', desc: 'Schedule lectures, expert masterclasses, pitch clinics, and maintain recording links' };
       case 'cohort_assignments':
         return { title: 'Assignments & Deliverables', desc: 'Track milestone deliverables, pitch deck submissions, and financial models' };
+      case 'cohort_feedback':
+        return { title: 'Founder Feedback', desc: 'Review real-time ratings, mentor feedback, and incubator evaluation logs submitted by cohort founders' };
+      case 'cohort_feedback_forms':
+      case 'feedback_forms':
+      case 'cohort_surveys':
+        return { title: 'Feedback Forms & Surveys', desc: 'Build custom survey questionnaires, pulse checks, and analyze founder responses' };
       case 'cohort_attendance':
         return { title: 'Session Attendance', desc: 'Mark and synchronize founder attendance sheet for scheduled workshops' };
       case 'cohort_mentorship':
@@ -1201,10 +1289,11 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
           applicants={applicants}
           sessions={sessions}
           warnings={warnings}
-          assignments={assignments}
+          assignments={cohortAssignments.length > 0 ? cohortAssignments : assignments}
           milestoneSubmissions={milestoneSubmissions}
           auditLogs={auditLogs}
-          onCreateCohort={() => setShowCreateCohortForm(true)}
+          onCreateCohort={handleOpenCreateCohortModal}
+          onUpdateCohortStatus={handleUpdateCohortStatus}
           onNavigateSubTab={(subTab, filterStatus) => {
             setActiveSubTab(subTab);
             if (filterStatus) {
@@ -1591,37 +1680,6 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
             </div>
           </div>
 
-          {/* CREATE COHORT POPUP FORM */}
-          {showCreateCohortForm && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-40 animate-fade-in">
-              <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-left">
-                <div className="flex justify-between items-center border-b pb-3">
-                  <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Initiate Incubation Program</h3>
-                  <button onClick={() => setShowCreateCohortForm(false)} className="text-gray-500">✕</button>
-                </div>
-                <form onSubmit={handleCreateCohort} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-gray-500 block font-mono">Cohort Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={newCohortName}
-                      onChange={(e) => setNewCohortName(e.target.value)}
-                      placeholder="e.g. Cohort 02 (Fall 2026)"
-                      className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-3 text-xs text-gray-800 placeholder-gray-400 focus:outline-none"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="w-full bg-primary hover:bg-[#5A0F0F] text-white py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer"
-                  >
-                    Launch Program
-                  </button>
-                </form>
-              </div>
-            </div>
-          )}
-
           {/* SCHEDULE SESSION MODAL */}
           {showScheduleSessionModal && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
@@ -1789,67 +1847,77 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {sessions.map((sess) => (
-                    <div
-                      key={sess.id}
-                      onClick={() => onNavigate(`/admin/sessions/${sess.id}`)}
-                      className="p-4 border border-gray-150 rounded-xl bg-gray-50/40 hover:bg-white hover:border-primary/40 hover:shadow-2xs transition-all cursor-pointer text-xs flex justify-between items-start gap-3 group"
-                    >
-                      <div className="space-y-2 flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-extrabold text-gray-900 text-sm group-hover:text-primary transition-colors">{sess.title}</h4>
-                          {sess.topic_category && (
-                            <span className="bg-primary/5 text-primary text-[9px] font-black uppercase px-2 py-0.5 rounded border border-primary/10">
-                              {sess.topic_category}
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="text-xs text-gray-500 font-semibold flex items-center gap-1.5">
-                          <Clock className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-                          <span>{sess.date} • {sess.start_time?.substring(0, 5)} - {sess.end_time?.substring(0, 5)}</span>
-                          {sess.venue && <span className="text-gray-400 font-normal">({sess.venue})</span>}
-                        </p>
-
-                        <div className="flex gap-2 flex-wrap items-center">
-                          {sess.mentor_name && (
-                            <span className="text-[10px] text-gray-600 font-bold flex items-center gap-1">
-                              <User className="h-3 w-3 text-gray-400" />
-                              Mentor: {sess.mentor_name}
-                            </span>
-                          )}
-                          {sess.recording_url && (
-                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[8px] font-black uppercase px-1.5 py-0.5 rounded font-mono">
-                              Recording Active
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="pt-2.5 border-t border-gray-100 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 font-medium">
-                          <div className="flex items-center gap-1.5">
-                            <UserCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                            <span>{sess.attendance_summary || 'Attendance not marked yet'}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <CheckSquare className="h-3.5 w-3.5 text-primary shrink-0" />
-                            <span>{sess.assignments_summary || 'No assignments yet'}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteSession(sess.id);
-                        }}
-                        className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
-                        title="Delete Session"
+                  {sessions.map((sess) => {
+                    const sessDateStr = sess.date ? String(sess.date).slice(0, 10) : '';
+                    const isFuture = sessDateStr > getTodayDateString();
+                    return (
+                      <div
+                        key={sess.id}
+                        onClick={() => onNavigate(`/admin/sessions/${sess.id}`)}
+                        className="p-4 border border-gray-150 rounded-xl bg-gray-50/40 hover:bg-white hover:border-primary/40 hover:shadow-2xs transition-all cursor-pointer text-xs flex justify-between items-start gap-3 group"
                       >
-                        <Trash className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="space-y-2 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-extrabold text-gray-900 text-sm group-hover:text-primary transition-colors">{sess.title}</h4>
+                            {sess.topic_category && (
+                              <span className="bg-primary/5 text-primary text-[9px] font-black uppercase px-2 py-0.5 rounded border border-primary/10">
+                                {sess.topic_category}
+                              </span>
+                            )}
+                            {isFuture && (
+                              <span className="bg-amber-50 text-amber-850 border border-amber-200 text-[8px] font-black uppercase px-1.5 py-0.5 rounded font-mono flex items-center gap-1">
+                                <Lock className="w-2.5 h-2.5 text-amber-600" />
+                                Attendance Locked
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-xs text-gray-500 font-semibold flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                            <span>{sess.date} • {sess.start_time?.substring(0, 5)} - {sess.end_time?.substring(0, 5)}</span>
+                            {sess.venue && <span className="text-gray-400 font-normal">({sess.venue})</span>}
+                          </p>
+
+                          <div className="flex gap-2 flex-wrap items-center">
+                            {sess.mentor_name && (
+                              <span className="text-[10px] text-gray-600 font-bold flex items-center gap-1">
+                                <User className="h-3 w-3 text-gray-400" />
+                                Mentor: {sess.mentor_name}
+                              </span>
+                            )}
+                            {sess.recording_url && (
+                              <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[8px] font-black uppercase px-1.5 py-0.5 rounded font-mono">
+                                Recording Active
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="pt-2.5 border-t border-gray-100 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 font-medium">
+                            <div className="flex items-center gap-1.5">
+                              <UserCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                              <span>{sess.attendance_summary || 'Attendance not marked yet'}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <CheckSquare className="h-3.5 w-3.5 text-primary shrink-0" />
+                              <span>{sess.assignments_summary || 'No assignments yet'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSession(sess.id);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                          title="Delete Session"
+                        >
+                          <Trash className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1864,17 +1932,37 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
               {/* Attendance Sheet */}
               <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-3xs text-left space-y-4">
-                <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div className="flex justify-between items-center border-b border-gray-100 pb-3 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <UserCheck className="h-4.5 w-4.5 text-primary" />
                     <h3 className="text-sm font-black text-gray-800 uppercase tracking-wider">Attendance Register</h3>
                   </div>
                   {selectedSession && (
-                    <span className="text-[10px] font-mono font-black uppercase text-primary bg-rose-50 border border-rose-100 px-3 py-1 rounded-md">
-                      Active: {selectedSession.title}
-                    </span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-mono font-black uppercase text-primary bg-rose-50 border border-rose-100 px-3 py-1 rounded-md">
+                        Active: {selectedSession.title}
+                      </span>
+                      {(selectedSession.date ? String(selectedSession.date).slice(0, 10) : '') > getTodayDateString() && (
+                        <span className="text-[10px] font-mono font-black uppercase text-amber-850 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md flex items-center gap-1">
+                          <Lock className="w-3 h-3 text-amber-600" />
+                          Locked until {selectedSession.date}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
+
+                {selectedSession && (String(selectedSession.date || '').slice(0, 10) > getTodayDateString()) && (
+                  <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
+                    <Lock className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-black block font-mono text-[11px] uppercase">Attendance Locked</span>
+                      <span className="text-[11px] text-amber-800">
+                        Attendance marking is locked until the scheduled session date ({selectedSession.date}).
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {!selectedSession ? (
                   <div className="p-8 text-center text-gray-400 border border-dashed border-gray-200 rounded-xl text-xs">
@@ -1882,62 +1970,90 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                   </div>
                 ) : confirmedCohortStartups.length === 0 ? (
                   <div className="p-8 text-center text-gray-400 border border-dashed border-gray-200 rounded-xl text-xs">
-                    No confirmed seat-holders in this cohort to take attendance for.
+                    No active seat-holders in this cohort to take attendance for.
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
-                      {confirmedCohortStartups.map((startup) => {
-                        const currentVal = attendanceSheet[startup.id] || 'PRESENT';
-                        return (
-                          <div key={startup.id} className="p-3 bg-gray-50/50 border border-gray-150 rounded-xl flex justify-between items-center gap-4 text-xs">
-                            <div>
-                              <h4 className="font-extrabold text-gray-800">{startup.startup_name}</h4>
-                              <p className="text-[10px] text-gray-400 font-bold">{startup.name}</p>
-                            </div>
-                            <div className="flex items-center gap-1.5 font-black text-[9px] uppercase tracking-wider">
-                              <button
-                                type="button"
-                                onClick={() => handleMarkAttendance(startup.id, 'PRESENT')}
-                                className={`px-2.5 py-1.5 rounded-lg cursor-pointer transition-all border ${
-                                  currentVal === 'PRESENT' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'
-                                }`}
-                              >
-                                Present
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleMarkAttendance(startup.id, 'ABSENT')}
-                                className={`px-2.5 py-1.5 rounded-lg cursor-pointer transition-all border ${
-                                  currentVal === 'ABSENT' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'
-                                }`}
-                              >
-                                Absent
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleMarkAttendance(startup.id, 'EXCUSED')}
-                                className={`px-2.5 py-1.5 rounded-lg cursor-pointer transition-all border ${
-                                  currentVal === 'EXCUSED' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'
-                                }`}
-                              >
-                                Excused
-                              </button>
-                            </div>
+                    {(() => {
+                      const isSessLocked = selectedSession?.date ? (String(selectedSession.date).slice(0, 10) > getTodayDateString()) : false;
+                      return (
+                        <>
+                          <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
+                            {confirmedCohortStartups.map((startup) => {
+                              const currentVal = attendanceSheet[startup.id] || 'PRESENT';
+                              return (
+                                <div key={startup.id} className="p-3 bg-gray-50/50 border border-gray-150 rounded-xl flex justify-between items-center gap-4 text-xs">
+                                  <div>
+                                    <h4 className="font-extrabold text-gray-800">{startup.startup_name}</h4>
+                                    <p className="text-[10px] text-gray-400 font-bold">{startup.name}</p>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 font-black text-[9px] uppercase tracking-wider">
+                                    <button
+                                      type="button"
+                                      disabled={isSessLocked}
+                                      onClick={() => handleMarkAttendance(startup.id, 'PRESENT')}
+                                      className={`px-2.5 py-1.5 rounded-lg transition-all border ${
+                                        isSessLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                                      } ${
+                                        currentVal === 'PRESENT' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'
+                                      }`}
+                                    >
+                                      Present
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isSessLocked}
+                                      onClick={() => handleMarkAttendance(startup.id, 'ABSENT')}
+                                      className={`px-2.5 py-1.5 rounded-lg transition-all border ${
+                                        isSessLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                                      } ${
+                                        currentVal === 'ABSENT' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'
+                                      }`}
+                                    >
+                                      Absent
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isSessLocked}
+                                      onClick={() => handleMarkAttendance(startup.id, 'EXCUSED')}
+                                      className={`px-2.5 py-1.5 rounded-lg transition-all border ${
+                                        isSessLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                                      } ${
+                                        currentVal === 'EXCUSED' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100'
+                                      }`}
+                                    >
+                                      Excused
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
 
-                    <div className="flex justify-end pt-2 border-t border-gray-50">
-                      <button
-                        type="button"
-                        onClick={handleSaveAttendance}
-                        className="bg-primary hover:bg-[#5A0F0F] text-white py-2.5 px-6 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer shadow-3xs"
-                      >
-                        Synchronize Attendance Log
-                      </button>
-                    </div>
+                          <div className="flex justify-end pt-2 border-t border-gray-50">
+                            <button
+                              type="button"
+                              disabled={isSessLocked}
+                              onClick={handleSaveAttendance}
+                              className={`py-2.5 px-6 rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-3xs flex items-center gap-1.5 ${
+                                isSessLocked
+                                  ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
+                                  : 'bg-primary hover:bg-[#5A0F0F] text-white cursor-pointer'
+                              }`}
+                            >
+                              {isSessLocked ? (
+                                <>
+                                  <Lock className="h-3.5 w-3.5" />
+                                  Attendance Locked
+                                </>
+                              ) : (
+                                'Synchronize Attendance Log'
+                              )}
+                            </button>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -2291,7 +2407,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 </select>
               </div>
 
-              <div className="md:col-span-2 pt-4 border-t border-gray-100 flex flex-wrap gap-3">
+              <div className="md:col-span-2 pt-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
                 <button
                   type="button"
                   onClick={() => triggerSuccess('Cohort Settings Saved Successfully!')}
@@ -2299,6 +2415,35 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 >
                   Save Cohort Config
                 </button>
+
+                {/* Cohort Lifecycle & Bulk Graduate Actions */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {selectedCohort.status !== 'ACTIVE' && (
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateCohortStatus('ACTIVE', false)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-4 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer shadow-3xs flex items-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Set Cohort to Active</span>
+                    </button>
+                  )}
+
+                  {selectedCohort.status !== 'COMPLETED' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Are you sure you want to Complete '${selectedCohort.name}' and BULK GRADUATE all active startups enrolled in this cohort?`)) {
+                          handleUpdateCohortStatus('COMPLETED', true);
+                        }
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer shadow-3xs flex items-center gap-1.5"
+                    >
+                      <GraduationCap className="w-4 h-4" />
+                      <span>🎓 Bulk Graduate Cohort (Mark Completed)</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ) : (
@@ -2371,6 +2516,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 <input
                   type="date"
                   required
+                  min={getTodayDateString()}
                   value={newAsgDueDate}
                   onChange={(e) => setNewAsgDueDate(e.target.value)}
                   className="w-full bg-white border border-gray-150 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-primary font-medium"
@@ -2512,36 +2658,73 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
             {/* RIGHT COLUMN: PUBLISHED ASSIGNMENTS DIRECTORY */}
             <div className="lg:col-span-7 space-y-3">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap justify-between items-center gap-2">
                 <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block font-mono">
-                  Active Independent Cohort Assignments ({cohortAssignments.filter((a) => !a.session_id).length})
+                  Cohort Deliverables & Assignments ({cohortAssignments.length})
                 </span>
+                <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg text-[10px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setAsgFilter('ALL')}
+                    className={`px-2 py-0.5 rounded-md transition-all ${asgFilter === 'ALL' ? 'bg-white text-gray-900 shadow-2xs font-extrabold' : 'text-gray-500 hover:text-gray-800'}`}
+                  >
+                    All ({cohortAssignments.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAsgFilter('INDEPENDENT')}
+                    className={`px-2 py-0.5 rounded-md transition-all ${asgFilter === 'INDEPENDENT' ? 'bg-white text-gray-900 shadow-2xs font-extrabold' : 'text-gray-500 hover:text-gray-800'}`}
+                  >
+                    Independent ({cohortAssignments.filter((a) => !a.session_id).length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAsgFilter('SESSION')}
+                    className={`px-2 py-0.5 rounded-md transition-all ${asgFilter === 'SESSION' ? 'bg-white text-gray-900 shadow-2xs font-extrabold' : 'text-gray-500 hover:text-gray-800'}`}
+                  >
+                    Session Linked ({cohortAssignments.filter((a) => a.session_id).length})
+                  </button>
+                </div>
               </div>
 
               {loadingCohortAssignments ? (
                 <div className="p-8 text-center text-gray-400 font-mono text-xs">
                   Loading cohort assignments...
                 </div>
-              ) : cohortAssignments.filter((a) => !a.session_id).length === 0 ? (
+              ) : cohortAssignments.filter((a) => {
+                if (asgFilter === 'INDEPENDENT') return !a.session_id;
+                if (asgFilter === 'SESSION') return !!a.session_id;
+                return true;
+              }).length === 0 ? (
                 <div className="p-8 text-center text-gray-400 border border-dashed border-gray-200 rounded-xl text-xs space-y-1">
                   <FileText className="h-6 w-6 text-gray-300 mx-auto mb-1" />
-                  <p className="font-bold text-gray-500">No independent assignments created yet.</p>
-                  <p className="text-[11px] text-gray-400">Use the form on the left to publish an independent assignment to all cohort startups.</p>
+                  <p className="font-bold text-gray-500">No deliverables match this filter.</p>
+                  <p className="text-[11px] text-gray-400">Use the form on the left to publish an assignment to cohort startups.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {cohortAssignments.filter((a) => !a.session_id).map((asg) => {
+                  {cohortAssignments.filter((a) => {
+                    if (asgFilter === 'INDEPENDENT') return !a.session_id;
+                    if (asgFilter === 'SESSION') return !!a.session_id;
+                    return true;
+                  }).map((asg) => {
                     const isExpanded = selectedAsgForSubmissions?.id === asg.id;
                     return (
                       <div key={asg.id} className="p-4 bg-gray-50/50 border border-gray-150 rounded-xl text-xs space-y-3 transition-all hover:border-gray-300">
                         <div className="flex justify-between items-start gap-2">
                           <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded border bg-emerald-50 text-emerald-800 border-emerald-200">
-                                Independent Assignment
-                              </span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {!asg.session_id ? (
+                                <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded border bg-emerald-50 text-emerald-800 border-emerald-200">
+                                  Independent Milestone
+                                </span>
+                              ) : (
+                                <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded border bg-purple-50 text-purple-800 border-purple-200">
+                                  Session: {asg.session_title || `Session #${asg.session_id}`}
+                                </span>
+                              )}
                               <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded border bg-blue-50 text-blue-800 border-blue-200">
-                                Permanent Record
+                                Published
                               </span>
                             </div>
                             <h4 className="font-extrabold text-gray-900 text-sm mt-1">{asg.title}</h4>
@@ -3001,25 +3184,70 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
               </button>
             </div>
 
+            {/* Warning when uncompleted cohort exists */}
+            {uncompletedCohort ? (
+              <div className="p-4 bg-amber-50/90 border border-amber-200 rounded-xl space-y-3 text-xs text-amber-900 shadow-2xs">
+                <div className="flex items-center gap-2 font-black text-amber-800">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Active Cohort in Progress: {uncompletedCohort.name}</span>
+                </div>
+                <p className="text-amber-700 leading-relaxed font-medium">
+                  Naya cohort create karne ke liye zaroori hai ke pehle moujooda cohort <strong>'{uncompletedCohort.name}'</strong> ko bulk graduate kiya jaye aur status <strong>COMPLETED</strong> set ho.
+                </p>
+                <div className="pt-1 flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateCohortForm(false);
+                      setSelectedCohort(uncompletedCohort);
+                      if (window.confirm(`Are you sure you want to Complete '${uncompletedCohort.name}' and BULK GRADUATE all active startups enrolled in this cohort?`)) {
+                        handleUpdateCohortStatus('COMPLETED', true);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-[11px] uppercase tracking-wider cursor-pointer shadow-3xs transition-all"
+                  >
+                    <GraduationCap className="w-3.5 h-3.5" />
+                    <span>Bulk Graduate '{uncompletedCohort.name}' Now</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateCohortForm(false);
+                      setSelectedCohort(uncompletedCohort);
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 rounded-xl font-bold text-[11px] cursor-pointer"
+                  >
+                    <span>View Cohort</span>
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <form onSubmit={handleCreateCohort} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-gray-500 block font-mono">Cohort Name *</label>
                 <input
                   type="text"
                   required
+                  disabled={!!uncompletedCohort}
                   value={newCohortName}
                   onChange={(e) => setNewCohortName(e.target.value)}
                   placeholder="e.g. Cohort 02 (Fall 2026)"
-                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-3 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-primary font-bold"
+                  className={`w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-3 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-primary font-bold ${
+                    uncompletedCohort ? 'opacity-60 cursor-not-allowed bg-gray-100' : ''
+                  }`}
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-gray-500 block font-mono">Initial Program Status</label>
                 <select
+                  disabled={!!uncompletedCohort}
                   value={newCohortStatus}
                   onChange={(e) => setNewCohortStatus(e.target.value as 'ACTIVE' | 'DRAFT')}
-                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-3 text-xs text-gray-800 focus:outline-none focus:border-primary font-bold cursor-pointer"
+                  className={`w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-3 text-xs text-gray-800 focus:outline-none focus:border-primary font-bold cursor-pointer ${
+                    uncompletedCohort ? 'opacity-60 cursor-not-allowed bg-gray-100' : ''
+                  }`}
                 >
                   <option value="ACTIVE">ACTIVE (Open for Intake & Active Sessions)</option>
                   <option value="DRAFT">DRAFT (Internal Preparation Mode)</option>
@@ -3036,10 +3264,15 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="w-1/2 bg-primary hover:bg-[#5A0F0F] text-white py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-3xs flex items-center justify-center gap-1.5"
+                  disabled={!!uncompletedCohort}
+                  className={`w-1/2 text-white py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-3xs flex items-center justify-center gap-1.5 ${
+                    uncompletedCohort
+                      ? 'bg-gray-400 opacity-60 cursor-not-allowed'
+                      : 'bg-primary hover:bg-[#5A0F0F] cursor-pointer'
+                  }`}
                 >
-                  <Plus className="h-4 w-4" />
-                  <span>Create Cohort</span>
+                  {uncompletedCohort ? <Lock className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  <span>{uncompletedCohort ? 'Creation Locked' : 'Create Cohort'}</span>
                 </button>
               </div>
             </form>
@@ -3071,6 +3304,8 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 <label className="text-xs font-bold text-gray-700 block mb-1">Extended Due Date *</label>
                 <input
                   type="date"
+                  required
+                  min={getTodayDateString()}
                   value={editingAssignment.due_date}
                   onChange={(e) => setEditingAssignment({ ...editingAssignment, due_date: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-bold text-gray-900 focus:ring-2 focus:ring-primary/20"

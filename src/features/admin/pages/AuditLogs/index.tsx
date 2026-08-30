@@ -78,7 +78,7 @@ export function AuditLogsPage({
           }`}
         >
           <BarChart2 className="h-4 w-4" /> 
-          Operational Analytics Dashboard
+          Enforcement & Ban Reports
           {!hasDashboardView && <Lock className="h-3 w-3 text-gray-400" />}
         </button>
       </div>
@@ -107,12 +107,10 @@ export function AuditLogsPage({
         </div>
       )}
 
-      {/* VIEW 2: OPERATIONAL ANALYTICS DASHBOARD */}
+      {/* VIEW 2: AUDIT ANALYTICS DASHBOARD */}
       {activeView === 'analytics' && (
         <AuditAnalyticsDashboard 
           auditLogs={auditLogs}
-          bookings={bookings}
-          rooms={rooms}
           activeBans={activeBans}
           hasDashboardView={hasDashboardView}
           hasExportView={hasExportView}

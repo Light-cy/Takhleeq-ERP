@@ -14,6 +14,8 @@ import { StaffReviewQueue } from './features/admin/pages/StaffReviewQueue';
 import { BookingCalendarDashboard } from './features/admin/pages/BookingCalendarDashboard';
 import { GovernanceCenterPage } from './features/admin/pages/GovernanceCenter';
 import { RoomManagementPage } from './features/admin/pages/RoomManagement';
+import { BookingTypesPage } from './features/admin/pages/BookingTypes';
+import { OperationalAnalyticsPage } from './features/admin/pages/OperationalAnalytics';
 import { AuditLogsPage } from './features/admin/pages/AuditLogs';
 import { PublicCohortApplyPage } from './features/cohort/pages/PublicCohortApplyPage';
 import { PublicCohortTrackPage } from './features/cohort/pages/PublicCohortTrackPage';
@@ -30,6 +32,7 @@ import { bansApi } from './features/admin/services/bans.api';
 import { usersApi } from './features/admin/services/users.api';
 import { auditApi } from './features/admin/services/audit.api';
 import { authApi } from './features/auth/services/auth.api';
+import { setClientToken } from './shared/apiClient';
 
 // Types
 import { Room, Booking, Ban, CustomRole, User as ERPUser, AuditRecord, Cohort } from './types';
@@ -179,7 +182,9 @@ export default function App() {
   useEffect(() => {
     const handleSessionExpired = () => {
       localStorage.removeItem('jwtToken');
+      localStorage.removeItem('token');
       localStorage.removeItem('currentUser');
+      setClientToken(null);
       setJwtToken(null);
       setActiveUser(null);
       setGlobalBannedError(null);
@@ -188,9 +193,12 @@ export default function App() {
     window.addEventListener('auth:session_expired', handleSessionExpired);
 
     const initAuth = async () => {
-      const storedToken = localStorage.getItem('jwtToken');
+      const storedToken = localStorage.getItem('jwtToken') || localStorage.getItem('token');
       if (storedToken) {
         try {
+          setClientToken(storedToken);
+          localStorage.setItem('jwtToken', storedToken);
+          localStorage.setItem('token', storedToken);
           await fetchStateData(storedToken);
         } catch (err) {
           console.error('Session initialization error:', err);
@@ -218,7 +226,9 @@ export default function App() {
   // Logout routine
   const handleLogout = () => {
     localStorage.removeItem('jwtToken');
+    localStorage.removeItem('token');
     localStorage.removeItem('currentUser');
+    setClientToken(null);
     setJwtToken(null);
     setActiveUser(null);
     setGlobalBannedError(null);
@@ -228,7 +238,9 @@ export default function App() {
   // SSO / Password Login callback
   const handleLoginSuccess = (token: string, user: ERPUser) => {
     localStorage.setItem('jwtToken', token);
+    localStorage.setItem('token', token);
     localStorage.setItem('currentUser', JSON.stringify(user));
+    setClientToken(token);
     setJwtToken(token);
     setActiveUser(user);
     fetchStateData(token);
@@ -698,6 +710,19 @@ export default function App() {
                 onAddRoom={handleAddRoom}
                 onUpdateRoom={handleUpdateRoom}
                 onDeleteRoom={handleDeleteRoom}
+              />
+            )}
+
+            {(activeTab === 'booking_types' || activeTab === 'types') && (
+              <BookingTypesPage 
+                onRefresh={fetchStateData}
+              />
+            )}
+
+            {(activeTab === 'booking_analytics' || activeTab === 'analytics') && (
+              <OperationalAnalyticsPage 
+                bookings={bookings}
+                rooms={rooms}
               />
             )}
 

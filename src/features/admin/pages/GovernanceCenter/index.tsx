@@ -5,8 +5,7 @@ import {
   UserX, 
   ShieldCheck, 
   Users, 
-  Lock,
-  Layers
+  Lock
 } from 'lucide-react';
 import { CustomRole, User, Ban, Booking } from '../../../../types';
 import { useGovernance } from './hooks/useGovernance';
@@ -14,7 +13,6 @@ import { BanForm } from './components/BanForm';
 import { ActiveBansTable } from './components/ActiveBansTable';
 import { GovRolesTab } from '../../components/GovRolesTab';
 import { GovUsersTab } from '../../components/GovUsersTab';
-import { GovBookingTypesTab } from '../../components/GovBookingTypesTab';
 
 interface GovernanceCenterPageProps {
   roles: CustomRole[];
@@ -61,12 +59,11 @@ export function GovernanceCenterPage({
     }
   }
 
-  // Inner Subtabs: 'bans' | 'roles' | 'users' | 'types'
-  const [govTab, setGovTab] = useState<'bans' | 'roles' | 'users' | 'types'>(() => {
+  // Inner Subtabs: 'bans' | 'roles' | 'users'
+  const [govTab, setGovTab] = useState<'bans' | 'roles' | 'users'>(() => {
     if (hasPermission('ISSUE_BAN')) return 'bans';
     if (hasPermission('MANAGE_ROLES')) return 'roles';
     if (hasPermission('MANAGE_USERS')) return 'users';
-    if (hasPermission('MANAGE_BOOKING_TYPES')) return 'types';
     return 'bans';
   });
 
@@ -78,8 +75,6 @@ export function GovernanceCenterPage({
       setGovTab('roles');
     } else if (hasPermission('MANAGE_USERS')) {
       setGovTab('users');
-    } else if (hasPermission('MANAGE_BOOKING_TYPES')) {
-      setGovTab('types');
     }
   }, [currentUser]);
 
@@ -182,21 +177,8 @@ export function GovernanceCenterPage({
           } disabled:opacity-40 disabled:cursor-not-allowed`}
         >
           <Users className="h-4 w-4" /> 
-          <span>Simulated Users</span>
+          <span>System Users</span>
           {!hasPermission('MANAGE_USERS') && <Lock className="h-3 w-3 text-gray-400" />}
-        </button>
-        <button
-          onClick={() => { setGovTab('types'); clearMessages(); }}
-          disabled={!hasPermission('MANAGE_BOOKING_TYPES')}
-          className={`flex-1 min-w-[120px] px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
-            govTab === 'types' 
-              ? 'bg-primary text-white shadow-sm' 
-              : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-          } disabled:opacity-40 disabled:cursor-not-allowed`}
-        >
-          <Layers className="h-4 w-4" /> 
-          <span>Booking Types</span>
-          {!hasPermission('MANAGE_BOOKING_TYPES') && <Lock className="h-3 w-3 text-gray-400" />}
         </button>
       </div>
 
@@ -258,16 +240,6 @@ export function GovernanceCenterPage({
           onRefresh={onRefresh}
           onCreateUser={onCreateUser}
           onAssignRole={onAssignRole}
-          setErrorMsg={setErrorMsg}
-          setSuccessMsg={setSuccessMsg}
-          processing={processing}
-          setProcessing={setProcessing}
-        />
-      )}
-
-      {govTab === 'types' && (
-        <GovBookingTypesTab 
-          onRefresh={onRefresh}
           setErrorMsg={setErrorMsg}
           setSuccessMsg={setSuccessMsg}
           processing={processing}

@@ -10,8 +10,10 @@ import {
   ArrowUpRight,
   Plus,
   FileCheck2,
+  FileText,
   CheckCircle2,
-  Layers
+  Layers,
+  Lock
 } from 'lucide-react';
 import { 
   Cohort, 
@@ -35,6 +37,7 @@ interface CohortDashboardViewProps {
   auditLogs?: AuditRecord[];
   onNavigateSubTab: (subTab: string, filterStatus?: string) => void;
   onCreateCohort?: () => void;
+  onUpdateCohortStatus?: (status: 'DRAFT' | 'ACTIVE' | 'COMPLETED', bulkGraduate?: boolean) => void;
 }
 
 export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
@@ -48,7 +51,8 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
   milestoneSubmissions = [],
   auditLogs = [],
   onNavigateSubTab,
-  onCreateCohort
+  onCreateCohort,
+  onUpdateCohortStatus
 }) => {
   // Scope data strictly to the selected cohort
   const cohortId = selectedCohort?.id || null;
@@ -70,7 +74,7 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
   const cohortWarnings = safeWarnings.filter(w => matchesCohort(w.cohort_id));
   const cohortAssignments = safeAssignments.filter(a => matchesCohort(a.cohort_id));
 
-  // Actual pipeline funnel calculations from database
+  // Pipeline funnel calculations from database
   const pipeline = {
     applied: cohortApplicants.filter(a => a.status === 'APPLIED' || a.status === 'SUBMITTED').length,
     underReview: cohortApplicants.filter(a => a.status === 'UNDER_REVIEW' || a.status === 'IN_REVIEW').length,
@@ -80,13 +84,18 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
     rejected: cohortApplicants.filter(a => a.status === 'REJECTED').length,
   };
 
-  // Enrolled / Active startups
+  // Program status categorizations (strictly mutually exclusive & synchronized)
   const activeStartups = cohortApplicants.filter(a => 
-    a.program_status === 'ACTIVE' || a.status === 'ENROLLED' || a.status === 'CONFIRMED' || a.status === 'ACCEPTED'
+    a.program_status === 'ACTIVE' || 
+    ((a.status === 'ENROLLED' || a.status === 'CONFIRMED') && !['PAUSED', 'GRADUATED', 'KICKED_OUT', 'NOT_ENROLLED'].includes(a.program_status))
   );
   const pausedStartups = cohortApplicants.filter(a => a.program_status === 'PAUSED');
   const graduatedStartups = cohortApplicants.filter(a => a.program_status === 'GRADUATED');
   const terminatedStartups = cohortApplicants.filter(a => a.program_status === 'KICKED_OUT');
+  const notEnrolledApplicants = cohortApplicants.filter(a => 
+    a.program_status === 'NOT_ENROLLED' || 
+    (!['ACTIVE', 'PAUSED', 'GRADUATED', 'KICKED_OUT'].includes(a.program_status) && !['CONFIRMED', 'ENROLLED'].includes(a.status))
+  );
 
   // Action items (strictly real counts)
   const pendingReviews = pipeline.applied + pipeline.underReview;
@@ -98,6 +107,8 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
   const displayActivities = safeLogs.filter(log => 
     log.action.includes('COHORT') || log.action.includes('APPLICANT') || log.action.includes('WARNING') || log.action.includes('SESSION')
   ).slice(0, 8);
+
+  const uncompletedCohort = cohorts.find(c => c.status !== 'COMPLETED');
 
   return (
     <div className="space-y-6 text-left font-sans" id="cohort-main-dashboard">
@@ -125,22 +136,51 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
               ))}
             </select>
 
-            <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-md border ${
-              selectedCohort?.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-              selectedCohort?.status === 'COMPLETED' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-              'bg-amber-50 text-amber-700 border-amber-100'
-            }`}>
-              {selectedCohort?.status || 'ACTIVE'}
-            </span>
-
             {onCreateCohort && (
               <button
                 type="button"
                 onClick={onCreateCohort}
-                className="bg-primary hover:bg-[#5A0F0F] text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-3xs"
+                className={`${
+                  uncompletedCohort
+                    ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 shadow-2xs'
+                    : 'bg-primary hover:bg-[#5A0F0F] text-white shadow-3xs'
+                } text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5`}
+                title={
+                  uncompletedCohort
+                    ? `Bulk Graduate '${uncompletedCohort.name}' before creating a new cohort`
+                    : 'Initiate a new incubation cohort'
+                }
               >
-                <Plus className="h-3.5 w-3.5" />
+                {uncompletedCohort ? <Lock className="h-3.5 w-3.5 text-amber-700" /> : <Plus className="h-3.5 w-3.5" />}
                 <span>New Cohort</span>
+              </button>
+            )}
+
+            {onUpdateCohortStatus && selectedCohort && selectedCohort.status !== 'COMPLETED' && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`Are you sure you want to Complete '${selectedCohort.name}' and BULK GRADUATE all ${activeStartups.length} active startups?`)) {
+                    onUpdateCohortStatus('COMPLETED', true);
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-3xs"
+                title="Mark this cohort as Completed and automatically graduate all active founders"
+              >
+                <GraduationCap className="h-3.5 w-3.5" />
+                <span>Bulk Graduate Cohort</span>
+              </button>
+            )}
+
+            {onUpdateCohortStatus && selectedCohort && selectedCohort.status === 'COMPLETED' && (
+              <button
+                type="button"
+                onClick={() => onUpdateCohortStatus('ACTIVE', false)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-3xs"
+                title="Re-open cohort to Active status"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Re-activate</span>
               </button>
             )}
           </div>
@@ -358,7 +398,7 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
           <div className="flex justify-between items-center border-b border-gray-100 pb-2.5">
             <h3 className="text-xs font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary" />
-              Cohort Sessions
+              Cohort Sessions ({cohortSessions.length})
             </h3>
             <button
               onClick={() => onNavigateSubTab('cohort_sessions')}
@@ -390,6 +430,61 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
             ) : (
               <div className="p-6 text-center text-xs text-gray-400 font-medium bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
                 No sessions created for this cohort yet.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Deliverables & Assignments Summary */}
+        <div className="lg:col-span-12 bg-white border border-gray-100 rounded-2xl p-5 shadow-3xs space-y-4">
+          <div className="flex justify-between items-center border-b border-gray-100 pb-2.5">
+            <h3 className="text-xs font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+              <FileText className="h-4 w-4 text-primary" />
+              Cohort Deliverables & Assignments ({cohortAssignments.length})
+            </h3>
+            <button
+              onClick={() => onNavigateSubTab('cohort_assignments')}
+              className="text-[10px] font-black text-primary hover:underline uppercase flex items-center gap-0.5"
+            >
+              <span>Manage & Create Assignments →</span>
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {cohortAssignments.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {cohortAssignments.slice(0, 6).map(asg => (
+                  <div 
+                    key={asg.id}
+                    onClick={() => onNavigateSubTab('cohort_assignments')}
+                    className="p-3 bg-gray-50/70 border border-gray-150 hover:border-primary/40 rounded-xl transition-all cursor-pointer text-xs space-y-2"
+                  >
+                    <div className="flex justify-between items-start gap-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {!asg.session_id ? (
+                          <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            Independent
+                          </span>
+                        ) : (
+                          <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-50 text-purple-800 border border-purple-200">
+                            Session Linked
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[9px] font-bold text-rose-600 font-mono shrink-0">
+                        Due: {asg.due_date}
+                      </span>
+                    </div>
+                    <h4 className="font-extrabold text-gray-900 text-xs truncate" title={asg.title}>{asg.title}</h4>
+                    {asg.description && (
+                      <p className="text-[10px] text-gray-500 line-clamp-1">{asg.description}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-6 text-center text-xs text-gray-400 font-medium bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
+                No assignments or milestone deliverables published for this cohort yet.
               </div>
             )}
           </div>

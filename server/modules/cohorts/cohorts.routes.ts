@@ -41,6 +41,8 @@ import {
   getCohortFeedback,
   updateCohortFeedbackStatus,
   deleteCohortFeedback,
+  getSessionFeedback,
+  submitSessionFeedback,
   createFeedbackForm,
   getFeedbackForms,
   getPendingFeedbackForms,
@@ -96,6 +98,10 @@ router.put('/cohorts/:id/status', requireAuth, requirePermission('cohort:form_ma
 router.get('/cohorts/:id/sessions', requireAuth, getCohortSessions);
 router.post('/cohorts/:id/sessions', requireAuth, requirePermission('cohort:session_manage'), createCohortSession);
 router.delete('/sessions/:id', requireAuth, requirePermission('cohort:session_manage'), deleteCohortSession);
+
+// Session Specific Feedback & Ratings (Opens after session date, active for 7 days)
+router.get('/sessions/:id/feedback', requireAuth, getSessionFeedback);
+router.post('/sessions/:id/feedback', requireAuth, submitSessionFeedback);
 
 // Attendance Markers
 router.get('/sessions/:id/attendance', requireAuth, getSessionAttendance);

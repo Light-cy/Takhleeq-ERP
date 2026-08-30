@@ -48,6 +48,7 @@ import {
   ExternalLink,
   PieChart,
   Linkedin,
+  Clock3,
   Twitter,
   Github,
   Instagram,
@@ -410,8 +411,8 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
       setGithubInput(pf.github_url || '');
       setInstagramInput(pf.instagram_url || '');
 
-      // 4. Assignments from backend or profile JSON
-      if (data.assignments && Array.isArray(data.assignments) && data.assignments.length > 0) {
+      // 4. Assignments from authoritative backend
+      if (data.assignments && Array.isArray(data.assignments)) {
         const mappedAssignments: AssignmentItem[] = data.assignments.map((as: any) => ({
           id: String(as.id),
           title: as.title,
@@ -796,11 +797,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   const fetchMyFeedbackLogs = async () => {
     try {
       setLoadingMyFeedback(true);
-      const res = await fetch('/api/cohort-feedback', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-        }
-      });
+      const res = await fetchWithAuth('/api/cohort-feedback');
       if (res.ok) {
         const data = await res.json();
         setMyFeedbackList(Array.isArray(data) ? data : []);
@@ -812,22 +809,35 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
     }
   };
 
-  // Session Rating Handler
+  // Session Rating Handlers
+  const handleOpenFeedbackModal = (sess: any) => {
+    setActiveFeedbackSession(sess);
+    const existing = myFeedbackList.find((f: any) => f.session_id === sess.id);
+    if (existing) {
+      setFeedbackRating(existing.rating || 5);
+      setFeedbackTitle(existing.title || `Feedback on ${sess.title}`);
+      setFeedbackComment(existing.comment || '');
+      setFeedbackIsAnonymous(!!existing.is_anonymous);
+    } else {
+      setFeedbackRating(5);
+      setFeedbackTitle(`Feedback on ${sess.title}`);
+      setFeedbackComment('');
+      setFeedbackIsAnonymous(false);
+    }
+  };
+
   const handleRateSessionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeFeedbackSession) return;
 
     try {
-      await fetch('/api/cohort-feedback', {
+      const res = await fetchWithAuth(`/api/sessions/${activeFeedbackSession.id}/feedback`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           cohort_id: activeFeedbackSession.cohort_id || (cohort?.id || 1),
-          session_id: activeFeedbackSession.id,
-          feedback_type: 'SESSION',
           rating: feedbackRating,
           title: feedbackTitle || `Feedback on ${activeFeedbackSession.title}`,
           comment: feedbackComment,
@@ -835,7 +845,12 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
         })
       });
 
-      const updatedRated = [...ratedSessions, activeFeedbackSession.id];
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to submit feedback');
+      }
+
+      const updatedRated = Array.from(new Set([...ratedSessions, activeFeedbackSession.id]));
       setRatedSessions(updatedRated);
       setActiveFeedbackSession(null);
       setFeedbackComment('');
@@ -843,14 +858,15 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
       setFeedbackIsAnonymous(false);
 
       await syncProfileToBackend({ rated_sessions: updatedRated });
-      fetchMyFeedbackLogs();
+      await fetchMyFeedbackLogs();
+      await loadDashboardData();
       triggerToast(
         feedbackIsAnonymous 
           ? '🔒 Anonymous feedback submitted securely!' 
           : '👤 Session feedback submitted with your profile!'
       );
-    } catch (err) {
-      triggerToast('Feedback submitted successfully.');
+    } catch (err: any) {
+      triggerToast(err.message || 'Error submitting feedback.');
     }
   };
 
@@ -860,11 +876,10 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
     setSubmittingFeedback(true);
 
     try {
-      const res = await fetch('/api/cohort-feedback', {
+      const res = await fetchWithAuth('/api/cohort-feedback', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           cohort_id: cohort?.id || 1,
@@ -951,13 +966,21 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
       const res = await fetchWithAuth(`/api/feedback-forms/${activeSurveyModal.id}/responses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers: answersPayload })
+        body: JSON.stringify({ responses: answersPayload, answers: answersPayload })
       });
 
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Failed to submit feedback survey.');
       }
+
+      // Optimistically update survey list state
+      setFeedbackSurveys(prev => prev.map(s => {
+        if (s.id === activeSurveyModal.id) {
+          return { ...s, user_submitted: true, has_submitted: true };
+        }
+        return s;
+      }));
 
       triggerToast(
         activeSurveyModal.is_anonymous
@@ -975,7 +998,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
     }
   };
 
-  const pendingSurveysList = feedbackSurveys.filter(s => s.status === 'Active' && !s.user_submitted);
+  const pendingSurveysList = feedbackSurveys.filter(s => s.status === 'Active' && !s.user_submitted && !s.has_submitted);
   const pendingSurveysCount = pendingSurveysList.length;
 
   // Attendance rate calculation
@@ -1809,7 +1832,30 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {(sessionFilter === 'all' ? sessions : sessionFilter === 'upcoming' ? upcomingSessionsList : pastSessionsList).map((sess) => {
                   const attRecord = attendance.find(a => a.session_id === sess.id);
-                  const isRated = ratedSessions.includes(sess.id);
+                  const myExistingFeedback = myFeedbackList.find((f: any) => f.session_id === sess.id);
+                  const isRated = ratedSessions.includes(sess.id) || !!myExistingFeedback || !!sess.current_user_submitted;
+                  
+                  // Compute Feedback Window Status
+                  const todayStr = new Date().toISOString().slice(0, 10);
+                  const sessionDateStr = sess.date;
+                  let fStatus: 'UPCOMING' | 'ACTIVE' | 'EXPIRED' = sess.feedback_status || 'UPCOMING';
+                  let daysRemaining = sess.days_remaining !== undefined ? sess.days_remaining : 0;
+
+                  if (!sess.feedback_status) {
+                    if (sessionDateStr > todayStr) {
+                      fStatus = 'UPCOMING';
+                      daysRemaining = 0;
+                    } else {
+                      const diffDays = Math.floor((new Date(todayStr).getTime() - new Date(sessionDateStr).getTime()) / (1000 * 3600 * 24));
+                      if (diffDays <= 7) {
+                        fStatus = 'ACTIVE';
+                        daysRemaining = Math.max(0, 7 - diffDays);
+                      } else {
+                        fStatus = 'EXPIRED';
+                        daysRemaining = 0;
+                      }
+                    }
+                  }
 
                   return (
                     <div 
@@ -1867,7 +1913,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                       </div>
 
                       {/* Session Actions Footer */}
-                      <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                      <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
                         {sess.recording_url ? (
                           <a
                             href={sess.recording_url}
@@ -1881,18 +1927,53 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                           <span className="text-[11px] text-gray-400 italic">No recording attached</span>
                         )}
 
-                        {!isRated ? (
-                          <button
-                            type="button"
-                            onClick={() => setActiveFeedbackSession(sess)}
-                            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        {/* Session-Specific Feedback Section with 7-Day Expiry Window */}
+                        {fStatus === 'UPCOMING' ? (
+                          <span 
+                            className="text-[11px] font-bold text-gray-400 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-lg flex items-center gap-1"
+                            title="Feedback opens automatically once the session is conducted"
                           >
-                            Rate Session
-                          </button>
-                        ) : (
-                          <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                            <Check className="w-3.5 h-3.5" /> Feedback Submitted
+                            <Clock3 className="w-3 h-3 text-gray-400" /> Opens {sess.date}
                           </span>
+                        ) : fStatus === 'ACTIVE' ? (
+                          !isRated ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenFeedbackModal(sess)}
+                              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer animate-pulse"
+                              title={`Feedback window is active (${daysRemaining} days remaining)`}
+                            >
+                              <Star className="w-3.5 h-3.5 fill-white" /> Rate Session ({daysRemaining}d left)
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenFeedbackModal(sess)}
+                              className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                              title="Click to view or update your submitted feedback"
+                            >
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              Feedback Submitted {myExistingFeedback?.rating ? `(★ ${myExistingFeedback.rating})` : ''}
+                            </button>
+                          )
+                        ) : (
+                          /* EXPIRED (7 days elapsed) */
+                          isRated ? (
+                            <span 
+                              className="text-[11px] font-bold text-gray-600 bg-gray-100 border border-gray-200 px-2.5 py-1 rounded-lg flex items-center gap-1"
+                              title="Session feedback window has closed (archived)"
+                            >
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              Rated {myExistingFeedback?.rating ? `(★ ${myExistingFeedback.rating})` : ''} · Window Closed
+                            </span>
+                          ) : (
+                            <span 
+                              className="text-[11px] font-medium text-gray-400 bg-gray-100/70 border border-gray-200 px-2.5 py-1 rounded-lg flex items-center gap-1"
+                              title="Feedback was available for 7 days following the session and is now closed."
+                            >
+                              <Clock3 className="w-3 h-3 text-gray-400" /> Feedback Closed
+                            </span>
+                          )
                         )}
                       </div>
                     </div>
@@ -3092,26 +3173,25 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
 
               {loadingFeedbackSurveys ? (
                 <div className="p-8 text-center text-xs font-bold text-gray-400">Loading cohort surveys...</div>
-              ) : feedbackSurveys.length === 0 ? (
-                <div className="p-8 text-center border border-dashed border-gray-200 rounded-xl text-xs text-gray-400 space-y-2">
-                  <MessageSquare className="w-8 h-8 text-gray-300 mx-auto" />
-                  <p className="font-bold text-gray-600">No Cohort Surveys Available</p>
-                  <p>There are currently no active survey forms published for this cohort.</p>
+              ) : pendingSurveysList.length === 0 ? (
+                <div className="p-8 text-center border border-dashed border-emerald-200 bg-emerald-50/30 rounded-xl text-xs text-gray-500 space-y-2">
+                  <div className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto shadow-3xs">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <p className="font-bold text-gray-800 text-sm">All Surveys Completed</p>
+                  <p className="max-w-md mx-auto text-gray-500">
+                    You have submitted all required feedback forms and surveys for this cohort. Your responses are securely processed on the administration dashboard.
+                  </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {feedbackSurveys.map((survey) => {
-                    const isSubmitted = !!survey.user_submitted;
+                  {pendingSurveysList.map((survey) => {
                     const isAnonymous = !!survey.is_anonymous;
 
                     return (
                       <div
                         key={survey.id}
-                        className={`p-5 rounded-2xl border transition-all flex flex-col justify-between space-y-4 ${
-                          isSubmitted
-                            ? 'bg-slate-50/70 border-slate-200 opacity-90'
-                            : 'bg-white border-amber-200/80 shadow-3xs hover:shadow-2xs hover:border-amber-300'
-                        }`}
+                        className="p-5 rounded-2xl border border-amber-200/80 bg-white shadow-3xs hover:shadow-2xs hover:border-amber-300 transition-all flex flex-col justify-between space-y-4"
                       >
                         <div className="space-y-2.5">
                           <div className="flex items-center justify-between gap-2">
@@ -3122,15 +3202,9 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                               {isAnonymous ? '100% Anonymous' : 'Identified Response'}
                             </span>
 
-                            {isSubmitted ? (
-                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3" /> Submitted
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-black uppercase text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                <Clock className="w-3 h-3" /> Pending
-                              </span>
-                            )}
+                            <span className="text-[10px] font-black uppercase text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> Pending Response
+                            </span>
                           </div>
 
                           <div>
@@ -3162,25 +3236,17 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                         </div>
 
                         <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-3">
-                          {isSubmitted ? (
-                            <span className="text-xs text-gray-500 font-medium italic">
-                              Thank you! You have answered this survey.
-                            </span>
-                          ) : (
-                            <>
-                              <span className="text-[11px] text-amber-800 font-bold">
-                                Estimated time: ~2 mins
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenSurveyModal(survey)}
-                                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-3xs hover:shadow-2xs cursor-pointer flex items-center gap-1.5"
-                              >
-                                <span>Answer Survey</span>
-                                <ArrowRight className="w-3.5 h-3.5" />
-                              </button>
-                            </>
-                          )}
+                          <span className="text-[11px] text-amber-800 font-bold">
+                            Estimated time: ~2 mins
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSurveyModal(survey)}
+                            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-3xs hover:shadow-2xs cursor-pointer flex items-center gap-1.5"
+                          >
+                            <span>Answer Survey</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     );

@@ -56,6 +56,10 @@ export const CohortFeedbackTab: React.FC<CohortFeedbackTabProps> = ({ cohortId }
   const [responseStatus, setResponseStatus] = useState<'REVIEWED' | 'ADDRESSED'>('REVIEWED');
   const [submittingResponse, setSubmittingResponse] = useState(false);
 
+  const getToken = () => {
+    return localStorage.getItem('jwtToken') || localStorage.getItem('token') || '';
+  };
+
   const fetchFeedback = async () => {
     try {
       setLoading(true);
@@ -63,13 +67,18 @@ export const CohortFeedbackTab: React.FC<CohortFeedbackTabProps> = ({ cohortId }
       let url = '/api/cohort-feedback';
       if (cohortId) url += `?cohort_id=${cohortId}`;
 
-      const res = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-        }
-      });
+      const token = getToken();
+      const headers: Record<string, string> = {};
+      if (token && token.trim() !== '' && token !== 'null' && token !== 'undefined') {
+        headers['Authorization'] = `Bearer ${token.trim()}`;
+      }
 
-      if (!res.ok) throw new Error('Failed to load feedback records');
+      const res = await fetch(url, { headers });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to load feedback records');
+      }
       const data = await res.json();
       setFeedbackList(Array.isArray(data) ? data : []);
     } catch (err: any) {
@@ -90,12 +99,15 @@ export const CohortFeedbackTab: React.FC<CohortFeedbackTabProps> = ({ cohortId }
 
     try {
       setSubmittingResponse(true);
+      const token = getToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token && token.trim() !== '' && token !== 'null' && token !== 'undefined') {
+        headers['Authorization'] = `Bearer ${token.trim()}`;
+      }
+
       const res = await fetch(`/api/cohort-feedback/${activeRespondItem.id}/status`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-        },
+        headers,
         body: JSON.stringify({
           status: responseStatus,
           staff_response: responseInput
@@ -117,11 +129,14 @@ export const CohortFeedbackTab: React.FC<CohortFeedbackTabProps> = ({ cohortId }
   const handleDeleteFeedback = async (id: number) => {
     if (!window.confirm('Are you sure you want to delete this feedback entry?')) return;
     try {
+      const token = getToken();
+      const headers: Record<string, string> = {};
+      if (token && token.trim() !== '' && token !== 'null' && token !== 'undefined') {
+        headers['Authorization'] = `Bearer ${token.trim()}`;
+      }
       const res = await fetch(`/api/cohort-feedback/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
-        }
+        headers
       });
       if (res.ok) fetchFeedback();
     } catch (err) {

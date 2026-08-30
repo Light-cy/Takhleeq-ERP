@@ -23,11 +23,9 @@ import {
   CheckSquare,
   Clock,
   Users,
-  TrendingUp,
-  BarChart2,
-  Award,
-  AlertOctagon,
-  MessageSquare
+  MessageSquare,
+  Layers,
+  BarChart3
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User as ERPUser } from '../../types';
@@ -66,7 +64,6 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
   const [bookingOpen, setBookingOpen] = useState<boolean>(true);
   const [cohortOpen, setCohortOpen] = useState<boolean>(true);
   const [appMgmtOpen, setAppMgmtOpen] = useState<boolean>(true);
-  const [performanceOpen, setPerformanceOpen] = useState<boolean>(true);
 
   return (
     <div className="flex-1 flex overflow-hidden bg-gray-50/50" id="staff-dashboard-page">
@@ -150,6 +147,54 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                       </span>
                       {!hasPermission('BOOKING_OVERRIDE') && !hasPermission('VIEW_PENDING_QUEUE') && <Lock className="h-3 w-3 text-gray-400 animate-pulse" />}
                     </button>
+
+                    <button
+                      onClick={() => setActiveTab('rooms')}
+                      disabled={!hasPermission('MANAGE_ROOMS')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        activeTab === 'rooms' 
+                          ? 'bg-primary text-white shadow-3xs' 
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Building className="h-3.5 w-3.5" />
+                        Room Management
+                      </span>
+                      {!hasPermission('MANAGE_ROOMS') && <Lock className="h-3 w-3 text-gray-400" />}
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('booking_types')}
+                      disabled={!hasPermission('MANAGE_BOOKING_TYPES')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        activeTab === 'booking_types' || activeTab === 'types'
+                          ? 'bg-primary text-white shadow-3xs' 
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Layers className="h-3.5 w-3.5" />
+                        Booking Types
+                      </span>
+                      {!hasPermission('MANAGE_BOOKING_TYPES') && <Lock className="h-3 w-3 text-gray-400" />}
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('booking_analytics')}
+                      disabled={!hasPermission('VIEW_BOOKING_ANALYTICS') && !hasPermission('VIEW_ANALYTICS_DASHBOARD')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        activeTab === 'booking_analytics' || activeTab === 'analytics'
+                          ? 'bg-primary text-white shadow-3xs' 
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        Booking Analytics
+                      </span>
+                      {!hasPermission('VIEW_BOOKING_ANALYTICS') && !hasPermission('VIEW_ANALYTICS_DASHBOARD') && <Lock className="h-3 w-3 text-gray-400" />}
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -201,7 +246,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                     {/* Dashboard */}
                     <button
                       onClick={() => setActiveTab('cohort_dashboard')}
-                      disabled={!hasPermission('cohort:applicant_review') && !hasPermission('cohort:session_manage') && !hasPermission('cohort:form_manage')}
+                      disabled={!hasPermission('cohort:dashboard_view') && !hasPermission('VIEW_COHORT_DASHBOARD') && !hasPermission('cohort:applicant_review') && !hasPermission('cohort:session_manage') && !hasPermission('cohort:form_manage')}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         activeTab === 'cohort_dashboard' || activeTab === 'cohorts'
                           ? 'bg-primary text-white shadow-3xs' 
@@ -212,7 +257,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                         <LayoutDashboard className="h-3.5 w-3.5" />
                         Dashboard
                       </span>
-                      {!hasPermission('cohort:applicant_review') && !hasPermission('cohort:session_manage') && !hasPermission('cohort:form_manage') && (
+                      {!hasPermission('cohort:dashboard_view') && !hasPermission('VIEW_COHORT_DASHBOARD') && !hasPermission('cohort:applicant_review') && !hasPermission('cohort:session_manage') && !hasPermission('cohort:form_manage') && (
                         <Lock className="h-3 w-3 text-gray-400" />
                       )}
                     </button>
@@ -220,7 +265,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                     {/* Cohort Settings */}
                     <button
                       onClick={() => setActiveTab('cohort_settings')}
-                      disabled={!hasPermission('cohort:form_manage')}
+                      disabled={!hasPermission('cohort:settings_manage') && !hasPermission('MANAGE_COHORT_SETTINGS') && !hasPermission('cohort:form_manage')}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         activeTab === 'cohort_settings' 
                           ? 'bg-primary text-white shadow-3xs' 
@@ -231,7 +276,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                         <Sliders className="h-3.5 w-3.5" />
                         Cohort Settings
                       </span>
-                      {!hasPermission('cohort:form_manage') && <Lock className="h-3 w-3 text-gray-400" />}
+                      {!hasPermission('cohort:settings_manage') && !hasPermission('MANAGE_COHORT_SETTINGS') && !hasPermission('cohort:form_manage') && <Lock className="h-3 w-3 text-gray-400" />}
                     </button>
 
                     {/* Application Management (Collapsible Sub-Group) */}
@@ -251,7 +296,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                         <div className="pl-3 border-l border-gray-100 ml-3 space-y-1 my-0.5">
                           <button
                             onClick={() => setActiveTab('cohort_form_config')}
-                            disabled={!hasPermission('cohort:form_manage')}
+                            disabled={!hasPermission('cohort:form_manage') && !hasPermission('MANAGE_APPLICATION_FORM')}
                             className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                               activeTab === 'cohort_form_config' || activeTab === 'builder'
                                 ? 'bg-primary text-white shadow-3xs' 
@@ -262,12 +307,12 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                               <FileText className="h-3 w-3" />
                               Application Form Configuration
                             </span>
-                            {!hasPermission('cohort:form_manage') && <Lock className="h-3 w-3 text-gray-400" />}
+                            {!hasPermission('cohort:form_manage') && !hasPermission('MANAGE_APPLICATION_FORM') && <Lock className="h-3 w-3 text-gray-400" />}
                           </button>
 
                           <button
                             onClick={() => setActiveTab('cohort_applications')}
-                            disabled={!hasPermission('cohort:applicant_review')}
+                            disabled={!hasPermission('cohort:applicant_review') && !hasPermission('REVIEW_COHORT_APPLICATIONS')}
                             className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                               activeTab === 'cohort_applications' || activeTab === 'cohort_intake'
                                 ? 'bg-primary text-white shadow-3xs' 
@@ -278,7 +323,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                               <UserCheck className="h-3 w-3" />
                               Review Applications
                             </span>
-                            {!hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
+                            {!hasPermission('cohort:applicant_review') && !hasPermission('REVIEW_COHORT_APPLICATIONS') && <Lock className="h-3 w-3 text-gray-400" />}
                           </button>
                         </div>
                       )}
@@ -287,7 +332,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                     {/* Active Startups */}
                     <button
                       onClick={() => setActiveTab('cohort_startups')}
-                      disabled={!hasPermission('cohort:applicant_review')}
+                      disabled={!hasPermission('cohort:startups_manage') && !hasPermission('MANAGE_COHORT_STARTUPS') && !hasPermission('cohort:applicant_review')}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         activeTab === 'cohort_startups' 
                           ? 'bg-primary text-white shadow-3xs' 
@@ -298,7 +343,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                         <Rocket className="h-3.5 w-3.5" />
                         Active Startups
                       </span>
-                      {!hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
+                      {!hasPermission('cohort:startups_manage') && !hasPermission('MANAGE_COHORT_STARTUPS') && !hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
                     </button>
 
                     {/* Sessions */}
@@ -309,7 +354,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                           onNavigate('/staff/dashboard');
                         }
                       }}
-                      disabled={!hasPermission('cohort:session_manage')}
+                      disabled={!hasPermission('cohort:session_manage') && !hasPermission('MANAGE_COHORT_SESSIONS')}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         activeTab === 'cohort_sessions' || (currentPath && currentPath.startsWith('/admin/sessions'))
                           ? 'bg-primary text-white shadow-3xs' 
@@ -320,13 +365,13 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                         <Calendar className="h-3.5 w-3.5" />
                         Sessions
                       </span>
-                      {!hasPermission('cohort:session_manage') && <Lock className="h-3 w-3 text-gray-400" />}
+                      {!hasPermission('cohort:session_manage') && !hasPermission('MANAGE_COHORT_SESSIONS') && <Lock className="h-3 w-3 text-gray-400" />}
                     </button>
 
                     {/* Assignments */}
                     <button
                       onClick={() => setActiveTab('cohort_assignments')}
-                      disabled={!hasPermission('cohort:session_manage')}
+                      disabled={!hasPermission('cohort:assignment_manage') && !hasPermission('MANAGE_COHORT_ASSIGNMENTS') && !hasPermission('cohort:session_manage')}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                         activeTab === 'cohort_assignments' 
                           ? 'bg-primary text-white shadow-3xs' 
@@ -337,91 +382,42 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                         <CheckSquare className="h-3.5 w-3.5" />
                         Assignments
                       </span>
-                      {!hasPermission('cohort:session_manage') && <Lock className="h-3 w-3 text-gray-400" />}
+                      {!hasPermission('cohort:assignment_manage') && !hasPermission('MANAGE_COHORT_ASSIGNMENTS') && !hasPermission('cohort:session_manage') && <Lock className="h-3 w-3 text-gray-400" />}
                     </button>
 
+                    {/* Founder Feedback */}
+                    <button
+                      onClick={() => setActiveTab('cohort_feedback')}
+                      disabled={!hasPermission('cohort:feedback_view') && !hasPermission('VIEW_FOUNDER_FEEDBACK') && !hasPermission('cohort:checkin_log') && !hasPermission('cohort:applicant_review')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        activeTab === 'cohort_feedback' 
+                          ? 'bg-primary text-white shadow-3xs' 
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        Founder Feedback
+                      </span>
+                      {!hasPermission('cohort:feedback_view') && !hasPermission('VIEW_FOUNDER_FEEDBACK') && !hasPermission('cohort:checkin_log') && !hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
+                    </button>
 
-                    {/* Performance (Collapsible Sub-Group) */}
-                    <div className="space-y-0.5">
-                      <button
-                        onClick={() => setPerformanceOpen(!performanceOpen)}
-                        className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all cursor-pointer"
-                      >
-                        <span className="flex items-center gap-2">
-                          <TrendingUp className="h-3.5 w-3.5" />
-                          Performance
-                        </span>
-                        {performanceOpen ? <ChevronDown className="h-3 w-3 text-gray-400" /> : <ChevronRight className="h-3 w-3 text-gray-400" />}
-                      </button>
-
-                      {performanceOpen && (
-                        <div className="pl-3 border-l border-gray-100 ml-3 space-y-1 my-0.5">
-                          <button
-                            onClick={() => setActiveTab('cohort_kpis')}
-                            disabled={!hasPermission('cohort:checkin_log') && !hasPermission('cohort:applicant_review')}
-                            className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                              activeTab === 'cohort_kpis' 
-                                ? 'bg-primary text-white shadow-3xs' 
-                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                            } disabled:opacity-40 disabled:cursor-not-allowed`}
-                          >
-                            <span className="flex items-center gap-1.5">
-                              <BarChart2 className="h-3 w-3" />
-                              Metrics & KPIs
-                            </span>
-                            {!hasPermission('cohort:checkin_log') && !hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
-                          </button>
-
-                          <button
-                            onClick={() => setActiveTab('cohort_investment')}
-                            disabled={!hasPermission('cohort:applicant_review')}
-                            className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                              activeTab === 'cohort_investment' 
-                                ? 'bg-primary text-white shadow-3xs' 
-                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                            } disabled:opacity-40 disabled:cursor-not-allowed`}
-                          >
-                            <span className="flex items-center gap-1.5">
-                              <Award className="h-3 w-3" />
-                              Investment Readiness
-                            </span>
-                            {!hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
-                          </button>
-
-                          <button
-                            onClick={() => setActiveTab('cohort_feedback')}
-                            disabled={!hasPermission('cohort:checkin_log') && !hasPermission('cohort:applicant_review')}
-                            className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                              activeTab === 'cohort_feedback' 
-                                ? 'bg-primary text-white shadow-3xs' 
-                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                            } disabled:opacity-40 disabled:cursor-not-allowed`}
-                          >
-                            <span className="flex items-center gap-1.5">
-                              <MessageSquare className="h-3 w-3" />
-                              Founder Feedback
-                            </span>
-                            {!hasPermission('cohort:checkin_log') && !hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
-                          </button>
-
-                          <button
-                            onClick={() => setActiveTab('cohort_feedback_forms')}
-                            disabled={!hasPermission('cohort:form_manage') && !hasPermission('cohort:applicant_review')}
-                            className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                              activeTab === 'cohort_feedback_forms' || activeTab === 'feedback_forms'
-                                ? 'bg-primary text-white shadow-3xs' 
-                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                            } disabled:opacity-40 disabled:cursor-not-allowed`}
-                          >
-                            <span className="flex items-center gap-1.5">
-                              <FileText className="h-3 w-3" />
-                              Feedback Forms & Surveys
-                            </span>
-                            {!hasPermission('cohort:form_manage') && !hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                    {/* Feedback Forms & Surveys */}
+                    <button
+                      onClick={() => setActiveTab('cohort_feedback_forms')}
+                      disabled={!hasPermission('cohort:feedback_forms_manage') && !hasPermission('MANAGE_FEEDBACK_FORMS') && !hasPermission('cohort:form_manage') && !hasPermission('cohort:applicant_review')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        activeTab === 'cohort_feedback_forms' || activeTab === 'feedback_forms' || activeTab === 'cohort_surveys'
+                          ? 'bg-primary text-white shadow-3xs' 
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <FileText className="h-3.5 w-3.5" />
+                        Feedback Forms & Surveys
+                      </span>
+                      {!hasPermission('cohort:feedback_forms_manage') && !hasPermission('MANAGE_FEEDBACK_FORMS') && !hasPermission('cohort:form_manage') && !hasPermission('cohort:applicant_review') && <Lock className="h-3 w-3 text-gray-400" />}
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -447,22 +443,6 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                 Governance Center
               </span>
               {!hasPermission('ISSUE_BAN') && !hasPermission('MANAGE_ROLES') && !hasPermission('MANAGE_USERS') && <Lock className="h-3 w-3 text-gray-400" />}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('rooms')}
-              disabled={!hasPermission('MANAGE_ROOMS')}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'rooms' 
-                  ? 'bg-primary text-white shadow-3xs' 
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-              } disabled:opacity-40 disabled:cursor-not-allowed`}
-            >
-              <span className="flex items-center gap-2.5">
-                <Building className="h-4 w-4" />
-                Room Management
-              </span>
-              {!hasPermission('MANAGE_ROOMS') && <Lock className="h-3 w-3 text-gray-400" />}
             </button>
 
             <button
@@ -513,6 +493,10 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                 ? 'Custom Role Compiler' 
                 : activeTab === 'rooms' 
                 ? 'Facility Spaces configurator' 
+                : activeTab === 'booking_types' || activeTab === 'types'
+                ? 'Booking Types & Classifications'
+                : activeTab === 'booking_analytics' || activeTab === 'analytics'
+                ? 'Booking Analytics'
                 : activeTab.startsWith('cohort') 
                 ? 'Incubator & Admissions Workspace'
                 : 'Security Audit Ledger logs'}
@@ -558,27 +542,93 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                 >
                   Booking Register
                 </button>
+                <button 
+                  onClick={() => { setActiveTab('rooms'); setMobileMenuOpen(false); }}
+                  disabled={!hasPermission('MANAGE_ROOMS')}
+                  className={`w-full text-left font-black text-xs p-3 rounded-xl uppercase tracking-wider ${activeTab === 'rooms' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
+                >
+                  Room Management
+                </button>
+                <button 
+                  onClick={() => { setActiveTab('booking_types'); setMobileMenuOpen(false); }}
+                  disabled={!hasPermission('MANAGE_BOOKING_TYPES')}
+                  className={`w-full text-left font-black text-xs p-3 rounded-xl uppercase tracking-wider ${activeTab === 'booking_types' || activeTab === 'types' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
+                >
+                  Booking Types
+                </button>
+                <button 
+                  onClick={() => { setActiveTab('booking_analytics'); setMobileMenuOpen(false); }}
+                  disabled={!hasPermission('VIEW_BOOKING_ANALYTICS') && !hasPermission('VIEW_ANALYTICS_DASHBOARD')}
+                  className={`w-full text-left font-black text-xs p-3 rounded-xl uppercase tracking-wider ${activeTab === 'booking_analytics' || activeTab === 'analytics' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
+                >
+                  Booking Analytics
+                </button>
                 
                 {/* Cohorts Mobile section */}
                 <div className="pt-2">
                   <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2">Cohort Management</span>
                   <button 
                     onClick={() => { setActiveTab('cohort_dashboard'); setMobileMenuOpen(false); }}
-                    className={`w-full text-left font-black text-xs p-2.5 rounded-xl uppercase tracking-wider ${activeTab === 'cohort_dashboard' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'}`}
+                    disabled={!hasPermission('cohort:dashboard_view') && !hasPermission('VIEW_COHORT_DASHBOARD') && !hasPermission('cohort:applicant_review') && !hasPermission('cohort:session_manage') && !hasPermission('cohort:form_manage')}
+                    className={`w-full text-left font-black text-xs p-2.5 rounded-xl uppercase tracking-wider ${activeTab === 'cohort_dashboard' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
                   >
                     Cohort Dashboard
                   </button>
                   <button 
+                    onClick={() => { setActiveTab('cohort_settings'); setMobileMenuOpen(false); }}
+                    disabled={!hasPermission('cohort:settings_manage') && !hasPermission('MANAGE_COHORT_SETTINGS') && !hasPermission('cohort:form_manage')}
+                    className={`w-full text-left font-black text-xs p-2.5 rounded-xl uppercase tracking-wider mt-1 ${activeTab === 'cohort_settings' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
+                  >
+                    Cohort Settings
+                  </button>
+                  <button 
+                    onClick={() => { setActiveTab('cohort_form_config'); setMobileMenuOpen(false); }}
+                    disabled={!hasPermission('cohort:form_manage') && !hasPermission('MANAGE_APPLICATION_FORM')}
+                    className={`w-full text-left font-black text-xs p-2.5 rounded-xl uppercase tracking-wider mt-1 ${activeTab === 'cohort_form_config' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
+                  >
+                    Form Configuration
+                  </button>
+                  <button 
                     onClick={() => { setActiveTab('cohort_applications'); setMobileMenuOpen(false); }}
-                    className={`w-full text-left font-black text-xs p-2.5 rounded-xl uppercase tracking-wider mt-1 ${activeTab === 'cohort_applications' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'}`}
+                    disabled={!hasPermission('cohort:applicant_review') && !hasPermission('REVIEW_COHORT_APPLICATIONS')}
+                    className={`w-full text-left font-black text-xs p-2.5 rounded-xl uppercase tracking-wider mt-1 ${activeTab === 'cohort_applications' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
                   >
                     Review Applications
                   </button>
                   <button 
                     onClick={() => { setActiveTab('cohort_startups'); setMobileMenuOpen(false); }}
-                    className={`w-full text-left font-black text-xs p-2.5 rounded-xl uppercase tracking-wider mt-1 ${activeTab === 'cohort_startups' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'}`}
+                    disabled={!hasPermission('cohort:startups_manage') && !hasPermission('MANAGE_COHORT_STARTUPS') && !hasPermission('cohort:applicant_review')}
+                    className={`w-full text-left font-black text-xs p-2.5 rounded-xl uppercase tracking-wider mt-1 ${activeTab === 'cohort_startups' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
                   >
                     Active Startups
+                  </button>
+                  <button 
+                    onClick={() => { setActiveTab('cohort_sessions'); setMobileMenuOpen(false); }}
+                    disabled={!hasPermission('cohort:session_manage') && !hasPermission('MANAGE_COHORT_SESSIONS')}
+                    className={`w-full text-left font-black text-xs p-2.5 rounded-xl uppercase tracking-wider mt-1 ${activeTab === 'cohort_sessions' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
+                  >
+                    Sessions
+                  </button>
+                  <button 
+                    onClick={() => { setActiveTab('cohort_assignments'); setMobileMenuOpen(false); }}
+                    disabled={!hasPermission('cohort:assignment_manage') && !hasPermission('MANAGE_COHORT_ASSIGNMENTS') && !hasPermission('cohort:session_manage')}
+                    className={`w-full text-left font-black text-xs p-2.5 rounded-xl uppercase tracking-wider mt-1 ${activeTab === 'cohort_assignments' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
+                  >
+                    Assignments
+                  </button>
+                  <button 
+                    onClick={() => { setActiveTab('cohort_feedback'); setMobileMenuOpen(false); }}
+                    disabled={!hasPermission('cohort:feedback_view') && !hasPermission('VIEW_FOUNDER_FEEDBACK') && !hasPermission('cohort:checkin_log') && !hasPermission('cohort:applicant_review')}
+                    className={`w-full text-left font-black text-xs p-2.5 rounded-xl uppercase tracking-wider mt-1 ${activeTab === 'cohort_feedback' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
+                  >
+                    Founder Feedback
+                  </button>
+                  <button 
+                    onClick={() => { setActiveTab('cohort_feedback_forms'); setMobileMenuOpen(false); }}
+                    disabled={!hasPermission('cohort:feedback_forms_manage') && !hasPermission('MANAGE_FEEDBACK_FORMS') && !hasPermission('cohort:form_manage') && !hasPermission('cohort:applicant_review')}
+                    className={`w-full text-left font-black text-xs p-2.5 rounded-xl uppercase tracking-wider mt-1 ${activeTab === 'cohort_feedback_forms' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
+                  >
+                    Feedback Forms & Surveys
                   </button>
                 </div>
 
@@ -589,13 +639,6 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                     className={`w-full text-left font-black text-xs p-3 rounded-xl uppercase tracking-wider ${activeTab === 'governance' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
                   >
                     Governance Center
-                  </button>
-                  <button 
-                    onClick={() => { setActiveTab('rooms'); setMobileMenuOpen(false); }}
-                    disabled={!hasPermission('MANAGE_ROOMS')}
-                    className={`w-full text-left font-black text-xs p-3 rounded-xl uppercase tracking-wider ${activeTab === 'rooms' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
-                  >
-                    Room Management
                   </button>
                   <button 
                     onClick={() => { setActiveTab('audits'); setMobileMenuOpen(false); }}

@@ -73,6 +73,10 @@ export const syncAcceptedStartupsInternal = async () => {
         const indRes = await query(`SELECT id FROM industries LIMIT 1;`);
         const defaultIndId = indRes.rows && indRes.rows[0] ? indRes.rows[0].id : null;
 
+        const appProgramStatus = typeof app.program_status === 'string' && app.program_status !== '{}'
+          ? app.program_status
+          : (['CONFIRMED', 'ENROLLED'].includes(app.status) ? 'ACTIVE' : 'NOT_ENROLLED');
+
         const insertRes = await query(`
           INSERT INTO startup_profiles (
             applicant_id,
@@ -88,14 +92,15 @@ export const syncAcceptedStartupsInternal = async () => {
             funding_status,
             created_at,
             updated_at
-          ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, 'IDEA_STAGE', 'ACTIVE', 1, 'PRE_REVENUE', 'BOOTSTRAPPED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, 'IDEA_STAGE', $6, 1, 'PRE_REVENUE', 'BOOTSTRAPPED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           RETURNING *;
         `, [
           app.id,
           app.startup_name || 'Untitled Startup',
           defaultIndId,
           app.startup_description || 'No description provided.',
-          app.cohort_id || null
+          app.cohort_id || null,
+          appProgramStatus
         ]);
 
         const profile = insertRes.rows[0];
