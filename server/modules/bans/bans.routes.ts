@@ -12,7 +12,7 @@ router.get('/bans', requireAuth, (req: AuthenticatedRequest, res: Response, next
       req.currentUser?.permissions.includes('MANAGE_BANS')) {
     return next();
   }
-  return res.status(401).json({ error: "Privilege Restriction: Missing permission to view bans." });
+  return res.status(403).json({ error: "Privilege Restriction: Missing permission to view bans.", code: 'FORBIDDEN' });
 }, async (req: AuthenticatedRequest, res: Response) => {
   try {
     // Run the automatic clean-up/expiration of bans first
@@ -39,7 +39,7 @@ router.post('/bans', requireAuth, (req: AuthenticatedRequest, res: Response, nex
       req.currentUser?.permissions.includes('ISSUE_BAN')) {
     return next();
   }
-  return res.status(401).json({ error: "Privilege Restriction: Missing permission to issue bans." });
+  return res.status(403).json({ error: "Privilege Restriction: Missing permission to issue bans.", code: 'FORBIDDEN' });
 }, async (req: AuthenticatedRequest, res: Response) => {
   const staff = req.currentUser!;
   let { email, name, reason, durationType, customDays, duration } = req.body;
@@ -203,7 +203,7 @@ router.post('/bans/:id/lift', requireAuth, (req: AuthenticatedRequest, res: Resp
   if (req.currentUser?.role === 'Administrator') {
     return next();
   }
-  return res.status(401).json({ error: "Privilege Restriction: Only Administrators can lift active bans." });
+  return res.status(403).json({ error: "Privilege Restriction: Only Administrators can lift active bans.", code: 'FORBIDDEN' });
 }, async (req: AuthenticatedRequest, res: Response) => {
   const staff = req.currentUser!;
   const banId = req.params.id;

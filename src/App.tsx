@@ -98,23 +98,84 @@ export default function App() {
     if (!currentToken) return;
 
     try {
-      const [roomsData, bookingsData, bansData, rolesData, usersData] = await Promise.all([
+      // 1. Fetch public / common tables (rooms and bookings)
+      const [roomsData, bookingsData] = await Promise.all([
         roomsApi.getAll(currentToken).catch(() => []),
-        bookingsApi.getAll(currentToken).catch(() => []),
-        bansApi.getAll(currentToken).catch(() => []),
-        rolesApi.getAll(currentToken).catch(() => []),
-        usersApi.getAll(currentToken).catch(() => [])
+        bookingsApi.getAll(currentToken).catch(() => [])
       ]);
 
       setRooms(Array.isArray(roomsData) ? roomsData : []);
       setBookings(Array.isArray(bookingsData) ? bookingsData : []);
-      setBans(Array.isArray(bansData) ? bansData : []);
-      setRoles(Array.isArray(rolesData) ? rolesData : []);
-      setUsers(Array.isArray(usersData) ? usersData : []);
 
-      // Fetch Cohorts
+      // 2. Determine effective user
+      const storedUserStr = typeof localStorage !== 'undefined' ? localStorage.getItem('currentUser') : null;
+      let effectiveUser = activeUser;
+      if (!effectiveUser && storedUserStr) {
+        try { effectiveUser = JSON.parse(storedUserStr); } catch (e) {}
+      }
+
+      const isStaffOrAdmin = effectiveUser && effectiveUser.role !== 'UCP Member' && effectiveUser.role !== 'Cohort Founder';
+
+      if (isStaffOrAdmin) {
+        const [bansData, rolesData, usersData] = await Promise.all([
+          bansApi.getAll(currentToken).catch(() => []),
+          rolesApi.getAll(currentToken).catch(() => []),
+          usersApi.getAll(currentToken).catch(() => [])
+        ]);
+
+        setBans(Array.isArray(bansData) ? bansData : []);
+        setRoles(Array.isArray(rolesData) ? rolesData : []);
+        setUsers(Array.isArray(usersData) ? usersData : []);
+
+        // Synchronize activeUser with the latest role and permissions from backend if changed
+        if (effectiveUser && Array.isArray(usersData) && Array.isArray(rolesData)) {
+          const freshUserRecord = usersData.find(u => u.email.toLowerCase() === effectiveUser.email.toLowerCase());
+          if (freshUserRecord) {
+            const freshRoleRecord = rolesData.find(r => r.name === freshUserRecord.role);
+            const freshPermissions = freshRoleRecord ? freshRoleRecord.permissions : [];
+            
+            if (effectiveUser.role !== freshUserRecord.role || 
+                JSON.stringify(effectiveUser.permissions) !== JSON.stringify(freshPermissions) ||
+                effectiveUser.status !== freshUserRecord.status) {
+              const updatedUser = {
+                ...effectiveUser,
+                role: freshUserRecord.role,
+                status: freshUserRecord.status,
+                permissions: freshPermissions
+              };
+              setActiveUser(updatedUser);
+              localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+            }
+          }
+        }
+
+        // Admin or users with specific permission nodes can fetch logs & report data
+        const userHasAuditView = effectiveUser?.role === 'Administrator' || 
+          (effectiveUser?.permissions && (
+            effectiveUser.permissions.includes('VIEW_AUDIT_LOGS') || 
+            effectiveUser.permissions.includes('EXPORT_AUDIT_LOGS') || 
+            effectiveUser.permissions.includes('VIEW_ANALYTICS_DASHBOARD')
+          )) || 
+          (Array.isArray(rolesData) && rolesData.find(r => r.name === effectiveUser?.role)?.permissions.some(p => 
+            ['VIEW_AUDIT_LOGS', 'EXPORT_AUDIT_LOGS', 'VIEW_ANALYTICS_DASHBOARD'].includes(p)
+          ));
+
+        if (userHasAuditView) {
+          const [auditData, repData] = await Promise.all([
+            auditApi.getLogs(currentToken).catch(() => []),
+            auditApi.getReports(currentToken).catch(() => null)
+          ]);
+          setAuditLogs(Array.isArray(auditData) ? auditData : []);
+          setReportsData(repData);
+        }
+      }
+
+      // Fetch Cohorts safely
       fetch('/api/cohorts', { headers: { 'Authorization': `Bearer ${currentToken}` } })
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) return [];
+          return res.json();
+        })
         .then(cData => {
           if (Array.isArray(cData)) {
             setCohortsList(cData);
@@ -125,51 +186,6 @@ export default function App() {
           }
         })
         .catch(() => {});
-
-      // Synchronize activeUser with the latest role and permissions from backend if changed
-      if (activeUser && Array.isArray(usersData) && Array.isArray(rolesData)) {
-        const freshUserRecord = usersData.find(u => u.email.toLowerCase() === activeUser.email.toLowerCase());
-        if (freshUserRecord) {
-          const freshRoleRecord = rolesData.find(r => r.name === freshUserRecord.role);
-          const freshPermissions = freshRoleRecord ? freshRoleRecord.permissions : [];
-          
-          if (activeUser.role !== freshUserRecord.role || 
-              JSON.stringify(activeUser.permissions) !== JSON.stringify(freshPermissions) ||
-              activeUser.status !== freshUserRecord.status) {
-            const updatedUser = {
-              ...activeUser,
-              role: freshUserRecord.role,
-              status: freshUserRecord.status,
-              permissions: freshPermissions
-            };
-            setActiveUser(updatedUser);
-            localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-          }
-        }
-      }
-
-      // Admin or users with specific permission nodes can fetch logs & report data
-      const userHasAuditView = activeUser?.role === 'Administrator' || 
-        (activeUser?.permissions && (
-          activeUser.permissions.includes('VIEW_AUDIT_LOGS') || 
-          activeUser.permissions.includes('EXPORT_AUDIT_LOGS') || 
-          activeUser.permissions.includes('VIEW_ANALYTICS_DASHBOARD')
-        )) || 
-        (Array.isArray(rolesData) && rolesData.find(r => r.name === activeUser?.role)?.permissions.some(p => 
-          ['VIEW_AUDIT_LOGS', 'EXPORT_AUDIT_LOGS', 'VIEW_ANALYTICS_DASHBOARD'].includes(p)
-        )) || 
-        (Array.isArray(roles) && roles.find(r => r.name === activeUser?.role)?.permissions.some(p => 
-          ['VIEW_AUDIT_LOGS', 'EXPORT_AUDIT_LOGS', 'VIEW_ANALYTICS_DASHBOARD'].includes(p)
-        ));
-
-      if (userHasAuditView) {
-        const [auditData, repData] = await Promise.all([
-          auditApi.getLogs(currentToken).catch(() => []),
-          auditApi.getReports(currentToken).catch(() => null)
-        ]);
-        setAuditLogs(Array.isArray(auditData) ? auditData : []);
-        setReportsData(repData);
-      }
 
       setLoading(false);
     } catch (err) {
@@ -194,6 +210,13 @@ export default function App() {
 
     const initAuth = async () => {
       const storedToken = localStorage.getItem('jwtToken') || localStorage.getItem('token');
+      const storedUser = localStorage.getItem('currentUser');
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser);
+          setActiveUser(parsed);
+        } catch (e) {}
+      }
       if (storedToken) {
         try {
           setClientToken(storedToken);

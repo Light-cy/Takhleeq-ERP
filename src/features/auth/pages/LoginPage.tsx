@@ -33,15 +33,10 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
       const data = await authApi.loginSimulated(founderEmail.trim(), founderPassword.trim());
       onLoginSuccess(data.token, data.user);
 
-      if (data.user.role === 'Cohort Founder' || loginMode === 'founder') {
+      if (data.user.role === 'Cohort Founder') {
         onNavigate('/founder-dashboard');
       } else if (data.user.role === 'UCP Member') {
-        if (isStaff) {
-          setErrorMessage('Access Denied: This UCP Member account does not have Back-office ERP staff clearance.');
-          setLoading(false);
-        } else {
-          onNavigate('/booking');
-        }
+        onNavigate('/booking');
       } else {
         onNavigate('/staff/dashboard');
       }
@@ -104,12 +99,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
           if (data.user.role === 'Cohort Founder') {
             onNavigate('/founder-dashboard');
           } else if (data.user.role === 'UCP Member') {
-            if (isStaff) {
-              setErrorMessage('Access Denied: This UCP Member account does not have Back-office ERP staff clearance.');
-              setLoading(false);
-            } else {
-              onNavigate('/booking');
-            }
+            onNavigate('/booking');
           } else {
             onNavigate('/staff/dashboard');
           }

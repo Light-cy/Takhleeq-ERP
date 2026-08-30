@@ -103,10 +103,10 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
 export function requirePermission(permission: string) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.currentUser) {
-      return res.status(401).json({ error: 'Session expired or unauthorized.' });
+      return res.status(401).json({ error: 'Session expired or unauthorized.', code: 'TOKEN_EXPIRED' });
     }
     if (req.currentUser.status === 'Inactive') {
-      return res.status(401).json({ error: 'Access Denied: Your account is inactive.' });
+      return res.status(403).json({ error: 'Access Denied: Your account is inactive.', code: 'FORBIDDEN' });
     }
     
     // Administrators bypass all individual permission restrictions
@@ -115,7 +115,7 @@ export function requirePermission(permission: string) {
     }
 
     if (!req.currentUser.permissions.includes(permission)) {
-      return res.status(401).json({ error: `Privilege Restriction: Missing permission '${permission}' required for this action.` });
+      return res.status(403).json({ error: `Privilege Restriction: Missing permission '${permission}' required for this action.`, code: 'FORBIDDEN' });
     }
     next();
   };
@@ -125,10 +125,10 @@ export function requirePermission(permission: string) {
 export function requireAnyPermission(permissions: string[]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!req.currentUser) {
-      return res.status(401).json({ error: 'Session expired or unauthorized.' });
+      return res.status(401).json({ error: 'Session expired or unauthorized.', code: 'TOKEN_EXPIRED' });
     }
     if (req.currentUser.status === 'Inactive') {
-      return res.status(401).json({ error: 'Access Denied: Your account is inactive.' });
+      return res.status(403).json({ error: 'Access Denied: Your account is inactive.', code: 'FORBIDDEN' });
     }
     
     // Administrators bypass all individual permission restrictions
@@ -138,7 +138,7 @@ export function requireAnyPermission(permissions: string[]) {
 
     const hasAny = permissions.some(p => req.currentUser!.permissions.includes(p));
     if (!hasAny) {
-      return res.status(401).json({ error: `Privilege Restriction: Missing one of the required permissions: ${permissions.join(', ')}` });
+      return res.status(403).json({ error: `Privilege Restriction: Missing one of the required permissions: ${permissions.join(', ')}`, code: 'FORBIDDEN' });
     }
     next();
   };

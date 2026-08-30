@@ -27,22 +27,30 @@ const handle401 = () => {
   }
 };
 
-const handleResponseError = async (res: Response): Promise<never> => {
-  if (res.status === 401) {
-    handle401();
-  }
+const handleResponseError = async (res: Response, url?: string): Promise<never> => {
   const errText = await res.text().catch(() => '');
   let errMsg = `HTTP error! status: ${res.status}`;
+  let errCode = '';
   try {
     const errData = JSON.parse(errText);
     if (errData && errData.error) {
       errMsg = errData.error;
+    }
+    if (errData && errData.code) {
+      errCode = errData.code;
     }
   } catch (e) {
     if (errText && errText.length < 300 && !errText.includes('<!DOCTYPE')) {
       errMsg = errText;
     }
   }
+
+  // Only expire session on true token expiration (401 with TOKEN_EXPIRED or session expired message)
+  // Never log out on 403 Forbidden or regular permission denials
+  if (res.status === 401 && (errCode === 'TOKEN_EXPIRED' || errMsg.toLowerCase().includes('session expired') || errMsg.toLowerCase().includes('token expired') || url === '/api/auth/me')) {
+    handle401();
+  }
+
   throw new Error(errMsg);
 };
 
@@ -53,7 +61,7 @@ export const apiClient = {
     delete headers['Content-Type'];
     const res = await fetch(url, { headers });
     if (!res.ok) {
-      await handleResponseError(res);
+      await handleResponseError(res, url);
     }
     return res.json();
   },
@@ -65,7 +73,7 @@ export const apiClient = {
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {
-      await handleResponseError(res);
+      await handleResponseError(res, url);
     }
     return res.json();
   },
@@ -77,7 +85,7 @@ export const apiClient = {
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!res.ok) {
-      await handleResponseError(res);
+      await handleResponseError(res, url);
     }
     return res.json();
   },
@@ -89,7 +97,7 @@ export const apiClient = {
       headers,
     });
     if (!res.ok) {
-      await handleResponseError(res);
+      await handleResponseError(res, url);
     }
     return res.json();
   },
