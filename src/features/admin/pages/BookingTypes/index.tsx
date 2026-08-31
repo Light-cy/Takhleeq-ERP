@@ -11,6 +11,14 @@ export function BookingTypesPage({ onRefresh }: BookingTypesPageProps) {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
 
+  // Auto-dismiss notifications
+  React.useEffect(() => {
+    if (successMsg) {
+      const timer = setTimeout(() => setSuccessMsg(null), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [successMsg]);
+
   return (
     <div className="space-y-6 text-left" id="booking-types-page">
       {/* Header Banner */}

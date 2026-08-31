@@ -2993,6 +2993,25 @@ export const updateFeedbackFormStatus = async (req: AuthenticatedRequest, res: R
 export const deleteFeedbackForm = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const formId = parseInt(req.params.id);
+    if (isNaN(formId)) {
+      return res.status(400).json({ error: 'Invalid feedback form ID' });
+    }
+
+    // Delete responses first if any exist
+    try {
+      await query(`DELETE FROM feedback_responses WHERE feedback_form_id = $1`, [formId]);
+    } catch (e) {
+      // Table or constraint might not exist
+    }
+
+    // Delete questions
+    try {
+      await query(`DELETE FROM feedback_questions WHERE feedback_form_id = $1`, [formId]);
+    } catch (e) {
+      // Table or constraint might not exist
+    }
+
+    // Delete form
     await query(`DELETE FROM feedback_forms WHERE id = $1`, [formId]);
     res.json({ success: true, message: 'Feedback form and all associated responses deleted successfully.' });
   } catch (err: any) {

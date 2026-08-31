@@ -370,11 +370,13 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
       setError(null);
       
       const res = await fetchWithAuth('/api/my-startup');
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to sync incubator records.');
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to sync incubator records.');
       }
+      const text = await res.text().catch(() => '');
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { data = {}; }
 
       const app = data.applicant;
       setApplicant(app);

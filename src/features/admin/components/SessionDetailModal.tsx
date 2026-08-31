@@ -411,14 +411,16 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
 
   // Delete Assignment
   const handleDeleteAssignment = async (asgId: number) => {
+    // Instant optimistic removal
+    setAssignments(prev => prev.filter(a => a.id !== asgId));
+    if (expandedAsgId === asgId) setExpandedAsgId(null);
     try {
       const res = await fetchWithAuth(`/api/assignments/${asgId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete assignment.');
-      setAssignments(prev => prev.filter(a => a.id !== asgId));
-      if (expandedAsgId === asgId) setExpandedAsgId(null);
       triggerSuccess('Assignment deleted.');
     } catch (err: any) {
-      triggerError(err.message);
+      triggerError(err.message || 'Failed to delete assignment.');
+      loadAssignments();
     }
   };
 

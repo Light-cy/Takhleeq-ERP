@@ -116,6 +116,11 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   useEffect(() => {
     if (activeTab) {
       setActiveSubTab(activeTab);
+      // Clear sub-page overlays/detail views so user immediately sees the clicked section
+      setSelectedApplicant(null);
+      setSelectedStartupForModal(null);
+      setSelectedSession(null);
+      setSessionDetailModalSession(null);
     }
   }, [activeTab]);
 
@@ -131,46 +136,8 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   const [sessions, setSessions] = useState<CohortSession[]>([]);
   const [checkins, setCheckins] = useState<TeamCheckIn[]>([]);
   const [warnings, setWarnings] = useState<PerformanceWarning[]>([]);
-  const [assignments, setAssignments] = useState<CohortAssignment[]>([
-    {
-      id: 1,
-      cohort_id: 1,
-      title: 'Quarterly Cap Table & Shareholding Structure',
-      type: 'MILESTONE',
-      due_date: '2026-08-15',
-      recurrence_rule: 'QUARTERLY',
-      created_at: '2026-07-01'
-    },
-    {
-      id: 2,
-      cohort_id: 1,
-      title: 'Traction Report & Monthly Burn Rate',
-      type: 'MILESTONE',
-      due_date: '2026-08-01',
-      recurrence_rule: 'MONTHLY',
-      created_at: '2026-07-01'
-    }
-  ]);
-  const [milestoneSubmissions, setMilestoneSubmissions] = useState<MilestoneSubmission[]>([
-    {
-      id: 1,
-      assignment_id: 1,
-      applicant_id: 1,
-      file_url: 'https://storage.ucp.edu.pk/captable_v1.pdf',
-      notes: 'Updated Q2 cap table with founder vesting schedule',
-      status: 'PENDING',
-      submitted_at: '2026-07-20T10:00:00Z'
-    },
-    {
-      id: 2,
-      assignment_id: 2,
-      applicant_id: 2,
-      file_url: 'https://storage.ucp.edu.pk/burnrate_july.xlsx',
-      notes: 'Monthly traction summary',
-      status: 'PENDING',
-      submitted_at: '2026-07-21T14:30:00Z'
-    }
-  ]);
+  const [assignments, setAssignments] = useState<CohortAssignment[]>([]);
+  const [milestoneSubmissions, setMilestoneSubmissions] = useState<MilestoneSubmission[]>([]);
 
   // Selected Entities
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
@@ -194,7 +161,11 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       } else {
         setLoadingRouteSession(true);
         fetchWithAuth(`/api/sessions/${routeSessionId}/attendance`)
-          .then(res => res.json())
+          .then(async res => {
+            if (!res.ok) return null;
+            const text不易 = await res.text().catch(() => '');
+            try { return JSON.parse(text不易); } catch { return null; }
+          })
           .then(data => {
             if (data && data.session) {
               setFetchedRouteSession(data.session);
@@ -301,6 +272,18 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   const [newCohortName, setNewCohortName] = useState('');
   const [newCohortStatus, setNewCohortStatus] = useState<'ACTIVE' | 'DRAFT'>('ACTIVE');
 
+  // Helper to safely parse json responses
+  const safeParseResponse = async <T,>(res: Response, fallback: T): Promise<T> => {
+    try {
+      if (!res.ok) return fallback;
+      const text = await res.text().catch(() => '');
+      if (!text) return fallback;
+      return JSON.parse(text);
+    } catch {
+      return fallback;
+    }
+  };
+
   // Fetch all database tables
   const loadCohortModuleData = async () => {
     setLoading(true);
@@ -308,20 +291,20 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
     try {
       // 1. Fetch Form settings
       const settingsRes = await fetchWithAuth('/api/cohort-form-settings');
-      const settingsData = await settingsRes.json();
-      setFormSettings(settingsData);
+      const settingsData = await safeParseResponse(settingsRes, { is_active: true, fields: [] });
+      setFormSettings(settingsData || { is_active: true, fields: [] });
 
       // 2. Fetch Applicants
       const applicantsRes = await fetchWithAuth('/api/applicants');
-      const applicantsData = await applicantsRes.json();
+      const applicantsData = await safeParseResponse(applicantsRes, []);
       setApplicants(Array.isArray(applicantsData) ? applicantsData : []);
 
       // 3. Fetch Cohorts
       const cohortsRes = await fetchWithAuth('/api/cohorts');
-      const cohortsData = await cohortsRes.json();
+      const cohortsData = await safeParseResponse(cohortsRes, []);
       setCohorts(cohortsData);
 
-      if (cohortsData.length > 0) {
+      if (Array.isArray(cohortsData) && cohortsData.length > 0) {
         // Default to the first active cohort if exists
         const active = cohortsData.find((c: Cohort) => c.status === 'ACTIVE');
         setSelectedCohort(active || cohortsData[cohortsData.length - 1]);
@@ -346,7 +329,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
     // Fetch sessions
     fetchWithAuth(`/api/cohorts/${cohortId}/sessions`)
-      .then(res => res.ok ? res.json() : [])
+      .then(res => safeParseResponse(res, []))
       .then(data => {
         if (Array.isArray(data)) {
           setSessions(data);
@@ -361,13 +344,13 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
     // Fetch checkins
     fetchWithAuth(`/api/cohorts/${cohortId}/checkins`)
-      .then(res => res.ok ? res.json() : [])
+      .then(res => safeParseResponse(res, []))
       .then(data => Array.isArray(data) && setCheckins(data))
       .catch(() => setCheckins([]));
 
     // Fetch warnings
     fetchWithAuth(`/api/cohorts/${cohortId}/warnings`)
-      .then(res => res.ok ? res.json() : [])
+      .then(res => safeParseResponse(res, []))
       .then(data => Array.isArray(data) && setWarnings(data))
       .catch(() => setWarnings([]));
 
@@ -376,9 +359,11 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
   }, [selectedCohort?.id, activeSubTab]);
 
-  const fetchCohortAssignments = async (cohortIdOverride?: number) => {
+  const fetchCohortAssignments = async (cohortIdOverride?: number, silent = false) => {
     const cId = cohortIdOverride || selectedCohort?.id;
-    setLoadingCohortAssignments(true);
+    if (!silent) {
+      setLoadingCohortAssignments(true);
+    }
     try {
       const endpoint = cId ? `/api/cohorts/${cId}/assignments` : '/api/assignments';
       const res = await fetchWithAuth(endpoint);
@@ -391,7 +376,9 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
     } catch (err) {
       console.error('Failed to load assignments:', err);
     } finally {
-      setLoadingCohortAssignments(false);
+      if (!silent) {
+        setLoadingCohortAssignments(false);
+      }
     }
   };
 
@@ -524,7 +511,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       setNewAsgFileUrls([]);
       setNewAsgUrlInput('');
       setUploadProgressText('');
-      await fetchCohortAssignments(targetCohortId);
+      await fetchCohortAssignments(targetCohortId, true);
     } catch (err: any) {
       triggerError(err.message || 'Failed to publish assignment.');
     } finally {
@@ -566,14 +553,14 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       const res = await fetchWithAuth(`/api/assignments/${asgId}`, { method: 'DELETE' });
       if (res.ok) {
         triggerSuccess('Assignment deleted successfully.');
-        await fetchCohortAssignments(selectedCohort?.id);
+        await fetchCohortAssignments(selectedCohort?.id, true);
       } else {
         triggerError('Failed to delete assignment.');
-        await fetchCohortAssignments(selectedCohort?.id);
+        await fetchCohortAssignments(selectedCohort?.id, true);
       }
     } catch (err) {
       triggerError('Failed to delete assignment.');
-      await fetchCohortAssignments(selectedCohort?.id);
+      await fetchCohortAssignments(selectedCohort?.id, true);
     }
   };
 
@@ -1246,24 +1233,6 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
   return (
     <div className="space-y-6" id="cohort-management-dashboard">
-      
-      {/* HEADER SECTION WITH NAVIGATION SWITCH */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white border border-gray-100 rounded-2xl p-6 shadow-3xs">
-        <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-center text-primary shrink-0">
-            <GraduationCap className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-base font-black text-gray-900 tracking-tight flex items-center gap-2">
-              {displayTitle}
-              <span className="bg-[#8B1A1A] text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md shrink-0">
-                Module 02
-              </span>
-            </h1>
-          </div>
-        </div>
-      </div>
-
       {/* Global alert messages */}
       {success && (
         <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-800 text-left font-bold flex items-center gap-2 animate-fade-in shadow-3xs">
@@ -1278,6 +1247,45 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
         </div>
       )}
 
+      {/* Top Navigation Bar with Back Button for all Subtabs */}
+      {activeSubTab !== 'cohort_dashboard' && activeSubTab !== 'cohorts' && activeSubTab !== 'dashboard' && !selectedApplicant && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-gray-150 rounded-2xl p-4 shadow-3xs text-left animate-in fade-in duration-150">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedApplicant(null);
+                setSelectedStartupForModal(null);
+                setSelectedSession(null);
+                setSessionDetailModalSession(null);
+                setStatusFilter('ALL');
+                setActiveSubTab('cohort_dashboard');
+                if (onNavigate) {
+                  onNavigate('/staff/dashboard', 'cohort_dashboard');
+                }
+              }}
+              className="inline-flex items-center gap-2 bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-primary border border-gray-200 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-3xs"
+              id="back-to-cohort-dashboard-btn"
+            >
+              <ArrowLeft className="h-4 w-4 text-primary" />
+              <span>Back to Cohort Dashboard</span>
+            </button>
+            <div className="h-6 w-px bg-gray-200 hidden sm:block" />
+            <div>
+              <h2 className="text-sm font-black text-gray-900 leading-tight">{displayTitle}</h2>
+              <p className="text-[11px] text-gray-400 font-bold">{displayDesc}</p>
+            </div>
+          </div>
+
+          {selectedCohort && (
+            <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-150 self-start sm:self-auto text-xs font-bold text-gray-600">
+              <GraduationCap className="h-3.5 w-3.5 text-primary" />
+              <span>{selectedCohort.name}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ----------------------------------------------------------------------------------- */}
       {/* SUBTAB 0: COHORT OVERVIEW DASHBOARD */}
       {/* ----------------------------------------------------------------------------------- */}
@@ -1289,7 +1297,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
           applicants={applicants}
           sessions={sessions}
           warnings={warnings}
-          assignments={cohortAssignments.length > 0 ? cohortAssignments : assignments}
+          assignments={cohortAssignments}
           milestoneSubmissions={milestoneSubmissions}
           auditLogs={auditLogs}
           onCreateCohort={handleOpenCreateCohortModal}
@@ -1503,6 +1511,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
               triggerError={triggerError}
               formSettings={formSettings}
               selectedCohort={selectedCohort}
+              onNavigate={onNavigate}
             />
           ) : (
             <div className="space-y-6 text-left w-full">

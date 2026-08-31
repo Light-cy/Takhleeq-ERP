@@ -3,7 +3,8 @@ import {
   ArrowLeft, Building2, User, Mail, Phone, Lock, Eye, EyeOff, ShieldAlert, 
   CheckCircle2, AlertTriangle, TrendingUp, Calendar, DollarSign, History, 
   FileText, Sparkles, RefreshCw, Save, ShieldX, Ban, PlayCircle, Award,
-  AlertCircle, CheckCircle, Send, RotateCcw, Plus, X
+  AlertCircle, CheckCircle, Send, RotateCcw, Plus, X, Users, Edit3,
+  ClipboardList, ShieldCheck, GitBranch
 } from 'lucide-react';
 import { Industry } from '../../../types/startup.types';
 import { STARTUP_PROGRESS_STAGES, getStartupStageInfo } from '../../../constants/startupStages';
@@ -354,39 +355,70 @@ export const StartupDetailView: React.FC<Props> = ({
           {/* Quick Status Control */}
           <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-2 flex flex-col justify-between">
             <div>
-              <label className="text-xs font-black text-gray-700 uppercase tracking-wide block mb-2">Account & Program Status</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-black text-gray-700 uppercase tracking-wide">
+                  Account & Program Status
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
                 <button
+                  type="button"
                   onClick={() => handleAdminSave({ program_status: 'ACTIVE' })}
                   disabled={saving || profile.program_status === 'ACTIVE'}
-                  className="py-1.5 px-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
+                  className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap border ${
+                    profile.program_status === 'ACTIVE'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-500/20'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/70 hover:text-emerald-700'
+                  } disabled:opacity-85 disabled:cursor-default`}
                 >
-                  <PlayCircle className="h-3 w-3 shrink-0" />
+                  <PlayCircle className={`h-3.5 w-3.5 shrink-0 ${profile.program_status === 'ACTIVE' ? 'text-white' : 'text-emerald-600'}`} />
                   <span>Active</span>
+                  {profile.program_status === 'ACTIVE' && <span className="h-1.5 w-1.5 rounded-full bg-white ml-0.5 animate-pulse" />}
                 </button>
+
                 <button
+                  type="button"
                   onClick={() => handleAdminSave({ program_status: 'PAUSED' })}
                   disabled={saving || profile.program_status === 'PAUSED'}
-                  className="py-1.5 px-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
+                  className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap border ${
+                    profile.program_status === 'PAUSED'
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-500/20'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300 hover:bg-amber-50/70 hover:text-amber-800'
+                  } disabled:opacity-85 disabled:cursor-default`}
                 >
-                  <Ban className="h-3 w-3 shrink-0" />
+                  <Ban className={`h-3.5 w-3.5 shrink-0 ${profile.program_status === 'PAUSED' ? 'text-white' : 'text-amber-600'}`} />
                   <span>Pause</span>
+                  {profile.program_status === 'PAUSED' && <span className="h-1.5 w-1.5 rounded-full bg-white ml-0.5" />}
                 </button>
+
                 <button
+                  type="button"
                   onClick={() => handleAdminSave({ program_status: 'GRADUATED' })}
                   disabled={saving || profile.program_status === 'GRADUATED'}
-                  className="py-1.5 px-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
+                  className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap border ${
+                    profile.program_status === 'GRADUATED'
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-500/20'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/70 hover:text-indigo-700'
+                  } disabled:opacity-85 disabled:cursor-default`}
                 >
-                  <Award className="h-3 w-3 shrink-0" />
+                  <Award className={`h-3.5 w-3.5 shrink-0 ${profile.program_status === 'GRADUATED' ? 'text-white' : 'text-indigo-600'}`} />
                   <span>Graduate</span>
+                  {profile.program_status === 'GRADUATED' && <span className="h-1.5 w-1.5 rounded-full bg-white ml-0.5" />}
                 </button>
+
                 <button
+                  type="button"
                   onClick={() => handleAdminSave({ program_status: 'KICKED_OUT' })}
                   disabled={saving || profile.program_status === 'KICKED_OUT'}
-                  className="py-1.5 px-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-all disabled:opacity-40 cursor-pointer text-center"
+                  className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap border ${
+                    profile.program_status === 'KICKED_OUT'
+                      ? 'bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-500/20'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-rose-300 hover:bg-rose-50/70 hover:text-rose-700'
+                  } disabled:opacity-85 disabled:cursor-default`}
                 >
-                  <ShieldX className="h-3 w-3 shrink-0" />
+                  <ShieldX className={`h-3.5 w-3.5 shrink-0 ${profile.program_status === 'KICKED_OUT' ? 'text-white' : 'text-rose-600'}`} />
                   <span>Kick Out</span>
+                  {profile.program_status === 'KICKED_OUT' && <span className="h-1.5 w-1.5 rounded-full bg-white ml-0.5" />}
                 </button>
               </div>
             </div>
@@ -466,85 +498,158 @@ export const StartupDetailView: React.FC<Props> = ({
       </div>
 
       {/* Tabs Bar */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-1.5 flex flex-wrap gap-1 shadow-2xs">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-            activeTab === 'overview' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          📋 Dossier Overview
-        </button>
-        <button
-          onClick={() => setActiveTab('checkins')}
-          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-            activeTab === 'checkins' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          🤝 1-on-1 Check-ins
-        </button>
-        <button
-          onClick={() => setActiveTab('management')}
-          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-            activeTab === 'management' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          ✏️ Edit Details & Credentials
-        </button>
-        <button
-          onClick={() => setActiveTab('attendance')}
-          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-            activeTab === 'attendance' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          📅 Attendance Report ({attendance?.attendance_rate || 100}%)
-        </button>
-        <button
-          onClick={() => setActiveTab('financials')}
-          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-            activeTab === 'financials' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          💵 Income & Financials
-        </button>
-        <button
-          onClick={() => setActiveTab('warnings')}
-          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'warnings' ? 'bg-amber-600 text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <AlertTriangle className="h-3.5 w-3.5" />
-          Warnings ({warnings.length})
-          {activeWarnings.length > 0 && (
-            <span className="bg-rose-500 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold">
-              {activeWarnings.length} Active
+      <div className="bg-white border border-gray-200 rounded-2xl p-1.5 shadow-xs overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1 min-w-max">
+          {/* 1. Overview */}
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'overview' 
+                ? 'bg-primary text-white shadow-xs' 
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'
+            }`}
+          >
+            <ClipboardList className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'overview' ? 'text-white' : 'text-primary'}`} />
+            <span>Overview</span>
+          </button>
+
+          {/* 2. Check-ins */}
+          <button
+            onClick={() => setActiveTab('checkins')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'checkins' 
+                ? 'bg-primary text-white shadow-xs' 
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'
+            }`}
+          >
+            <Users className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'checkins' ? 'text-white' : 'text-blue-600'}`} />
+            <span>1-on-1 Check-ins</span>
+          </button>
+
+          {/* 3. Edit & Credentials */}
+          <button
+            onClick={() => setActiveTab('management')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'management' 
+                ? 'bg-primary text-white shadow-xs' 
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'
+            }`}
+          >
+            <Edit3 className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'management' ? 'text-white' : 'text-indigo-600'}`} />
+            <span>Edit Details</span>
+          </button>
+
+          {/* 4. Attendance */}
+          <button
+            onClick={() => setActiveTab('attendance')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'attendance' 
+                ? 'bg-primary text-white shadow-xs' 
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'
+            }`}
+          >
+            <Calendar className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'attendance' ? 'text-white' : 'text-emerald-600'}`} />
+            <span>Attendance</span>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+              activeTab === 'attendance' 
+                ? 'bg-white/20 text-white' 
+                : 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+            }`}>
+              {attendance?.attendance_rate || 100}%
             </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('stage')}
-          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-            activeTab === 'stage' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          📈 Stage History ({stage_history?.length || 0})
-        </button>
-        <button
-          onClick={() => setActiveTab('pivots')}
-          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-            activeTab === 'pivots' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          🔄 Pivots ({pivots?.length || 0})
-        </button>
-        <button
-          onClick={() => setActiveTab('audit')}
-          className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-            activeTab === 'audit' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          🛡️ Audit Trail ({audit_logs?.length || 0})
-        </button>
+          </button>
+
+          {/* 5. Financials */}
+          <button
+            onClick={() => setActiveTab('financials')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'financials' 
+                ? 'bg-primary text-white shadow-xs' 
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'
+            }`}
+          >
+            <DollarSign className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'financials' ? 'text-white' : 'text-emerald-600'}`} />
+            <span>Financials</span>
+          </button>
+
+          {/* 6. Warnings */}
+          <button
+            onClick={() => setActiveTab('warnings')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'warnings' 
+                ? 'bg-amber-600 text-white shadow-xs' 
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'
+            }`}
+          >
+            <AlertTriangle className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'warnings' ? 'text-white' : 'text-amber-600'}`} />
+            <span>Warnings</span>
+            {activeWarnings.length > 0 ? (
+              <span className="bg-rose-500 text-white text-[9px] px-1.5 py-0.5 rounded-md font-bold animate-pulse">
+                {activeWarnings.length} Active
+              </span>
+            ) : (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                activeTab === 'warnings' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+              }`}>
+                {warnings.length}
+              </span>
+            )}
+          </button>
+
+          {/* 7. Stage History */}
+          <button
+            onClick={() => setActiveTab('stage')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'stage' 
+                ? 'bg-primary text-white shadow-xs' 
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'
+            }`}
+          >
+            <TrendingUp className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'stage' ? 'text-white' : 'text-purple-600'}`} />
+            <span>Stage History</span>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+              activeTab === 'stage' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+            }`}>
+              {stage_history?.length || 0}
+            </span>
+          </button>
+
+          {/* 8. Pivots */}
+          <button
+            onClick={() => setActiveTab('pivots')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'pivots' 
+                ? 'bg-primary text-white shadow-xs' 
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'
+            }`}
+          >
+            <RotateCcw className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'pivots' ? 'text-white' : 'text-teal-600'}`} />
+            <span>Pivots</span>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+              activeTab === 'pivots' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+            }`}>
+              {pivots?.length || 0}
+            </span>
+          </button>
+
+          {/* 9. Audit Trail */}
+          <button
+            onClick={() => setActiveTab('audit')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'audit' 
+                ? 'bg-primary text-white shadow-xs' 
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'
+            }`}
+          >
+            <History className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'audit' ? 'text-white' : 'text-slate-600'}`} />
+            <span>Audit Trail</span>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+              activeTab === 'audit' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+            }`}>
+              {audit_logs?.length || 0}
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* TAB: CHECK-INS */}

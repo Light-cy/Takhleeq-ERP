@@ -79,11 +79,35 @@ export const FeedbackFormsTab: React.FC<FeedbackFormsTabProps> = ({
   const [analyticsError, setAnalyticsError] = useState<string | null>(null);
   const [responsesSearchQuery, setResponsesSearchQuery] = useState('');
 
+  // Delete Confirmation Modal State
+  const [formToDelete, setFormToDelete] = useState<FeedbackForm | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [actionToast, setActionToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    if (actionToast) {
+      const timer = setTimeout(() => setActionToast(null), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [actionToast]);
+
   const getAuthHeaders = () => {
-    const token = jwtToken || localStorage.getItem('jwtToken') || localStorage.getItem('token') || '';
+    let token = jwtToken || '';
+    if (!token && typeof window !== 'undefined') {
+      token = localStorage.getItem('jwtToken') || localStorage.getItem('token') || '';
+      if (!token) {
+        const userStr = localStorage.getItem('currentUser');
+        if (userStr) {
+          try {
+            const u = JSON.parse(userStr);
+            token = u.token || u.jwtToken || '';
+          } catch {}
+        }
+      }
+    }
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+      'Authorization': token ? `Bearer ${token}` : ''
     };
   };
 
@@ -93,8 +117,15 @@ export const FeedbackFormsTab: React.FC<FeedbackFormsTabProps> = ({
       setError(null);
       const url = cohortId ? `/api/cohorts/${cohortId}/feedback-forms` : '/api/feedback-forms';
       const res = await fetch(url, { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error('Failed to fetch feedback forms');
-      const data = await res.json();
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        let errData: any = {};
+        try { errData = JSON.parse(text); } catch { errData = {}; }
+        throw new Error(errData.error || 'Failed to fetch feedback forms');
+      }
+      const text = await res.text().catch(() => '');
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { data = {}; }
       setForms(Array.isArray(data.forms) ? data.forms : []);
     } catch (err: any) {
       console.error('Error fetching feedback forms:', err);
@@ -183,7 +214,9 @@ export const FeedbackFormsTab: React.FC<FeedbackFormsTabProps> = ({
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const text = await res.text().catch(() => '');
+        let data: any = {};
+        try { data = JSON.parse(text); } catch { data = {}; }
         throw new Error(data.error || 'Failed to create feedback form');
       }
 
@@ -210,6 +243,8 @@ export const FeedbackFormsTab: React.FC<FeedbackFormsTabProps> = ({
   // Toggle Form Status (Active / Closed)
   const handleToggleStatus = async (form: FeedbackForm) => {
     const nextStatus = form.status === 'Active' ? 'Closed' : 'Active';
+    // Optimistic UI update
+    setForms(prev => prev.map(f => f.id === form.id ? { ...f, status: nextStatus } : f));
     try {
       const res = await fetch(`/api/feedback-forms/${form.id}/status`, {
         method: 'PATCH',
@@ -217,30 +252,52 @@ export const FeedbackFormsTab: React.FC<FeedbackFormsTabProps> = ({
         body: JSON.stringify({ status: nextStatus })
       });
       if (!res.ok) throw new Error('Failed to update status');
-      setForms(prev => prev.map(f => f.id === form.id ? { ...f, status: nextStatus } : f));
+      setActionToast({
+        message: `Form is now ${nextStatus === 'Active' ? 'Active for responses' : 'Closed'}.`,
+        type: 'success'
+      });
     } catch (err: any) {
-      alert(err.message || 'Failed to update form status.');
+      console.error('Failed to update status:', err);
+      // Revert
+      setForms(prev => prev.map(f => f.id === form.id ? { ...f, status: form.status } : f));
+      setActionToast({ message: err.message || 'Failed to update form status.', type: 'error' });
     }
   };
 
-  // Delete Form
-  const handleDeleteForm = async (formId: number) => {
-    if (!window.confirm('Are you sure you want to permanently delete this feedback form and all its responses? This action cannot be undone.')) {
-      return;
+  // Confirm and Execute Form Deletion
+  const confirmDeleteForm = async () => {
+    if (!formToDelete) return;
+    const targetId = formToDelete.id;
+    const targetTitle = formToDelete.title;
+    setIsDeleting(true);
+
+    // Instant optimistic UI update
+    setForms(prev => prev.filter(f => f.id !== targetId));
+    if (selectedFormForAnalytics?.id === targetId) {
+      setSelectedFormForAnalytics(null);
+      setAnalyticsData(null);
     }
+    setFormToDelete(null);
+
     try {
-      const res = await fetch(`/api/feedback-forms/${formId}`, {
+      const res = await fetch(`/api/feedback-forms/${targetId}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
-      if (!res.ok) throw new Error('Failed to delete form');
-      setForms(prev => prev.filter(f => f.id !== formId));
-      if (selectedFormForAnalytics?.id === formId) {
-        setSelectedFormForAnalytics(null);
-        setAnalyticsData(null);
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        let errData: any = {};
+        try { errData = JSON.parse(text); } catch { errData = {}; }
+        throw new Error(errData.error || `Failed to delete form (HTTP ${res.status})`);
       }
+      setActionToast({ message: `"${targetTitle}" deleted successfully.`, type: 'success' });
     } catch (err: any) {
-      alert(err.message || 'Failed to delete form.');
+      console.error('Error deleting form:', err);
+      setActionToast({ message: err.message || 'Failed to delete form from server.', type: 'error' });
+      // Re-fetch to restore state if deletion failed on server
+      fetchForms();
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -253,8 +310,15 @@ export const FeedbackFormsTab: React.FC<FeedbackFormsTabProps> = ({
       const res = await fetch(`/api/feedback-forms/${form.id}/responses`, {
         headers: getAuthHeaders()
       });
-      if (!res.ok) throw new Error('Failed to load responses and analytics');
-      const data = await res.json();
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        let errData: any = {};
+        try { errData = JSON.parse(text); } catch { errData = {}; }
+        throw new Error(errData.error || 'Failed to load responses and analytics');
+      }
+      const text = await res.text().catch(() => '');
+      let data: any = {};
+      try { data = JSON.parse(text); } catch { data = {}; }
       setAnalyticsData(data.analytics);
     } catch (err: any) {
       console.error('Error fetching responses analytics:', err);
@@ -415,7 +479,7 @@ export const FeedbackFormsTab: React.FC<FeedbackFormsTabProps> = ({
                   privacyFilter === pr ? 'bg-white text-gray-900 shadow-3xs font-black' : 'text-gray-500 hover:text-gray-800'
                 }`}
               >
-                {pr === 'ALL' ? 'All Privacy' : pr === 'ANONYMOUS' ? '🔒 Anonymous' : '👤 Identified'}
+                {pr === 'ALL' ? 'All Privacy' : pr === 'ANONYMOUS' ? 'Anonymous' : 'Non-Anonymous'}
               </button>
             ))}
           </div>
@@ -496,8 +560,7 @@ export const FeedbackFormsTab: React.FC<FeedbackFormsTabProps> = ({
                               : 'bg-blue-50 text-blue-700 border border-blue-200'
                           }`}
                         >
-                          {isAnonymous ? <Lock className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                          {isAnonymous ? '100% Anonymous' : 'Identified'}
+                          {isAnonymous ? 'Anonymous' : 'Non-Anonymous'}
                         </span>
 
                         {form.session_title && (
@@ -526,7 +589,7 @@ export const FeedbackFormsTab: React.FC<FeedbackFormsTabProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => handleDeleteForm(form.id)}
+                        onClick={() => setFormToDelete(form)}
                         className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-all cursor-pointer"
                         title="Delete Form"
                       >
@@ -687,35 +750,65 @@ export const FeedbackFormsTab: React.FC<FeedbackFormsTabProps> = ({
                 </div>
               </div>
 
-              {/* Anonymity Toggle Banner */}
-              <div className="p-4 bg-purple-50/80 border border-purple-200 rounded-2xl flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-purple-100 border border-purple-200 text-purple-700 flex items-center justify-center shrink-0 mt-0.5">
-                    {formIsAnonymous ? <Lock className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-black text-purple-900 uppercase tracking-wide">
-                      {formIsAnonymous ? '100% Anonymous Feedback Enabled' : 'Identified Founder Feedback'}
+              {/* Anonymity Toggle Switch Banner */}
+              <div className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                formIsAnonymous 
+                  ? 'bg-purple-50/90 border-purple-200 shadow-2xs' 
+                  : 'bg-indigo-50/70 border-indigo-200/80 shadow-2xs'
+              }`}>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className={`text-xs font-black uppercase tracking-wide ${
+                      formIsAnonymous ? 'text-purple-900' : 'text-indigo-950'
+                    }`}>
+                      {formIsAnonymous ? 'Anonymous Feedback Mode' : 'Non-Anonymous Feedback Mode'}
                     </h4>
-                    <p className="text-[11px] text-purple-700 mt-0.5 leading-relaxed">
-                      {formIsAnonymous
-                        ? 'When anonymous, the backend permanently strips all founder & startup names from the response API. Identity is never exposed to staff.'
-                        : 'Startup name and founder identity will be visible next to their submitted answers.'}
-                    </p>
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider ${
+                      formIsAnonymous 
+                        ? 'bg-purple-200/80 text-purple-900' 
+                        : 'bg-indigo-200/80 text-indigo-900'
+                    }`}>
+                      {formIsAnonymous ? 'Anonymous' : 'Non-Anonymous'}
+                    </span>
                   </div>
+                  <p className={`text-[11px] mt-0.5 leading-relaxed ${
+                    formIsAnonymous ? 'text-purple-700' : 'text-indigo-800/80'
+                  }`}>
+                    {formIsAnonymous
+                      ? 'When anonymous mode is active, founder and startup identities are permanently stripped for confidentiality.'
+                      : 'Startup name and founder identity will be visible next to their submitted answers.'}
+                  </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setFormIsAnonymous(!formIsAnonymous)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider border transition-all cursor-pointer shrink-0 ${
-                    formIsAnonymous
-                      ? 'bg-purple-600 text-white border-purple-700 shadow-3xs'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  {formIsAnonymous ? '🔒 Anonymous: ON' : '👤 Identified: ON'}
-                </button>
+                {/* Toggle Switch Component */}
+                <div className="flex items-center gap-3 self-end sm:self-center shrink-0 bg-white/70 sm:bg-transparent px-3 py-1.5 sm:p-0 rounded-xl border sm:border-0 border-gray-200/60">
+                  <div className="text-right">
+                    <span className="text-[11px] font-black text-gray-800 block leading-tight">
+                      {formIsAnonymous ? 'Anonymous' : 'Non-Anonymous'}
+                    </span>
+                    <span className="text-[9px] text-gray-500 font-bold block uppercase tracking-wider">
+                      {formIsAnonymous ? 'Identity Hidden' : 'Names Visible'}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={formIsAnonymous}
+                    onClick={() => setFormIsAnonymous(!formIsAnonymous)}
+                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                      formIsAnonymous ? 'bg-purple-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span className="sr-only">Toggle anonymous feedback mode</span>
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                        formIsAnonymous ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
 
               {/* Dynamic Questions Builder Section */}
@@ -888,8 +981,7 @@ export const FeedbackFormsTab: React.FC<FeedbackFormsTabProps> = ({
                         : 'bg-blue-50 text-blue-700 border border-blue-200'
                     }`}
                   >
-                    {selectedFormForAnalytics.is_anonymous ? <Lock className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                    {selectedFormForAnalytics.is_anonymous ? '100% Anonymous Data' : 'Identified Founder Responses'}
+                    {selectedFormForAnalytics.is_anonymous ? 'Anonymous Data' : 'Non-Anonymous Responses'}
                   </span>
 
                   {selectedFormForAnalytics.session_title && (
@@ -1125,6 +1217,73 @@ export const FeedbackFormsTab: React.FC<FeedbackFormsTabProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION DIALOG MODAL */}
+      {formToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-150 space-y-5 animate-in zoom-in-95 duration-150">
+            <div className="flex items-start gap-3.5">
+              <div className="h-11 w-11 rounded-xl bg-red-50 border border-red-100 text-red-600 flex items-center justify-center shrink-0">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div className="space-y-1 text-left flex-1">
+                <h3 className="text-sm font-black text-gray-900 leading-tight">Delete Feedback Form?</h3>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  Are you sure you want to permanently delete <strong className="text-gray-900 font-bold">"{formToDelete.title}"</strong>? All associated questions and startup response submissions will be permanently removed.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setFormToDelete(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={confirmDeleteForm}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Yes, Delete Form</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Action Toast Notification */}
+      {actionToast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl border animate-in slide-in-from-bottom-3 duration-200 bg-white border-gray-200 text-gray-900">
+          {actionToast.type === 'success' ? (
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+          ) : (
+            <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+          )}
+          <span className="text-xs font-bold">{actionToast.message}</span>
+          <button
+            type="button"
+            onClick={() => setActionToast(null)}
+            className="p-1 text-gray-400 hover:text-gray-600 rounded-md cursor-pointer ml-1"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
     </div>

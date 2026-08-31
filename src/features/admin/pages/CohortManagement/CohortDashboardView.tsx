@@ -100,7 +100,10 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
   // Action items (strictly real counts)
   const pendingReviews = pipeline.applied + pipeline.underReview;
   const activeWarningsCount = cohortWarnings.filter(w => w.status === 'ACTIVE').length;
-  const pendingDeliverablesCount = safeSubmissions.filter(s => s.status === 'PENDING').length;
+  const cohortAssignmentIds = new Set(cohortAssignments.map(a => a.id));
+  const pendingDeliverablesCount = cohortAssignments.length === 0 
+    ? 0 
+    : safeSubmissions.filter(s => s.status === 'PENDING' && cohortAssignmentIds.has(s.assignment_id)).length;
   const backupCandidatesCount = cohortApplicants.filter(a => a.status === 'BACKUP_CANDIDATE' || a.status === 'WAITLISTED').length;
 
   // Filter audit logs

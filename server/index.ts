@@ -49,6 +49,11 @@ export async function startServer() {
   app.use('/api', checkinRoutes);
   app.use('/api', uploadRoutes);
 
+  // Catch-all 404 handler for API routes to prevent falling through to SPA HTML
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({ error: `API route not found: ${req.method} ${req.originalUrl}` });
+  });
+
   // --- INTEGRATION WITH VITE FOR WEB SERVING ---
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

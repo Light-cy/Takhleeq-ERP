@@ -54,6 +54,23 @@ const handleResponseError = async (res: Response, url?: string): Promise<never> 
   throw new Error(errMsg);
 };
 
+const safeParseJson = async <T>(res: Response): Promise<T> => {
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      return await res.json();
+    } catch {
+      // Fallback
+    }
+  }
+  const text = await res.text().catch(() => '');
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text as unknown as T;
+  }
+};
+
 export const apiClient = {
   get: async <T>(url: string, customToken?: string | null): Promise<T> => {
     const headers = getClientHeaders(customToken);
@@ -63,7 +80,7 @@ export const apiClient = {
     if (!res.ok) {
       await handleResponseError(res, url);
     }
-    return res.json();
+    return safeParseJson<T>(res);
   },
   post: async <T>(url: string, body?: any, customToken?: string | null): Promise<T> => {
     const headers = getClientHeaders(customToken);
@@ -75,7 +92,7 @@ export const apiClient = {
     if (!res.ok) {
       await handleResponseError(res, url);
     }
-    return res.json();
+    return safeParseJson<T>(res);
   },
   put: async <T>(url: string, body?: any, customToken?: string | null): Promise<T> => {
     const headers = getClientHeaders(customToken);
@@ -87,7 +104,7 @@ export const apiClient = {
     if (!res.ok) {
       await handleResponseError(res, url);
     }
-    return res.json();
+    return safeParseJson<T>(res);
   },
   delete: async <T>(url: string, customToken?: string | null): Promise<T> => {
     const headers = getClientHeaders(customToken);
@@ -99,7 +116,7 @@ export const apiClient = {
     if (!res.ok) {
       await handleResponseError(res, url);
     }
-    return res.json();
+    return safeParseJson<T>(res);
   },
 };
 export default apiClient;

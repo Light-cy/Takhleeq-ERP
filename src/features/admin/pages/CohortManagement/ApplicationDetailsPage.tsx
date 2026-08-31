@@ -37,6 +37,7 @@ export interface ApplicationDetailsPageProps {
   triggerError: (msg: string) => void;
   formSettings: any;
   selectedCohort?: any;
+  onNavigate?: (path: string, tab?: string) => void;
 }
 
 export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
@@ -47,7 +48,8 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
   triggerSuccess,
   triggerError,
   formSettings,
-  selectedCohort
+  selectedCohort,
+  onNavigate
 }) => {
   const [applicant, setApplicant] = useState<any>(null);
   const [parentRecord, setParentRecord] = useState<any>(null);
@@ -307,14 +309,25 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
     <div className="space-y-6 max-w-6xl mx-auto pb-16 text-left" id="application-full-details-view">
       {/* Navigation Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-4">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-2 text-xs font-bold text-gray-600 hover:text-primary bg-white hover:bg-rose-50/50 border border-gray-200 hover:border-rose-200 px-4 py-2 rounded-xl shadow-3xs transition-all cursor-pointer"
-          id="back-to-applications-btn"
-        >
-          <ArrowLeft className="h-4 w-4 text-primary" />
-          <span>Back to Applications List</span>
-        </button>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-2 text-xs font-bold text-gray-700 hover:text-primary bg-white hover:bg-gray-50 border border-gray-200 px-3.5 py-2 rounded-xl shadow-3xs transition-all cursor-pointer"
+            id="back-to-applications-btn"
+          >
+            <ArrowLeft className="h-4 w-4 text-primary" />
+            <span>Back to Applications</span>
+          </button>
+
+          {onNavigate && (
+            <button
+              onClick={() => onNavigate('/staff/dashboard', 'cohort_dashboard')}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-primary bg-gray-50 hover:bg-gray-100 border border-gray-200 px-3 py-2 rounded-xl transition-all cursor-pointer"
+            >
+              <span>Cohort Dashboard</span>
+            </button>
+          )}
+        </div>
 
         <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">
           <span>Intake Admissions Evaluator</span>

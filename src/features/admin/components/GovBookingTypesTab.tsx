@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Layers, Edit3, Trash2, AlertTriangle, Info } from 'lucide-react';
+import { apiClient } from '../../../shared/apiClient';
 
 interface GovBookingTypesTabProps {
   onRefresh: () => void;
@@ -25,11 +26,7 @@ export function GovBookingTypesTab({
   const [deletingBt, setDeletingBt] = useState<{ id: number, name: string } | null>(null);
 
   const fetchBTypes = () => {
-    fetch('/api/booking-types')
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch booking types');
-        return res.json();
-      })
+    apiClient.get<any[]>('/api/booking-types')
       .then(data => {
         setBTypes(data);
       })
@@ -55,24 +52,23 @@ export function GovBookingTypesTab({
       return;
     }
     setProcessing(true);
-    const method = editingBt ? 'PUT' : 'POST';
-    const url = editingBt ? `/api/booking-types/${editingBt.id}` : '/api/booking-types';
 
     try {
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      if (editingBt) {
+        await apiClient.put(`/api/booking-types/${editingBt.id}`, {
           name: btName.trim(),
           description: btDesc.trim(),
           isActive: btActive
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to save booking type');
+        });
+        setSuccessMsg(`Booking type '${btName.trim()}' updated successfully.`);
+      } else {
+        await apiClient.post('/api/booking-types', {
+          name: btName.trim(),
+          description: btDesc.trim(),
+          isActive: btActive
+        });
+        setSuccessMsg(`Booking type '${btName.trim()}' created successfully.`);
       }
-      setSuccessMsg(editingBt ? `Booking type '${btName.trim()}' updated successfully.` : `Booking type '${btName.trim()}' created successfully.`);
       setBtName('');
       setBtDesc('');
       setBtActive(true);
@@ -106,13 +102,7 @@ export function GovBookingTypesTab({
     clearMessages();
     setProcessing(true);
     try {
-      const res = await fetch(`/api/booking-types/${deletingBt.id}`, {
-        method: 'DELETE'
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to delete booking type');
-      }
+      await apiClient.delete(`/api/booking-types/${deletingBt.id}`);
       setSuccessMsg(`Booking type '${deletingBt.name}' deleted successfully.`);
       setDeletingBt(null);
       fetchBTypes();

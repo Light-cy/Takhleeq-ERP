@@ -177,9 +177,14 @@ export default function App() {
 
       // Fetch Cohorts safely
       fetch('/api/cohorts', { headers: { 'Authorization': `Bearer ${currentToken}` } })
-        .then(res => {
+        .then(async res => {
           if (!res.ok) return [];
-          return res.json();
+          const text = await res.text().catch(() => '');
+          try {
+            return JSON.parse(text);
+          } catch {
+            return [];
+          }
         })
         .then(cData => {
           if (Array.isArray(cData)) {

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth, requirePermission } from '../../middleware/auth.ts';
+import { requireAuth, requirePermission, requireAnyPermission } from '../../middleware/auth.ts';
 import {
   getCohortFormSettings,
   updateCohortFormSettings,
@@ -57,6 +57,30 @@ import {
 
 const router = Router();
 
+const COHORT_VIEW_PERMS = [
+  'cohort:dashboard_view',
+  'VIEW_COHORT_DASHBOARD',
+  'cohort:applicant_review',
+  'REVIEW_COHORT_APPLICATIONS',
+  'cohort:startups_manage',
+  'MANAGE_COHORT_STARTUPS',
+  'cohort:session_manage',
+  'MANAGE_COHORT_SESSIONS',
+  'cohort:assignment_manage',
+  'MANAGE_COHORT_ASSIGNMENTS',
+  'cohort:form_manage',
+  'MANAGE_APPLICATION_FORM',
+  'cohort:settings_manage',
+  'MANAGE_COHORT_SETTINGS',
+  'cohort:feedback_view',
+  'VIEW_FOUNDER_FEEDBACK',
+  'cohort:feedback_forms_manage',
+  'MANAGE_FEEDBACK_FORMS',
+  'cohort:attendance_write',
+  'cohort:checkin_log',
+  'cohort:warning_write'
+];
+
 // --- PUBLIC ROUTING ---
 // Get public dynamic form config
 router.get('/cohort-form-settings', getCohortFormSettings);
@@ -77,9 +101,9 @@ router.put('/applicants/:id/profile', requireAuth, updateApplicantProfile);
 router.post('/cohort-form-settings', requireAuth, requirePermission('cohort:form_manage'), updateCohortFormSettings);
 
 // Applicant listings and details
-router.get('/applicants', requireAuth, requirePermission('cohort:applicant_review'), getApplicants);
-router.get('/applicants/:id/stage-history', requireAuth, requirePermission('cohort:applicant_review'), getApplicantStageHistory);
-router.get('/applicants/:id', requireAuth, requirePermission('cohort:applicant_review'), getApplicantById);
+router.get('/applicants', requireAuth, requireAnyPermission(COHORT_VIEW_PERMS), getApplicants);
+router.get('/applicants/:id/stage-history', requireAuth, requireAnyPermission(COHORT_VIEW_PERMS), getApplicantStageHistory);
+router.get('/applicants/:id', requireAuth, requireAnyPermission(COHORT_VIEW_PERMS), getApplicantById);
 
 // Applicant Admissions, Panel Scoring & Selection Decider
 router.get('/applicants/:id/credentials', requireAuth, requirePermission('cohort:applicant_review'), getApplicantCredentials);

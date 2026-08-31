@@ -1429,6 +1429,28 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   }
 
   // Booking Types local queries
+  if (q.includes('select * from booking_types where id = $1')) {
+    const id = parseInt(params[0]);
+    const list = db.booking_types || [];
+    const item = list.find((bt: any) => bt.id === id);
+    return { rows: item ? [item] : [] };
+  }
+
+  if (q.includes('select id from booking_types where lower(name) = lower($1) and id <> $2')) {
+    const name = String(params[0] || '').toLowerCase();
+    const id = parseInt(params[1]);
+    const list = db.booking_types || [];
+    const found = list.filter((bt: any) => bt.name.toLowerCase() === name && bt.id !== id);
+    return { rows: found.map((bt: any) => ({ id: bt.id })) };
+  }
+
+  if (q.includes('select id from booking_types where lower(name) = lower($1)')) {
+    const name = String(params[0] || '').toLowerCase();
+    const list = db.booking_types || [];
+    const found = list.filter((bt: any) => bt.name.toLowerCase() === name);
+    return { rows: found.map((bt: any) => ({ id: bt.id })) };
+  }
+
   if (q.includes('select * from booking_types') || q.includes('select * from booking_types order by id asc')) {
     const list = db.booking_types || [];
     return { rows: list };
