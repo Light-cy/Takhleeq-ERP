@@ -1179,6 +1179,26 @@ export const adminUpdateStartupProfile = async (req: Request, res: Response) => 
       if (profile.applicant_id) {
         await query(`UPDATE applicants SET program_status = $1 WHERE id = $2;`, [newStatus, profile.applicant_id]);
       }
+
+      // Synchronize linked user accounts active status
+      try {
+        const targetEmails: string[] = [];
+        if (profile.founder_email) targetEmails.push(profile.founder_email.toLowerCase().trim());
+        if (profile.applicant_id) {
+          const appRes = await query(`SELECT email FROM applicants WHERE id = $1`, [profile.applicant_id]);
+          if (appRes.rows[0]?.email) targetEmails.push(appRes.rows[0].email.toLowerCase().trim());
+        }
+        for (const em of targetEmails) {
+          if (newStatus === 'KICKED_OUT') {
+            await query(`UPDATE users SET is_active = FALSE WHERE LOWER(email) = $1`, [em]);
+          } else if (newStatus === 'ACTIVE') {
+            await query(`UPDATE users SET is_active = TRUE WHERE LOWER(email) = $1`, [em]);
+          }
+        }
+      } catch (uErr) {
+        console.error('Failed to sync user is_active status in adminUpdateStartupProfile:', uErr);
+      }
+
       programStatusChanged = true;
       profile.program_status = newStatus;
       await query(`

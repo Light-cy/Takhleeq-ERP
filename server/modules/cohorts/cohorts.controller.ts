@@ -445,6 +445,21 @@ export const updateApplicantStatus = async (req: AuthenticatedRequest, res: Resp
       }
     }
 
+    // If kicked out, deactivate linked user login accounts immediately
+    if (newStatus === 'KICKED_OUT' || newProgramStatus === 'KICKED_OUT') {
+      try {
+        await query('UPDATE users SET is_active = FALSE WHERE LOWER(email) = LOWER($1)', [updated.email]);
+      } catch (uErr) {
+        console.error('Failed to deactivate user account for kicked out applicant:', uErr);
+      }
+    } else if (newProgramStatus === 'ACTIVE' || newStatus === 'CONFIRMED' || newStatus === 'ENROLLED') {
+      try {
+        await query('UPDATE users SET is_active = TRUE WHERE LOWER(email) = LOWER($1)', [updated.email]);
+      } catch (uErr) {
+        console.error('Failed to activate user account for active applicant:', uErr);
+      }
+    }
+
     // Send milestone email notification asynchronously with login credentials attached
     sendApplicantStatusEmail({
       id: updated.id,
@@ -624,6 +639,17 @@ export const updateApplicantProgramStatus = async (req: AuthenticatedRequest, re
       );
     } catch (spErr) {
       console.error('Failed to sync startup_profile in updateApplicantProgramStatus:', spErr);
+    }
+
+    // Synchronize user account active status (Deactivate on KICKED_OUT)
+    try {
+      if (program_status === 'KICKED_OUT') {
+        await query('UPDATE users SET is_active = FALSE WHERE LOWER(email) = LOWER($1)', [updated.email]);
+      } else if (program_status === 'ACTIVE') {
+        await query('UPDATE users SET is_active = TRUE WHERE LOWER(email) = LOWER($1)', [updated.email]);
+      }
+    } catch (uErr) {
+      console.error('Failed to sync user is_active in updateApplicantProgramStatus:', uErr);
     }
 
     await logAudit(
@@ -1832,6 +1858,15 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
 
     const applicant = applicantRes.rows[0];
     
+    // Check if startup is KICKED OUT (and user is not an Administrator reviewing)
+    if (req.currentUser.role !== 'Administrator' && 
+        (String(applicant.program_status).toUpperCase() === 'KICKED_OUT' || String(applicant.status).toUpperCase() === 'KICKED_OUT')) {
+      return res.status(403).json({
+        error: `Access Denied: Startup '${applicant.startup_name || 'Account'}' has been kicked out / terminated from the incubator cohort program. Founder dashboard access has been revoked.`,
+        code: 'KICKED_OUT'
+      });
+    }
+
     // Parse JSON arrays
     applicant.panel_scores = applicant.panel_scores && typeof applicant.panel_scores === 'string' ? JSON.parse(applicant.panel_scores) : applicant.panel_scores;
     applicant.form_data = applicant.form_data && typeof applicant.form_data === 'string' ? JSON.parse(applicant.form_data) : applicant.form_data;

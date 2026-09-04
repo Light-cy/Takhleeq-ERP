@@ -1103,6 +1103,47 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
     );
   }
 
+  const isKickedOut = applicant?.program_status === 'KICKED_OUT' || applicant?.status === 'KICKED_OUT' || (error && error.toLowerCase().includes('kicked out'));
+
+  if (isKickedOut) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
+        <div className="bg-white border border-rose-200 rounded-3xl p-8 max-w-md w-full shadow-lg text-center space-y-5">
+          <div className="w-14 h-14 bg-rose-50 border border-rose-100 rounded-2xl flex items-center justify-center mx-auto text-rose-600 shadow-xs">
+            <AlertCircle className="w-7 h-7" />
+          </div>
+          <div className="space-y-2">
+            <span className="inline-block px-3 py-1 bg-rose-100 text-rose-800 border border-rose-200 rounded-full text-[10px] font-black uppercase font-mono tracking-widest">
+              Program Status: Kicked Out
+            </span>
+            <h3 className="text-xl font-black text-gray-900 tracking-tight">Incubation Terminated</h3>
+            <p className="text-xs text-gray-600 leading-relaxed font-medium">
+              {error || `Startup '${applicant?.startup_name || 'Account'}' has been kicked out / terminated from the incubator cohort program. Founder dashboard and login access are disabled.`}
+            </p>
+          </div>
+          <div className="p-3.5 bg-rose-50/70 border border-rose-100 rounded-2xl text-[11px] text-rose-900 text-left space-y-1">
+            <p className="font-bold">Account Policy Notice:</p>
+            <p className="text-rose-700 leading-normal">
+              Your startup data is retained in our institutional registry for historical records, but all active cohort activities, booking privileges, and portal permissions are terminated.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('jwtToken');
+                localStorage.removeItem('currentUser');
+                window.location.href = '/';
+              }
+            }}
+            className="w-full bg-gray-900 hover:bg-black text-white font-black py-3 rounded-2xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+          >
+            Log Out & Exit
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (error || !applicant) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">

@@ -199,20 +199,6 @@ function initializeLocalDB() {
         }
       });
     }
-    const hasFounderRole = (db.roles || []).some((r: any) => r.name === 'Cohort Founder');
-    if (!hasFounderRole && db.roles && Array.isArray(db.roles)) {
-      const nextId = Math.max(...db.roles.map((r: any) => r.id || 0), 0) + 1;
-      db.roles.push({
-        id: nextId,
-        name: 'Cohort Founder',
-        description: 'Enrolled startup founder with access to Cohort Self-Service dashboard',
-        permissions: ["cohort:profile_write", "cohort:feedback_submit", "cohort:assignment_upload"],
-        ban_duration_ceiling: null,
-        created_by: null,
-        created_at: new Date().toISOString()
-      });
-      updated = true;
-    }
 
     if (!db.booking_types || !Array.isArray(db.booking_types) || db.booking_types.length === 0) {
       db.booking_types = [
@@ -575,6 +561,18 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
           if (app.program_status) matchingProfile.program_status = app.program_status;
           if (app.cohort_id) matchingProfile.cohort_id = app.cohort_id;
           matchingProfile.updated_at = new Date().toISOString();
+        }
+      }
+
+      // Synchronize linked user is_active status (Deactivate on KICKED_OUT)
+      if (db.users && Array.isArray(db.users) && app.email) {
+        const matchingUser = db.users.find((u: any) => u.email && u.email.toLowerCase() === app.email.toLowerCase());
+        if (matchingUser) {
+          if (app.program_status === 'KICKED_OUT' || app.status === 'KICKED_OUT') {
+            matchingUser.is_active = false;
+          } else if (app.program_status === 'ACTIVE') {
+            matchingUser.is_active = true;
+          }
         }
       }
 
@@ -2151,8 +2149,24 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: [newBooking] };
   }
 
-  // 39. UPDATE bookings SET status = 'APPROVED' ...
-  if (q.includes('update bookings') && q.includes('set status =') && q.includes('where id = $2')) {
+  // 39a. UPDATE bookings SET status = 'REJECTED_BY_STAFF' ...
+  if (q.includes('update bookings') && q.includes("status = 'rejected_by_staff'")) {
+    const reason = params[0];
+    const id = parseInt(params[1]);
+    const booking = db.bookings.find((b: any) => b.id === id);
+    if (booking) {
+      booking.status = 'REJECTED_BY_STAFF';
+      booking.rejection_reason = reason;
+      booking.conflict_status = 'NO_CONFLICT';
+      booking.conflicting_booking_id = null;
+      booking.updated_at = new Date().toISOString();
+      saveLocalDB(db);
+    }
+    return { rows: booking ? [booking] : [] };
+  }
+
+  // 39b. UPDATE bookings SET status = 'APPROVED' ...
+  if (q.includes('update bookings') && q.includes("status = 'approved'") && q.includes('where id = $2')) {
     const approved_by = parseInt(params[0]);
     const id = parseInt(params[1]);
     const booking = db.bookings.find((b: any) => b.id === id);
@@ -2161,6 +2175,8 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       booking.rejection_reason = null; // Clear rejection reason
       booking.approved_by = approved_by;
       booking.approved_at = new Date().toISOString();
+      booking.conflict_status = 'NO_CONFLICT';
+      booking.conflicting_booking_id = null;
       booking.updated_at = new Date().toISOString();
       saveLocalDB(db);
     }
@@ -2191,16 +2207,32 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: [] };
   }
 
-  // 41. UPDATE bookings SET status = 'REJECTED_BY_STAFF' ...
-  if (q.includes('update bookings') && q.includes("status = 'rejected_by_staff'") && q.includes('where id = $3')) {
-    const reason = params[0];
-    const approved_by = parseInt(params[1]);
-    const id = parseInt(params[2]);
+  // 41. UPDATE bookings SET override fields (where id = $11) ...
+  if (q.includes('update bookings') && q.includes('where id = $11')) {
+    const targetRoomId = parseInt(params[0]);
+    const cleanDate = params[1];
+    const cleanStart = params[2];
+    const cleanEnd = params[3];
+    const statusVal = params[4];
+    const approvedByVal = params[5] ? parseInt(params[5]) : null;
+    const approvedAtVal = params[6] ? new Date(params[6]).toISOString() : null;
+    const conflictStatus = params[7];
+    const conflictingBookingId = params[8] ? parseInt(params[8]) : null;
+    const rejectionReasonVal = params[9] || null;
+    const id = parseInt(params[10]);
+
     const booking = db.bookings.find((b: any) => b.id === id);
     if (booking) {
-      booking.status = 'REJECTED_BY_STAFF';
-      booking.rejection_reason = reason;
-      booking.approved_by = approved_by;
+      booking.room_id = targetRoomId;
+      booking.date = cleanDate;
+      booking.start_time = cleanStart;
+      booking.end_time = cleanEnd;
+      booking.status = statusVal;
+      booking.approved_by = approvedByVal;
+      booking.approved_at = approvedAtVal;
+      booking.conflict_status = conflictStatus;
+      booking.conflicting_booking_id = conflictingBookingId;
+      booking.rejection_reason = rejectionReasonVal;
       booking.updated_at = new Date().toISOString();
       saveLocalDB(db);
     }
@@ -2208,10 +2240,10 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   }
 
   // 42. UPDATE bookings SET status = 'CANCELLED' ...
-  if (q.includes('update bookings') && q.includes("status = 'cancelled'") && q.includes('where booking_id = $2')) {
+  if (q.includes('update bookings') && q.includes("status = 'cancelled'")) {
     const reason = params[0];
-    const bookingId = params[1];
-    const booking = db.bookings.find((b: any) => b.booking_id === bookingId);
+    const target = params[1];
+    const booking = db.bookings.find((b: any) => b.booking_id === target || b.id === parseInt(target));
     if (booking) {
       booking.status = 'CANCELLED';
       booking.cancellation_reason = reason;
@@ -2456,6 +2488,21 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
         if (matchingApp) {
           if (profile.program_status) matchingApp.program_status = profile.program_status;
           if (profile.cohort_id) matchingApp.cohort_id = profile.cohort_id;
+        }
+      }
+
+      // Synchronize linked user is_active status
+      if (db.users && Array.isArray(db.users)) {
+        const targetEmail = profile.founder_email || (db.applicants?.find((a: any) => a.id === profile.applicant_id)?.email);
+        if (targetEmail) {
+          const matchingUser = db.users.find((u: any) => u.email && u.email.toLowerCase() === targetEmail.toLowerCase());
+          if (matchingUser) {
+            if (profile.program_status === 'KICKED_OUT') {
+              matchingUser.is_active = false;
+            } else if (profile.program_status === 'ACTIVE') {
+              matchingUser.is_active = true;
+            }
+          }
         }
       }
 

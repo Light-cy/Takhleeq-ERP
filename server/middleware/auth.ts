@@ -71,12 +71,31 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
         }
       }
 
+      let isKickedOut = false;
+      if (row.role_name !== 'Administrator') {
+        const kickCheck = await query(
+          `SELECT id FROM applicants WHERE LOWER(email) = LOWER($1) AND (UPPER(program_status) = 'KICKED_OUT' OR UPPER(status) = 'KICKED_OUT')`,
+          [decoded.email]
+        );
+        if (kickCheck.rows.length > 0) {
+          isKickedOut = true;
+        } else {
+          const profileKick = await query(
+            `SELECT id FROM startup_profiles WHERE LOWER(founder_email) = LOWER($1) AND UPPER(program_status) = 'KICKED_OUT'`,
+            [decoded.email]
+          );
+          if (profileKick.rows.length > 0) {
+            isKickedOut = true;
+          }
+        }
+      }
+
       req.currentUser = {
         id: row.id,
         email: row.email,
         name: row.full_name,
         role: row.role_name || 'UCP Member',
-        status: (row.is_active && !isBanned) ? 'Active' : 'Inactive',
+        status: (row.is_active && !isBanned && !isKickedOut) ? 'Active' : 'Inactive',
         permissions: perms
       };
     } else {

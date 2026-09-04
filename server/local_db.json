@@ -186,19 +186,6 @@
       "ban_duration_ceiling": "0",
       "created_by": null,
       "created_at": "2026-07-23T11:58:47.363Z"
-    },
-    {
-      "id": 6,
-      "name": "Cohort Founder",
-      "description": "Enrolled startup founder with access to Cohort Self-Service dashboard",
-      "permissions": [
-        "cohort:profile_write",
-        "cohort:feedback_submit",
-        "cohort:assignment_upload"
-      ],
-      "ban_duration_ceiling": null,
-      "created_by": null,
-      "created_at": "2026-08-09T14:25:05.759Z"
     }
   ],
   "user_roles": [

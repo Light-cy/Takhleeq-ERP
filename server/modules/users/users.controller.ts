@@ -139,6 +139,24 @@ export const handleMicrosoftAuth = async (req: AuthenticatedRequest, res: Respon
       [userId]
     );
     const userRow = finalUserRes.rows[0];
+    if (!userRow) {
+      return res.status(401).json({ error: 'User account not found.' });
+    }
+
+    if (userRow.is_active === false || userRow.is_active === 0 || String(userRow.is_active) === 'false') {
+      return res.status(403).json({ error: 'Access Denied: Your user account has been deactivated.' });
+    }
+
+    // Check if linked startup is KICKED OUT
+    const appKickCheck = await query(
+      `SELECT startup_name FROM applicants WHERE LOWER(email) = LOWER($1) AND (UPPER(program_status) = 'KICKED_OUT' OR UPPER(status) = 'KICKED_OUT')`,
+      [email]
+    );
+    if (appKickCheck.rows.length > 0) {
+      return res.status(403).json({
+        error: `Access Denied: Startup '${appKickCheck.rows[0].startup_name}' has been kicked out / terminated from the incubator program.`
+      });
+    }
 
     // 5. Generate secure JWT token
     const token = jwt.sign(
@@ -219,6 +237,24 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
     const appCheckRes = await query(`SELECT * FROM applicants WHERE LOWER(email) = $1 ORDER BY id DESC LIMIT 1`, [cleanEmail]);
     let applicantRow = appCheckRes.rows[0];
 
+    // Check if startup/applicant is KICKED OUT
+    if (applicantRow && (String(applicantRow.program_status).toUpperCase() === 'KICKED_OUT' || String(applicantRow.status).toUpperCase() === 'KICKED_OUT')) {
+      return res.status(403).json({
+        error: `Access Denied: Startup '${applicantRow.startup_name || 'Account'}' has been kicked out / terminated from the incubator cohort program. Portal access and login privileges are permanently disabled.`
+      });
+    }
+
+    // Check if linked startup_profile is KICKED OUT
+    const profileKickCheck = await query(
+      `SELECT * FROM startup_profiles WHERE (LOWER(founder_email) = $1 OR applicant_id = $2) AND UPPER(program_status) = 'KICKED_OUT'`,
+      [cleanEmail, applicantRow?.id || 0]
+    );
+    if (profileKickCheck.rows.length > 0) {
+      return res.status(403).json({
+        error: `Access Denied: Startup '${profileKickCheck.rows[0].startup_name}' has been kicked out / terminated from the incubator cohort program. Portal access and login privileges are permanently disabled.`
+      });
+    }
+
     // If applicant exists but credentials haven't been generated yet, auto-ensure credentials
     if (applicantRow && !applicantRow.founder_password) {
       try {
@@ -288,6 +324,12 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
     if (!userRow) {
       return res.status(401).json({
         error: `Authentication failed: Account not found for ${cleanEmail}.`
+      });
+    }
+
+    if (userRow.is_active === false || userRow.is_active === 0 || String(userRow.is_active) === 'false') {
+      return res.status(403).json({
+        error: 'Access Denied: Your user account has been deactivated. Login privileges are revoked.'
       });
     }
 
