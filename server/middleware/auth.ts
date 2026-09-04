@@ -72,21 +72,14 @@ export async function authMiddleware(req: AuthenticatedRequest, res: Response, n
       }
 
       let isKickedOut = false;
-      if (row.role_name !== 'Administrator') {
+      if (row.role_name === 'Cohort Founder') {
         const kickCheck = await query(
-          `SELECT id FROM applicants WHERE LOWER(email) = LOWER($1) AND (UPPER(program_status) = 'KICKED_OUT' OR UPPER(status) = 'KICKED_OUT')`,
+          `SELECT id, program_status, status FROM applicants WHERE LOWER(email) = LOWER($1)`,
           [decoded.email]
         );
-        if (kickCheck.rows.length > 0) {
+        const app = kickCheck.rows[0];
+        if (app && (String(app.program_status || '').toUpperCase() === 'KICKED_OUT' || String(app.status || '').toUpperCase() === 'KICKED_OUT')) {
           isKickedOut = true;
-        } else {
-          const profileKick = await query(
-            `SELECT id FROM startup_profiles WHERE LOWER(founder_email) = LOWER($1) AND UPPER(program_status) = 'KICKED_OUT'`,
-            [decoded.email]
-          );
-          if (profileKick.rows.length > 0) {
-            isKickedOut = true;
-          }
         }
       }
 

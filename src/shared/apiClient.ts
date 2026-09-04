@@ -40,8 +40,16 @@ const handleResponseError = async (res: Response, url?: string): Promise<never> 
       errCode = errData.code;
     }
   } catch (e) {
-    if (errText && errText.length < 300 && !errText.includes('<!DOCTYPE')) {
+    if (errText && errText.length < 300 && !errText.includes('<html') && !errText.includes('<!DOCTYPE') && !errText.includes('<body') && !errText.includes('<h1')) {
       errMsg = errText;
+    } else if (res.status === 403) {
+      errMsg = 'Access Denied (403 Forbidden): Permission denied or your access is restricted. Please ensure you are logged into your authorized account.';
+    } else if (res.status === 401) {
+      errMsg = 'Authentication Required (401 Unauthorized): Invalid or expired session credentials. Please log in again.';
+    } else if (res.status === 404) {
+      errMsg = 'Resource Not Found (404): The requested endpoint or resource was not found.';
+    } else if (res.status >= 500) {
+      errMsg = 'Server Error (500): The server encountered an unexpected error. Please try again in a moment.';
     }
   }
 

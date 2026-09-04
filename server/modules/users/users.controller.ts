@@ -148,13 +148,14 @@ export const handleMicrosoftAuth = async (req: AuthenticatedRequest, res: Respon
     }
 
     // Check if linked startup is KICKED OUT
-    const appKickCheck = await query(
-      `SELECT startup_name FROM applicants WHERE LOWER(email) = LOWER($1) AND (UPPER(program_status) = 'KICKED_OUT' OR UPPER(status) = 'KICKED_OUT')`,
+    const appCheckRes = await query(
+      `SELECT id, startup_name, program_status, status FROM applicants WHERE LOWER(email) = LOWER($1)`,
       [email]
     );
-    if (appKickCheck.rows.length > 0) {
+    const applicantRow = appCheckRes.rows[0];
+    if (applicantRow && (String(applicantRow.program_status || '').toUpperCase() === 'KICKED_OUT' || String(applicantRow.status || '').toUpperCase() === 'KICKED_OUT')) {
       return res.status(403).json({
-        error: `Access Denied: Startup '${appKickCheck.rows[0].startup_name}' has been kicked out / terminated from the incubator program.`
+        error: `Access Denied: Startup '${applicantRow.startup_name || 'Account'}' has been kicked out / terminated from the incubator program.`
       });
     }
 
@@ -237,22 +238,26 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
     const appCheckRes = await query(`SELECT * FROM applicants WHERE LOWER(email) = $1 ORDER BY id DESC LIMIT 1`, [cleanEmail]);
     let applicantRow = appCheckRes.rows[0];
 
-    // Check if startup/applicant is KICKED OUT
-    if (applicantRow && (String(applicantRow.program_status).toUpperCase() === 'KICKED_OUT' || String(applicantRow.status).toUpperCase() === 'KICKED_OUT')) {
-      return res.status(403).json({
-        error: `Access Denied: Startup '${applicantRow.startup_name || 'Account'}' has been kicked out / terminated from the incubator cohort program. Portal access and login privileges are permanently disabled.`
-      });
-    }
+    // Check if startup/applicant is KICKED OUT (only applies if an applicant record exists)
+    if (applicantRow) {
+      const pStatus = String(applicantRow.program_status || '').toUpperCase();
+      const sStatus = String(applicantRow.status || '').toUpperCase();
+      if (pStatus === 'KICKED_OUT' || sStatus === 'KICKED_OUT') {
+        return res.status(403).json({
+          error: `Access Denied: Startup '${applicantRow.startup_name || 'Account'}' has been terminated/kicked out from the incubator program. Login privileges are permanently disabled.`
+        });
+      }
 
-    // Check if linked startup_profile is KICKED OUT
-    const profileKickCheck = await query(
-      `SELECT * FROM startup_profiles WHERE (LOWER(founder_email) = $1 OR applicant_id = $2) AND UPPER(program_status) = 'KICKED_OUT'`,
-      [cleanEmail, applicantRow?.id || 0]
-    );
-    if (profileKickCheck.rows.length > 0) {
-      return res.status(403).json({
-        error: `Access Denied: Startup '${profileKickCheck.rows[0].startup_name}' has been kicked out / terminated from the incubator cohort program. Portal access and login privileges are permanently disabled.`
-      });
+      // Check linked startup_profiles specifically for this applicant id
+      const profileKickCheck = await query(
+        `SELECT * FROM startup_profiles WHERE applicant_id = $1`,
+        [applicantRow.id]
+      );
+      if (profileKickCheck.rows.length > 0 && String(profileKickCheck.rows[0].program_status || '').toUpperCase() === 'KICKED_OUT') {
+        return res.status(403).json({
+          error: `Access Denied: Startup '${profileKickCheck.rows[0].startup_name || 'Account'}' has been terminated/kicked out from the incubator program. Login privileges are permanently disabled.`
+        });
+      }
     }
 
     // If applicant exists but credentials haven't been generated yet, auto-ensure credentials
