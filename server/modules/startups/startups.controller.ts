@@ -175,7 +175,9 @@ export const getStartupProfiles = async (req: Request, res: Response) => {
         a.email as founder_email,
         a.phone as founder_phone,
         a.cnic as founder_cnic,
-        a.tracking_token as founder_tracking_token
+        a.tracking_token as founder_tracking_token,
+        a.startup_description as applicant_startup_description,
+        a.form_data as applicant_form_data
       FROM startup_profiles sp
       LEFT JOIN industries i ON sp.industry_id = i.id
       LEFT JOIN cohorts c ON sp.cohort_id = c.id
@@ -183,7 +185,23 @@ export const getStartupProfiles = async (req: Request, res: Response) => {
       ORDER BY sp.updated_at DESC;
     `);
 
-    let list = allProfilesRes.rows || [];
+    let list = (allProfilesRes.rows || []).map((p: any) => {
+      const formData = typeof p.applicant_form_data === 'string' ? JSON.parse(p.applicant_form_data || '{}') : (p.applicant_form_data || {});
+      const pf = formData.profile || {};
+      return {
+        ...p,
+        description: p.description || p.applicant_startup_description || pf.description || '',
+        website: p.website || pf.website || '',
+        revenue_status: p.revenue_status || pf.revenue_status || 'PRE_REVENUE',
+        monthly_revenue: p.monthly_revenue || pf.monthly_revenue || 'PKR 0',
+        annual_recurring_revenue: p.annual_recurring_revenue || pf.annual_recurring_revenue || 'PKR 0',
+        funding_status: p.funding_status || pf.funding_status || 'BOOTSTRAPPED',
+        funding_raised: p.funding_raised || pf.funding_raised || '0',
+        team_size: p.team_size || (parseInt(pf.team_size) || 1),
+        pitch_deck_url: p.pitch_deck_url || pf.pitch_deck_url || '',
+        founder_phone: p.founder_phone || pf.contact_info || ''
+      };
+    });
 
     // Filter in memory for maximum reliability across PG / memory fallback
     if (search) {
@@ -419,8 +437,8 @@ export const updateStartupProfile = async (req: Request, res: Response) => {
 
     // Allowed fields to update
     const updatableFields = isStaff
-      ? ['startup_name', 'logo_url', 'industry_id', 'description', 'website', 'social_links', 'contact_info', 'startup_type', 'business_model', 'cohort_id', 'program_status', 'team_size', 'revenue_status', 'funding_status']
-      : ['logo_url', 'description', 'website', 'social_links', 'contact_info'];
+      ? ['startup_name', 'logo_url', 'industry_id', 'description', 'website', 'social_links', 'contact_info', 'startup_type', 'business_model', 'cohort_id', 'program_status', 'team_size', 'revenue_status', 'funding_status', 'monthly_revenue', 'annual_recurring_revenue', 'funding_raised', 'pitch_deck_url']
+      : ['startup_name', 'logo_url', 'industry_id', 'description', 'website', 'social_links', 'contact_info', 'startup_type', 'business_model', 'team_size', 'revenue_status', 'funding_status', 'monthly_revenue', 'annual_recurring_revenue', 'funding_raised', 'pitch_deck_url'];
 
     const changes: { field: string; oldVal: string; newVal: string; rawVal: any }[] = [];
 
@@ -466,6 +484,47 @@ export const updateStartupProfile = async (req: Request, res: Response) => {
 
     const updatedRes = await query(updateSql, values);
     const updatedProfile = updatedRes.rows[0];
+
+    // Sync applicant fields if applicable
+    if (currentProfile.applicant_id) {
+      const appRes = await query(`SELECT id, form_data, phone FROM applicants WHERE id = $1;`, [currentProfile.applicant_id]);
+      if (appRes.rows && appRes.rows.length > 0) {
+        const appRow = appRes.rows[0];
+        let appFormData = typeof appRow.form_data === 'string' ? JSON.parse(appRow.form_data || '{}') : (appRow.form_data || {});
+        appFormData.profile = appFormData.profile || {};
+
+        if (body.description) appFormData.profile.description = body.description;
+        if (body.website) appFormData.profile.website = body.website;
+        if (body.revenue_status) appFormData.profile.revenue_status = body.revenue_status;
+        if (body.monthly_revenue) appFormData.profile.monthly_revenue = body.monthly_revenue;
+        if (body.annual_recurring_revenue) appFormData.profile.annual_recurring_revenue = body.annual_recurring_revenue;
+        if (body.funding_status) appFormData.profile.funding_status = body.funding_status;
+        if (body.funding_raised) appFormData.profile.funding_raised = body.funding_raised;
+        if (body.team_size) appFormData.profile.team_size = String(body.team_size);
+        if (body.pitch_deck_url) appFormData.profile.pitch_deck_url = body.pitch_deck_url;
+        if (body.logo_url) appFormData.profile.logo_url = body.logo_url;
+        if (body.social_links) appFormData.profile.social_links = body.social_links;
+        if (body.contact_info) appFormData.profile.contact_info = body.contact_info;
+
+        await query(`
+          UPDATE applicants 
+          SET 
+            startup_name = COALESCE($1, startup_name),
+            startup_description = COALESCE($2, startup_description),
+            cohort_id = COALESCE($3, cohort_id),
+            program_status = COALESCE($4, program_status),
+            form_data = $5
+          WHERE id = $6;
+        `, [
+          body.startup_name || null,
+          body.description || null,
+          body.cohort_id ? parseInt(body.cohort_id) : null,
+          body.program_status || null,
+          JSON.stringify(appFormData),
+          currentProfile.applicant_id
+        ]);
+      }
+    }
 
     // Log each changed field to startup_audit_logs
     for (const change of changes) {
@@ -879,6 +938,26 @@ export const getStartupFullDetails = async (req: Request, res: Response) => {
 
     const profile = profileRes.rows[0];
 
+    // Merge founder self-service inputs from form_data.profile so admin sees real-time updates
+    const rawFormData = profile.form_data;
+    const parsedFormData = typeof rawFormData === 'string' ? JSON.parse(rawFormData || '{}') : (rawFormData || {});
+    const pf = parsedFormData.profile || {};
+
+    profile.description = profile.description || pf.description || '';
+    profile.website = profile.website || pf.website || '';
+    profile.revenue_status = profile.revenue_status || pf.revenue_status || 'PRE_REVENUE';
+    profile.monthly_revenue = profile.monthly_revenue || pf.monthly_revenue || 'PKR 0';
+    profile.annual_recurring_revenue = profile.annual_recurring_revenue || pf.annual_recurring_revenue || 'PKR 0';
+    profile.funding_status = profile.funding_status || pf.funding_status || 'BOOTSTRAPPED';
+    profile.funding_raised = profile.funding_raised || pf.funding_raised || '0';
+    profile.burn_rate = profile.burn_rate || pf.burn_rate || '0';
+    profile.team_size = profile.team_size || (parseInt(pf.team_size) || 1);
+    profile.pitch_deck_url = profile.pitch_deck_url || pf.pitch_deck_url || '';
+    profile.logo_url = profile.logo_url || pf.logo_url || '';
+    if (!profile.founder_phone && pf.contact_info) {
+      profile.founder_phone = pf.contact_info;
+    }
+
     // All team members
     const teamRes = await query(`
       SELECT id, name, email, phone, cnic, tracking_token, founder_password,
@@ -1251,15 +1330,80 @@ export const adminUpdateStartupProfile = async (req: Request, res: Response) => 
     }
 
     // 4. Other Profile Fields Updates
-    const profileFields = ['startup_name', 'description', 'industry_id', 'website', 'team_size', 'revenue_status', 'monthly_revenue', 'annual_recurring_revenue', 'funding_status', 'funding_raised', 'pitch_deck_url'];
+    const profileFields = ['startup_name', 'description', 'industry_id', 'cohort_id', 'website', 'team_size', 'revenue_status', 'monthly_revenue', 'annual_recurring_revenue', 'funding_status', 'funding_raised', 'pitch_deck_url'];
     for (const f of profileFields) {
       if (body[f] !== undefined && String(body[f]) !== String(profile[f] ?? '')) {
         otherChanges.push(`${f.replace(/_/g, ' ')}: changed from "${profile[f] || 'N/A'}" to "${body[f]}"`);
-        await query(`UPDATE startup_profiles SET ${f} = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;`, [body[f], profileId]);
+        let valToSave = body[f];
+        if (['industry_id', 'team_size', 'cohort_id'].includes(f) && valToSave !== null && valToSave !== undefined && valToSave !== '') {
+          valToSave = parseInt(valToSave);
+        }
+        await query(`UPDATE startup_profiles SET ${f} = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;`, [valToSave, profileId]);
+        
+        // Synchronize corresponding applicant fields
+        if (f === 'startup_name' && profile.applicant_id) {
+          await query(`UPDATE applicants SET startup_name = $1 WHERE id = $2;`, [valToSave, profile.applicant_id]);
+        }
+        if (f === 'description' && profile.applicant_id) {
+          await query(`UPDATE applicants SET startup_description = $1 WHERE id = $2;`, [valToSave, profile.applicant_id]);
+        }
+        if (f === 'cohort_id' && profile.applicant_id) {
+          await query(`UPDATE applicants SET cohort_id = $1 WHERE id = $2;`, [valToSave, profile.applicant_id]);
+        }
+
+        const oldValStr = String(profile[f] ?? '');
+        profile[f] = valToSave;
+
         await query(`
           INSERT INTO startup_audit_logs (startup_profile_id, changed_by_user_id, changed_by_email, field_name, old_value, new_value)
           VALUES ($1, $2, $3, $4, $5, $6);
-        `, [profileId, adminUserId, adminEmail, f, String(profile[f] ?? ''), String(body[f])]);
+        `, [profileId, adminUserId, adminEmail, f, oldValStr, String(valToSave)]);
+      }
+    }
+
+    // 5. Founder Contact Fields Updates (if provided)
+    if (body.founder_name && String(body.founder_name).trim() !== String(profile.founder_name ?? '').trim()) {
+      const newName = String(body.founder_name).trim();
+      otherChanges.push(`founder name: changed from "${profile.founder_name || 'N/A'}" to "${newName}"`);
+      if (profile.applicant_id) {
+        await query(`UPDATE applicants SET name = $1 WHERE id = $2;`, [newName, profile.applicant_id]);
+      }
+      profile.founder_name = newName;
+    }
+    if (body.founder_phone && String(body.founder_phone).trim() !== String(profile.founder_phone ?? '').trim()) {
+      const newPhone = String(body.founder_phone).trim();
+      otherChanges.push(`founder phone: changed from "${profile.founder_phone || 'N/A'}" to "${newPhone}"`);
+      if (profile.applicant_id) {
+        await query(`UPDATE applicants SET phone = $1 WHERE id = $2;`, [newPhone, profile.applicant_id]);
+      }
+      profile.founder_phone = newPhone;
+    }
+    if (body.founder_cnic && String(body.founder_cnic).trim() !== String(profile.founder_cnic ?? '').trim()) {
+      const newCnic = String(body.founder_cnic).trim();
+      otherChanges.push(`founder cnic: changed from "${profile.founder_cnic || 'N/A'}" to "${newCnic}"`);
+      if (profile.applicant_id) {
+        await query(`UPDATE applicants SET cnic = $1 WHERE id = $2;`, [newCnic, profile.applicant_id]);
+      }
+      profile.founder_cnic = newCnic;
+    }
+
+    // Synchronize to applicant form_data.profile
+    if (profile.applicant_id) {
+      try {
+        const appRes = await query(`SELECT form_data FROM applicants WHERE id = $1;`, [profile.applicant_id]);
+        if (appRes.rows && appRes.rows.length > 0) {
+          let appFormData = typeof appRes.rows[0].form_data === 'string' ? JSON.parse(appRes.rows[0].form_data || '{}') : (appRes.rows[0].form_data || {});
+          appFormData.profile = appFormData.profile || {};
+          for (const f of profileFields) {
+            if (body[f] !== undefined) {
+              appFormData.profile[f] = body[f];
+            }
+          }
+          if (body.founder_phone) appFormData.profile.contact_info = body.founder_phone;
+          await query(`UPDATE applicants SET form_data = $1 WHERE id = $2;`, [JSON.stringify(appFormData), profile.applicant_id]);
+        }
+      } catch (syncErr) {
+        console.warn('Applicant form_data sync warning in adminUpdateStartupProfile:', syncErr);
       }
     }
 
@@ -1288,10 +1432,18 @@ export const adminUpdateStartupProfile = async (req: Request, res: Response) => 
       }
     }
 
+    const freshProfileRes = await query(`
+      SELECT sp.*, a.email as founder_email, a.name as founder_name, a.tracking_token
+      FROM startup_profiles sp
+      LEFT JOIN applicants a ON sp.applicant_id = a.id
+      WHERE sp.id = $1;
+    `, [profileId]);
+    const finalProfile = freshProfileRes.rows?.[0] || profile;
+
     return res.json({
       success: true,
       message: 'Startup details updated successfully and notification email dispatched to founder.',
-      data: profile
+      data: finalProfile
     });
   } catch (err: any) {
     console.error('adminUpdateStartupProfile error:', err);

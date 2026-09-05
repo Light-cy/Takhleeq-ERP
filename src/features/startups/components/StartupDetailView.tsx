@@ -76,6 +76,7 @@ export const StartupDetailView: React.FC<Props> = ({
           startup_name: res.profile.startup_name || '',
           description: res.profile.description || '',
           industry_id: res.profile.industry_id || 1,
+          cohort_id: res.profile.cohort_id || '',
           website: res.profile.website || '',
           team_size: res.profile.team_size || 1,
           program_status: res.profile.program_status || 'ACTIVE',
@@ -84,7 +85,11 @@ export const StartupDetailView: React.FC<Props> = ({
           monthly_revenue: res.profile.monthly_revenue || 'PKR 0',
           annual_recurring_revenue: res.profile.annual_recurring_revenue || 'PKR 0',
           funding_status: res.profile.funding_status || 'BOOTSTRAPPED',
-          funding_raised: res.profile.funding_raised || '0'
+          funding_raised: res.profile.funding_raised || '0',
+          pitch_deck_url: res.profile.pitch_deck_url || '',
+          founder_name: res.profile.founder_name || '',
+          founder_phone: res.profile.founder_phone || '',
+          founder_cnic: res.profile.founder_cnic || ''
         });
       }
     } catch (err: any) {
@@ -990,6 +995,17 @@ export const StartupDetailView: React.FC<Props> = ({
               </div>
 
               <div className="space-y-2">
+                <label className="font-black text-gray-700 uppercase tracking-wide block">Pitch Deck URL</label>
+                <input
+                  type="text"
+                  placeholder="https://..."
+                  value={formData.pitch_deck_url || ''}
+                  onChange={e => setFormData({ ...formData, pitch_deck_url: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 font-bold text-gray-900 focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <label className="font-black text-gray-700 uppercase tracking-wide block">Revenue Status</label>
                 <select
                   value={formData.revenue_status || 'PRE_REVENUE'}
@@ -1011,6 +1027,76 @@ export const StartupDetailView: React.FC<Props> = ({
                   onChange={e => setFormData({ ...formData, monthly_revenue: e.target.value })}
                   className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 font-bold text-gray-900 focus:outline-none focus:border-primary"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-black text-gray-700 uppercase tracking-wide block">Annual Recurring Revenue (ARR)</label>
+                <input
+                  type="text"
+                  placeholder="e.g., PKR 1,800,000"
+                  value={formData.annual_recurring_revenue || ''}
+                  onChange={e => setFormData({ ...formData, annual_recurring_revenue: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 font-bold text-gray-900 focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-black text-gray-700 uppercase tracking-wide block">Funding Status</label>
+                <select
+                  value={formData.funding_status || 'BOOTSTRAPPED'}
+                  onChange={e => setFormData({ ...formData, funding_status: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 font-bold text-gray-900 focus:outline-none focus:border-primary"
+                >
+                  <option value="BOOTSTRAPPED">BOOTSTRAPPED</option>
+                  <option value="PRE_SEED">PRE_SEED</option>
+                  <option value="SEED">SEED</option>
+                  <option value="SERIES_A">SERIES_A</option>
+                  <option value="GRANT_FUNDED">GRANT_FUNDED</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="font-black text-gray-700 uppercase tracking-wide block">Funding Raised (USD or PKR)</label>
+                <input
+                  type="text"
+                  placeholder="e.g., $50,000 or PKR 5,000,000"
+                  value={formData.funding_raised || ''}
+                  onChange={e => setFormData({ ...formData, funding_raised: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-2.5 font-bold text-gray-900 focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="md:col-span-2 pt-4 border-t border-gray-100">
+                <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">Primary Founder Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-gray-600 block text-[11px] uppercase">Founder Name</label>
+                    <input
+                      type="text"
+                      value={formData.founder_name || ''}
+                      onChange={e => setFormData({ ...formData, founder_name: e.target.value })}
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3.5 py-2 font-bold text-gray-900 text-xs focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-gray-600 block text-[11px] uppercase">Founder Phone</label>
+                    <input
+                      type="text"
+                      value={formData.founder_phone || ''}
+                      onChange={e => setFormData({ ...formData, founder_phone: e.target.value })}
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3.5 py-2 font-bold text-gray-900 text-xs focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-gray-600 block text-[11px] uppercase">Founder CNIC</label>
+                    <input
+                      type="text"
+                      value={formData.founder_cnic || ''}
+                      onChange={e => setFormData({ ...formData, founder_cnic: e.target.value })}
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3.5 py-2 font-bold text-gray-900 text-xs focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
               </div>
 
             </div>
@@ -1110,6 +1196,12 @@ export const StartupDetailView: React.FC<Props> = ({
               <p className="text-[11px] font-bold text-emerald-800 uppercase">Monthly Recurring Revenue (MRR)</p>
               <p className="text-2xl font-black text-emerald-950">{financials.monthly_revenue}</p>
               <p className="text-[11px] text-emerald-700">Calculated based on latest monthly financial check-ins.</p>
+            </div>
+
+            <div className="bg-teal-50/50 p-5 rounded-2xl border border-teal-200 space-y-2">
+              <p className="text-[11px] font-bold text-teal-800 uppercase">Annual Recurring Revenue (ARR)</p>
+              <p className="text-2xl font-black text-teal-950">{financials.annual_recurring_revenue || 'PKR 0'}</p>
+              <p className="text-[11px] text-teal-700">Annual run-rate projection or documented revenue.</p>
             </div>
 
             <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-200 space-y-2">

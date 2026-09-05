@@ -2307,39 +2307,127 @@ export const updateApplicantProfile = async (req: AuthenticatedRequest, res: Res
       );
     }
 
-    // Sync directly with startup_profiles table if linked profile exists
+    // Sync directly with startup_profiles table if linked profile exists or auto-provision
     try {
-      await query(`
-        UPDATE startup_profiles
-        SET
-          description = COALESCE($1, description),
-          website = COALESCE($2, website),
-          revenue_status = COALESCE($3, revenue_status),
-          monthly_revenue = COALESCE($4, monthly_revenue),
-          annual_recurring_revenue = COALESCE($5, annual_recurring_revenue),
-          funding_status = COALESCE($6, funding_status),
-          funding_raised = COALESCE($7, funding_raised),
-          burn_rate = COALESCE($8, burn_rate),
-          team_size = COALESCE($9, team_size),
-          pitch_deck_url = COALESCE($10, pitch_deck_url),
-          updated_at = CURRENT_TIMESTAMP
-        WHERE applicant_id = $11 OR LOWER(founder_email) = LOWER($12)
-      `, [
-        finalDesc,
-        website !== undefined ? website : null,
-        revenue_status !== undefined ? revenue_status : null,
-        monthly_revenue !== undefined ? monthly_revenue : null,
-        annual_recurring_revenue !== undefined ? annual_recurring_revenue : null,
-        funding_status !== undefined ? funding_status : null,
-        funding_raised !== undefined ? funding_raised : null,
-        burn_rate !== undefined ? burn_rate : null,
-        team_size !== undefined ? (parseInt(team_size) || 1) : null,
-        pitch_deck_url !== undefined ? pitch_deck_url : null,
-        appRecord.id,
-        appRecord.email
-      ]);
+      const spRes = await query(
+        `SELECT id, applicant_id FROM startup_profiles WHERE applicant_id = $1 LIMIT 1`,
+        [appRecord.id]
+      );
+
+      const spUpdates: string[] = [];
+      const spValues: any[] = [];
+      let pCounter = 1;
+
+      if (finalDesc !== null) {
+        spUpdates.push(`description = $${pCounter++}`);
+        spValues.push(finalDesc);
+      }
+      if (website !== undefined) {
+        spUpdates.push(`website = $${pCounter++}`);
+        spValues.push(website?.trim() || '');
+      }
+      if (revenue_status !== undefined) {
+        spUpdates.push(`revenue_status = $${pCounter++}`);
+        spValues.push(revenue_status);
+      }
+      if (monthly_revenue !== undefined) {
+        spUpdates.push(`monthly_revenue = $${pCounter++}`);
+        spValues.push(monthly_revenue);
+      }
+      if (annual_recurring_revenue !== undefined) {
+        spUpdates.push(`annual_recurring_revenue = $${pCounter++}`);
+        spValues.push(annual_recurring_revenue);
+      }
+      if (funding_status !== undefined) {
+        spUpdates.push(`funding_status = $${pCounter++}`);
+        spValues.push(funding_status);
+      }
+      if (funding_raised !== undefined) {
+        spUpdates.push(`funding_raised = $${pCounter++}`);
+        spValues.push(funding_raised);
+      }
+      if (burn_rate !== undefined) {
+        spUpdates.push(`burn_rate = $${pCounter++}`);
+        spValues.push(burn_rate);
+      }
+      if (team_size !== undefined) {
+        spUpdates.push(`team_size = $${pCounter++}`);
+        spValues.push(parseInt(team_size) || 1);
+      }
+      if (pitch_deck_url !== undefined) {
+        spUpdates.push(`pitch_deck_url = $${pCounter++}`);
+        spValues.push(pitch_deck_url?.trim() || '');
+      }
+      if (logo_url !== undefined) {
+        spUpdates.push(`logo_url = $${pCounter++}`);
+        spValues.push(logo_url?.trim() || '');
+      }
+      if (social_links !== undefined || linkedin_url || twitter_url || github_url || instagram_url) {
+        spUpdates.push(`social_links = $${pCounter++}`);
+        spValues.push(JSON.stringify({
+          linkedin: linkedin_url || '',
+          twitter: twitter_url || '',
+          github: github_url || '',
+          instagram: instagram_url || '',
+          other: social_links || ''
+        }));
+      }
+      if (contact_info !== undefined || finalPhone) {
+        spUpdates.push(`contact_info = $${pCounter++}`);
+        spValues.push(JSON.stringify({
+          phone: finalPhone || '',
+          email: appRecord.email || '',
+          contact: contact_info || finalPhone || ''
+        }));
+      }
+
+      if (spRes.rows && spRes.rows.length > 0) {
+        const targetId = spRes.rows[0].id;
+        if (spUpdates.length > 0) {
+          spUpdates.push('updated_at = CURRENT_TIMESTAMP');
+          spValues.push(targetId);
+          await query(
+            `UPDATE startup_profiles SET ${spUpdates.join(', ')} WHERE id = $${pCounter}`,
+            spValues
+          );
+        }
+      } else {
+        // Auto-provision startup profile if not present yet
+        await query(`
+          INSERT INTO startup_profiles (
+            applicant_id,
+            startup_name,
+            description,
+            website,
+            team_size,
+            revenue_status,
+            monthly_revenue,
+            annual_recurring_revenue,
+            funding_status,
+            funding_raised,
+            burn_rate,
+            pitch_deck_url,
+            program_status,
+            created_at,
+            updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `, [
+          appRecord.id,
+          appRecord.startup_name || 'My Startup',
+          finalDesc || appRecord.startup_description || '',
+          website || '',
+          parseInt(team_size) || 1,
+          revenue_status || 'PRE_REVENUE',
+          monthly_revenue || '0',
+          annual_recurring_revenue || '0',
+          funding_status || 'BOOTSTRAPPED',
+          funding_raised || '0',
+          burn_rate || '0',
+          pitch_deck_url || ''
+        ]);
+      }
     } catch (spSyncErr) {
-      console.warn('Non-blocking startup_profiles sync warning:', spSyncErr);
+      console.warn('Startup profiles sync warning:', spSyncErr);
     }
 
     const updatedApplicant = result.rows[0];

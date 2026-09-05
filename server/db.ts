@@ -643,14 +643,63 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
         app.form_data = params[0] ? (typeof params[0] === 'string' ? JSON.parse(params[0]) : params[0]) : app.form_data;
       } else if (q.includes('stage = $1')) {
         app.stage = params[0];
+      } else if (q.includes('startup_name = $1')) {
+        app.startup_name = params[0];
+      } else if (q.includes('startup_description = $1')) {
+        app.startup_description = params[0];
+      } else if (q.includes('name = $1')) {
+        app.name = params[0];
+      } else if (q.includes('phone = $1')) {
+        app.phone = params[0];
+      } else if (q.includes('cnic = $1')) {
+        app.cnic = params[0];
+      } else if (q.includes('cohort_id = $1')) {
+        app.cohort_id = params[0] ? parseInt(params[0]) : null;
       }
 
       // Synchronize linked startup_profile
       if (db.startup_profiles && Array.isArray(db.startup_profiles)) {
-        const matchingProfile = db.startup_profiles.find((p: any) => p.applicant_id === app.id || (p.startup_name && p.startup_name.toLowerCase() === app.startup_name.toLowerCase()));
+        let matchingProfile = db.startup_profiles.find((p: any) => p.applicant_id === app.id || (p.startup_name && app.startup_name && p.startup_name.toLowerCase() === app.startup_name.toLowerCase()));
+        if (!matchingProfile && (app.status === 'ACCEPTED' || app.program_status === 'ACTIVE' || app.cohort_id)) {
+          // Provision startup profile if not already present
+          const newId = (db.startup_profiles.reduce((max: number, p: any) => Math.max(max, p.id || 0), 0) || 0) + 1;
+          matchingProfile = {
+            id: newId,
+            applicant_id: app.id,
+            startup_name: app.startup_name || 'My Startup',
+            description: app.startup_description || '',
+            program_status: app.program_status || 'ACTIVE',
+            cohort_id: app.cohort_id || null,
+            current_progress_stage: app.stage || 'IDEA_STAGE',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          db.startup_profiles.push(matchingProfile);
+        }
+
         if (matchingProfile) {
+          if (app.startup_name) matchingProfile.startup_name = app.startup_name;
+          if (app.startup_description) matchingProfile.description = app.startup_description;
           if (app.program_status) matchingProfile.program_status = app.program_status;
           if (app.cohort_id) matchingProfile.cohort_id = app.cohort_id;
+          if (app.stage) matchingProfile.current_progress_stage = app.stage;
+          if (app.phone) matchingProfile.founder_phone = app.phone;
+
+          const pf = app.form_data?.profile || {};
+          if (pf.description) matchingProfile.description = pf.description;
+          if (pf.website !== undefined && pf.website !== '') matchingProfile.website = pf.website;
+          if (pf.revenue_status !== undefined && pf.revenue_status !== '') matchingProfile.revenue_status = pf.revenue_status;
+          if (pf.monthly_revenue !== undefined && pf.monthly_revenue !== '') matchingProfile.monthly_revenue = pf.monthly_revenue;
+          if (pf.annual_recurring_revenue !== undefined && pf.annual_recurring_revenue !== '') matchingProfile.annual_recurring_revenue = pf.annual_recurring_revenue;
+          if (pf.funding_status !== undefined && pf.funding_status !== '') matchingProfile.funding_status = pf.funding_status;
+          if (pf.funding_raised !== undefined && pf.funding_raised !== '') matchingProfile.funding_raised = pf.funding_raised;
+          if (pf.burn_rate !== undefined && pf.burn_rate !== '') matchingProfile.burn_rate = pf.burn_rate;
+          if (pf.team_size !== undefined && pf.team_size !== '') matchingProfile.team_size = parseInt(pf.team_size) || matchingProfile.team_size || 1;
+          if (pf.pitch_deck_url !== undefined && pf.pitch_deck_url !== '') matchingProfile.pitch_deck_url = pf.pitch_deck_url;
+          if (pf.logo_url !== undefined && pf.logo_url !== '') matchingProfile.logo_url = pf.logo_url;
+          if (pf.social_links !== undefined) matchingProfile.social_links = pf.social_links;
+          if (pf.contact_info !== undefined) matchingProfile.contact_info = pf.contact_info;
+
           matchingProfile.updated_at = new Date().toISOString();
         }
       }
@@ -2499,12 +2548,15 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
           ...p,
           industry_name: ind?.name || 'General Tech',
           cohort_name: coh?.name || 'Cohort 1',
-          founder_name: app?.name || 'Founder',
-          founder_email: app?.email || '',
-          founder_phone: app?.phone || '',
-          founder_cnic: app?.cnic || '',
+          founder_name: app?.name || p.founder_name || 'Founder',
+          founder_email: app?.email || p.founder_email || '',
+          founder_phone: app?.phone || p.founder_phone || '',
+          founder_cnic: app?.cnic || p.founder_cnic || '',
           founder_tracking_token: app?.tracking_token || '',
-          founder_password: app?.founder_password || ''
+          founder_password: app?.founder_password || '',
+          form_data: app?.form_data || {},
+          applicant_status: app?.status || 'ENROLLED',
+          applicant_program_status: app?.program_status || p.program_status || 'ACTIVE'
         }] };
       }
       return { rows: [] };
@@ -2520,12 +2572,15 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
           ...p,
           industry_name: ind?.name || 'General Tech',
           cohort_name: coh?.name || 'Cohort 1',
-          founder_name: app?.name || 'Founder',
-          founder_email: app?.email || '',
-          founder_phone: app?.phone || '',
-          founder_cnic: app?.cnic || '',
+          founder_name: app?.name || p.founder_name || 'Founder',
+          founder_email: app?.email || p.founder_email || '',
+          founder_phone: app?.phone || p.founder_phone || '',
+          founder_cnic: app?.cnic || p.founder_cnic || '',
           founder_tracking_token: app?.tracking_token || '',
-          founder_password: app?.founder_password || ''
+          founder_password: app?.founder_password || '',
+          form_data: app?.form_data || {},
+          applicant_status: app?.status || 'ENROLLED',
+          applicant_program_status: app?.program_status || p.program_status || 'ACTIVE'
         }] };
       }
       return { rows: [] };
@@ -2539,12 +2594,15 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
         ...p,
         industry_name: ind?.name || 'General Tech',
         cohort_name: coh?.name || 'Cohort 1',
-        founder_name: app?.name || 'Founder',
-        founder_email: app?.email || '',
-        founder_phone: app?.phone || '',
-        founder_cnic: app?.cnic || '',
+        founder_name: app?.name || p.founder_name || 'Founder',
+        founder_email: app?.email || p.founder_email || '',
+        founder_phone: app?.phone || p.founder_phone || '',
+        founder_cnic: app?.cnic || p.founder_cnic || '',
         founder_tracking_token: app?.tracking_token || '',
-        founder_password: app?.founder_password || ''
+        founder_password: app?.founder_password || '',
+        form_data: app?.form_data || {},
+        applicant_status: app?.status || 'ENROLLED',
+        applicant_program_status: app?.program_status || p.program_status || 'ACTIVE'
       };
     });
     return { rows };
@@ -2582,48 +2640,138 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
 
   if (q.includes('update startup_profiles')) {
     if (!db.startup_profiles) db.startup_profiles = [];
-    const idVal = parseInt(params[params.length - 1]);
-    const profile = db.startup_profiles.find((p: any) => p.id === idVal);
+
+    // Extract target ID from WHERE clause
+    let idVal: number | null = null;
+    const whereIdMatch = q.match(/where\s+(?:sp\.)?id\s*=\s*(?:\$(\d+)|(\d+))/i);
+    const whereAppIdMatch = q.match(/where\s+(?:sp\.)?applicant_id\s*=\s*(?:\$(\d+)|(\d+))/i);
+
+    if (whereIdMatch) {
+      if (whereIdMatch[1]) {
+        const pIdx = parseInt(whereIdMatch[1], 10) - 1;
+        idVal = parseInt(params[pIdx], 10);
+      } else if (whereIdMatch[2]) {
+        idVal = parseInt(whereIdMatch[2], 10);
+      }
+    } else if (whereAppIdMatch) {
+      let appIdVal: number | null = null;
+      if (whereAppIdMatch[1]) {
+        const pIdx = parseInt(whereAppIdMatch[1], 10) - 1;
+        appIdVal = parseInt(params[pIdx], 10);
+      } else if (whereAppIdMatch[2]) {
+        appIdVal = parseInt(whereAppIdMatch[2], 10);
+      }
+      if (appIdVal) {
+        const found = db.startup_profiles.find((p: any) => p.applicant_id === appIdVal);
+        if (found) idVal = found.id;
+      }
+    }
+
+    if (!idVal && params.length > 0) {
+      idVal = parseInt(params[params.length - 1], 10);
+    }
+
+    let profile = db.startup_profiles.find((p: any) => p.id === idVal);
+    if (!profile && idVal) {
+      profile = db.startup_profiles.find((p: any) => p.applicant_id === idVal);
+    }
+
     if (profile) {
       const isAlreadyKicked = profile.program_status === 'KICKED_OUT';
-      if (q.includes('set current_progress_stage =')) {
-        if (!isAlreadyKicked) profile.current_progress_stage = params[0];
-      } else if (q.includes('set program_status =')) {
-        if (!isAlreadyKicked || params[0] === 'KICKED_OUT') {
-          profile.program_status = params[0];
-        }
-      } else if (params.length >= 8) {
-        profile.startup_name = params[0] || profile.startup_name;
-        profile.description = params[1] || profile.description;
-        profile.industry_id = params[2] ? parseInt(params[2]) : profile.industry_id;
-        profile.cohort_id = params[3] ? parseInt(params[3]) : profile.cohort_id;
-        if (!isAlreadyKicked) profile.current_progress_stage = params[4] || profile.current_progress_stage;
-        if (!isAlreadyKicked || params[5] === 'KICKED_OUT') profile.program_status = params[5] || profile.program_status;
-        profile.team_size = params[6] !== undefined ? parseInt(params[6]) : profile.team_size;
-        profile.revenue_status = params[7] || profile.revenue_status;
-      } else {
-        const setMatch = q.match(/set\s+([a_z0-9_]+)\s*=/i);
-        if (setMatch && setMatch[1]) {
-          const colName = setMatch[1].toLowerCase();
-          if (colName !== 'updated_at') {
-            if (colName === 'program_status' && isAlreadyKicked && params[0] !== 'KICKED_OUT') {
-              // Ignore change
-            } else if (colName === 'current_progress_stage' && isAlreadyKicked) {
-              // Ignore change
+
+      // Parse SET clause (multiline support)
+      const setMatch = q.match(/set\s+([\s\S]*?)(?:\s+where|\s*$)/i);
+      if (setMatch) {
+        const setBody = setMatch[1];
+        const assignmentRegex = /([a-z0-9_]+)\s*=\s*(?:COALESCE\s*\(\s*(?:\$(\d+)|'[^']*'|[^,\s)]+)\s*,\s*([a-z0-9_]+|'[^']*'|[^)]+)\s*\)|(\$(\d+))|current_timestamp|now\(\)|'([^']*)'|([^,;]+))/gi;
+        let m: RegExpExecArray | null;
+
+        while ((m = assignmentRegex.exec(setBody)) !== null) {
+          const col = m[1].toLowerCase().trim();
+
+          if (col === 'updated_at') {
+            profile.updated_at = new Date().toISOString();
+            continue;
+          }
+
+          let val: any;
+          if (m[2]) {
+            // COALESCE with param
+            const pIdx = parseInt(m[2], 10) - 1;
+            const paramVal = params[pIdx];
+            if (paramVal !== null && paramVal !== undefined) {
+              val = paramVal;
             } else {
-              profile[colName] = params[0];
+              val = profile[col];
+            }
+          } else if (m[4]) {
+            // Direct param $X
+            const pIdx = parseInt(m[5], 10) - 1;
+            val = params[pIdx];
+          } else if (m[0].toLowerCase().includes('current_timestamp') || m[0].toLowerCase().includes('now()')) {
+            val = new Date().toISOString();
+          } else if (m[6] !== undefined) {
+            val = m[6];
+          } else if (m[7] !== undefined) {
+            const raw = m[7].trim();
+            val = raw === 'null' ? null : raw === 'true' ? true : raw === 'false' ? false : !isNaN(Number(raw)) ? Number(raw) : raw;
+          }
+
+          // Termination lock
+          if (col === 'program_status') {
+            if (isAlreadyKicked && String(val).toUpperCase() !== 'KICKED_OUT') {
+              continue; // locked
+            }
+            profile.program_status = String(val).toUpperCase();
+          } else if (col === 'current_progress_stage') {
+            if (isAlreadyKicked) {
+              continue; // locked
+            }
+            profile.current_progress_stage = val;
+          } else {
+            if (['industry_id', 'cohort_id', 'team_size'].includes(col) && val !== null && val !== undefined && val !== '') {
+              const numVal = parseInt(val, 10);
+              profile[col] = isNaN(numVal) ? val : numVal;
+            } else {
+              profile[col] = val;
             }
           }
         }
       }
+
       profile.updated_at = new Date().toISOString();
 
-      // Synchronize linked applicant
+      // Synchronize linked applicant in db.applicants
       if (db.applicants && Array.isArray(db.applicants)) {
-        const matchingApp = db.applicants.find((a: any) => a.id === profile.applicant_id || (a.startup_name && a.startup_name.toLowerCase() === profile.startup_name.toLowerCase()));
+        const matchingApp = db.applicants.find((a: any) =>
+          a.id === profile.applicant_id ||
+          (a.startup_name && profile.startup_name && a.startup_name.toLowerCase() === profile.startup_name.toLowerCase())
+        );
         if (matchingApp) {
+          if (profile.startup_name) matchingApp.startup_name = profile.startup_name;
+          if (profile.description) matchingApp.startup_description = profile.description;
           if (profile.program_status) matchingApp.program_status = profile.program_status;
           if (profile.cohort_id) matchingApp.cohort_id = profile.cohort_id;
+          if (profile.current_progress_stage) matchingApp.stage = profile.current_progress_stage;
+          if (profile.website) matchingApp.website = profile.website;
+          if (profile.founder_phone) matchingApp.phone = profile.founder_phone;
+
+          // Keep form_data.profile synchronized
+          matchingApp.form_data = matchingApp.form_data || {};
+          matchingApp.form_data.profile = matchingApp.form_data.profile || {};
+          if (profile.description) matchingApp.form_data.profile.description = profile.description;
+          if (profile.website) matchingApp.form_data.profile.website = profile.website;
+          if (profile.revenue_status) matchingApp.form_data.profile.revenue_status = profile.revenue_status;
+          if (profile.monthly_revenue) matchingApp.form_data.profile.monthly_revenue = profile.monthly_revenue;
+          if (profile.annual_recurring_revenue) matchingApp.form_data.profile.annual_recurring_revenue = profile.annual_recurring_revenue;
+          if (profile.funding_status) matchingApp.form_data.profile.funding_status = profile.funding_status;
+          if (profile.funding_raised) matchingApp.form_data.profile.funding_raised = profile.funding_raised;
+          if (profile.burn_rate) matchingApp.form_data.profile.burn_rate = profile.burn_rate;
+          if (profile.team_size) matchingApp.form_data.profile.team_size = String(profile.team_size);
+          if (profile.pitch_deck_url) matchingApp.form_data.profile.pitch_deck_url = profile.pitch_deck_url;
+          if (profile.logo_url) matchingApp.form_data.profile.logo_url = profile.logo_url;
+          if (profile.social_links) matchingApp.form_data.profile.social_links = profile.social_links;
+          if (profile.contact_info) matchingApp.form_data.profile.contact_info = profile.contact_info;
         }
       }
 

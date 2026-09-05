@@ -71,7 +71,11 @@ export const StartupProfileDetailModal: React.FC<Props> = ({
         business_model: profile.business_model || 'B2B',
         team_size: profile.team_size || 1,
         revenue_status: profile.revenue_status || 'PRE_REVENUE',
+        monthly_revenue: profile.monthly_revenue || 'PKR 0',
+        annual_recurring_revenue: profile.annual_recurring_revenue || 'PKR 0',
         funding_status: profile.funding_status || 'BOOTSTRAPPED',
+        funding_raised: profile.funding_raised || '0',
+        pitch_deck_url: profile.pitch_deck_url || '',
         program_status: profile.program_status || 'ACTIVE'
       });
       loadData(profile.id);
@@ -483,7 +487,7 @@ export const StartupProfileDetailModal: React.FC<Props> = ({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[11px] font-extrabold text-gray-500 uppercase tracking-wider mb-1">Revenue Status</label>
-                      {isEditing && isStaff ? (
+                      {isEditing ? (
                         <select
                           value={formData.revenue_status || 'PRE_REVENUE'}
                           onChange={e => setFormData({ ...formData, revenue_status: e.target.value as any })}
@@ -500,7 +504,7 @@ export const StartupProfileDetailModal: React.FC<Props> = ({
 
                     <div>
                       <label className="block text-[11px] font-extrabold text-gray-500 uppercase tracking-wider mb-1">Funding Status</label>
-                      {isEditing && isStaff ? (
+                      {isEditing ? (
                         <select
                           value={formData.funding_status || 'BOOTSTRAPPED'}
                           onChange={e => setFormData({ ...formData, funding_status: e.target.value as any })}
@@ -516,6 +520,59 @@ export const StartupProfileDetailModal: React.FC<Props> = ({
                         <p className="text-xs font-bold text-gray-800">{profile.funding_status || 'Bootstrapped'}</p>
                       )}
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-extrabold text-gray-500 uppercase tracking-wider mb-1">Monthly Revenue (MRR)</label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          placeholder="e.g. PKR 150,000"
+                          value={formData.monthly_revenue || ''}
+                          onChange={e => setFormData({ ...formData, monthly_revenue: e.target.value })}
+                          className="w-full bg-white border border-gray-200 rounded-xl p-2 text-xs font-bold text-gray-900 focus:outline-none focus:border-primary"
+                        />
+                      ) : (
+                        <p className="text-xs font-bold text-gray-800">{profile.monthly_revenue || 'PKR 0'}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-extrabold text-gray-500 uppercase tracking-wider mb-1">Annual Recurring Revenue (ARR)</label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          placeholder="e.g. PKR 1,800,000"
+                          value={formData.annual_recurring_revenue || ''}
+                          onChange={e => setFormData({ ...formData, annual_recurring_revenue: e.target.value })}
+                          className="w-full bg-white border border-gray-200 rounded-xl p-2 text-xs font-bold text-gray-900 focus:outline-none focus:border-primary"
+                        />
+                      ) : (
+                        <p className="text-xs font-bold text-gray-800">{profile.annual_recurring_revenue || 'PKR 0'}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-extrabold text-gray-500 uppercase tracking-wider mb-1">Pitch Deck URL</label>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        placeholder="https://..."
+                        value={formData.pitch_deck_url || ''}
+                        onChange={e => setFormData({ ...formData, pitch_deck_url: e.target.value })}
+                        className="w-full bg-white border border-gray-200 rounded-xl p-2 text-xs font-bold text-gray-900 focus:outline-none focus:border-primary"
+                      />
+                    ) : (
+                      profile.pitch_deck_url ? (
+                        <a href={profile.pitch_deck_url} target="_blank" rel="noreferrer" className="text-xs font-bold text-primary hover:underline truncate block">
+                          {profile.pitch_deck_url}
+                        </a>
+                      ) : (
+                        <p className="text-xs text-gray-500">No pitch deck link provided</p>
+                      )
+                    )}
                   </div>
 
                   <div>
