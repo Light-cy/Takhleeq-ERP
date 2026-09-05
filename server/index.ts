@@ -35,6 +35,11 @@ export async function startServer() {
   // Attach auth simulation middleware
   app.use(authMiddleware as express.RequestHandler);
 
+  // Health check endpoint for ingress & container probes
+  app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
   // Mount API routers under `/api` prefix
   app.use('/api', userRoutes);
   app.use('/api', roleRoutes);

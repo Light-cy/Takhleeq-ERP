@@ -133,6 +133,12 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
 
   const handleUpdateProgramStatus = async (newProgramStatus: string) => {
     if (!applicant) return;
+    const isAlreadyKicked = applicant.program_status === 'KICKED_OUT' || applicant.status === 'KICKED_OUT';
+    if (isAlreadyKicked && newProgramStatus !== 'KICKED_OUT') {
+      triggerError('Yeh startup incubator se permanently kick out ho chuka hai. Iska status reactivate ya change nahi kiya ja sakta.');
+      return;
+    }
+
     setUpdatingProgramStatus(true);
     try {
       const res = await fetchWithAuth(`/api/applicants/${applicant.id}/program-status`, {
@@ -304,9 +310,21 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
   const currentStageDef = getStageDef(applicant.status);
   const nextStageDef = getNextLinearStage(applicant.status);
   const isTerminalOrAlternate = currentStageDef.type === 'terminal' || currentStageDef.type === 'alternate' || currentStageDef.key === 'ENROLLED';
+  const isPermanentlyKicked = applicant.program_status === 'KICKED_OUT' || applicant.status === 'KICKED_OUT';
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16 text-left" id="application-full-details-view">
+      {/* Floating Status Update Progress Indicator */}
+      {updatingProgramStatus && (
+        <div className="fixed top-5 right-5 z-50 bg-gray-900/95 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-gray-700 text-xs font-bold animate-in fade-in slide-in-from-top-3 backdrop-blur-md">
+          <Loader2 className="h-4 w-4 animate-spin text-rose-400 shrink-0" />
+          <div>
+            <p className="font-extrabold text-[12px] leading-none">Updating Program Status...</p>
+            <p className="text-[10px] text-gray-300 font-normal mt-0.5">Please wait, updating system records and syncing startup profile</p>
+          </div>
+        </div>
+      )}
+
       {/* Navigation Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-4">
         <div className="flex items-center gap-2.5 flex-wrap">
@@ -380,28 +398,40 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
         {/* Program Status Quick Switch & Orientation Bar */}
         <div className="pt-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-gray-500 font-bold text-[11px] uppercase font-mono">Program Status:</span>
+            <span className="text-gray-500 font-bold text-[11px] uppercase font-mono flex items-center gap-1.5">
+              <span>Program Status:</span>
+              {updatingProgramStatus && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
+            </span>
             <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50 text-[10px] font-bold">
               {(['NOT_ENROLLED', 'ACTIVE', 'PAUSED', 'GRADUATED', 'KICKED_OUT'] as const).map((st) => (
                 <button
                   key={st}
                   type="button"
-                  disabled={updatingProgramStatus || (applicant.program_status || 'NOT_ENROLLED') === st}
+                  disabled={updatingProgramStatus || (isPermanentlyKicked && st !== 'KICKED_OUT') || (applicant.program_status || 'NOT_ENROLLED') === st}
                   onClick={() => handleUpdateProgramStatus(st)}
-                  className={`px-2 py-1 rounded-md font-mono transition-all cursor-pointer ${
+                  className={`px-2 py-1 rounded-md font-mono transition-all ${
                     (applicant.program_status || 'NOT_ENROLLED') === st
-                      ? st === 'ACTIVE' ? 'bg-emerald-600 text-white font-black shadow-xs'
-                        : st === 'PAUSED' ? 'bg-amber-600 text-white font-black shadow-xs'
-                        : st === 'GRADUATED' ? 'bg-indigo-600 text-white font-black shadow-xs'
-                        : st === 'KICKED_OUT' ? 'bg-rose-600 text-white font-black shadow-xs'
-                        : 'bg-gray-700 text-white font-black shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                      ? st === 'ACTIVE' ? 'bg-emerald-600 text-white font-black shadow-xs cursor-default'
+                        : st === 'PAUSED' ? 'bg-amber-600 text-white font-black shadow-xs cursor-default'
+                        : st === 'GRADUATED' ? 'bg-indigo-600 text-white font-black shadow-xs cursor-default'
+                        : st === 'KICKED_OUT' ? 'bg-rose-600 text-white font-black shadow-xs cursor-default'
+                        : 'bg-gray-700 text-white font-black shadow-xs cursor-default'
+                      : isPermanentlyKicked
+                      ? 'text-gray-400 opacity-40 cursor-not-allowed'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200 cursor-pointer'
                   }`}
+                  title={isPermanentlyKicked && st !== 'KICKED_OUT' ? 'Startup is permanently terminated' : undefined}
                 >
                   {st.replace('_', ' ')}
                 </button>
               ))}
             </div>
+            {isPermanentlyKicked && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold font-mono">
+                <ShieldAlert className="h-3 w-3 text-rose-600 shrink-0" />
+                Permanently Locked
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -558,76 +588,83 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
 
             {/* Action Buttons: Primary Next Stage + Kebab Exceptions Menu */}
             <div className="space-y-3 pt-2">
-              <div className="flex items-center gap-2 relative" ref={menuRef}>
-                {/* Primary Button */}
-                {nextStageDef ? (
-                  <button
-                    onClick={() => handleOpenTransitionModal(nextStageDef)}
-                    className="flex-1 inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white text-xs font-extrabold py-3 px-4 rounded-xl shadow-3xs transition-all cursor-pointer"
-                    id="primary-stage-advance-btn"
-                  >
-                    <span>Move to {nextStageDef.label}</span>
-                    <ChevronRight className="h-4 w-4 stroke-[3]" />
-                  </button>
-                ) : (
-                  <div className="flex-1 p-3 bg-gray-100 border border-gray-200 rounded-xl text-center text-xs font-bold text-gray-500">
-                    {currentStageDef.key === 'ENROLLED' ? 'Application Fully Enrolled' : 'Terminal / Exception Stage Reached'}
-                  </div>
-                )}
-
-                {/* Kebab Button (...) */}
-                <button
-                  onClick={() => setMenuOpen(!menuOpen)}
-                  className="p-3 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 rounded-xl transition-all cursor-pointer"
-                  title="Exception stage options"
-                  id="stage-kebab-menu-btn"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
-
-                {/* Dropdown Menu */}
-                {menuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 rounded-2xl shadow-xl z-30 p-2 space-y-1 text-xs">
-                    <div className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-gray-400 font-mono border-b border-gray-100">
-                      Exception / Branch Options
+              {isPermanentlyKicked ? (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2.5 text-rose-900 text-xs font-bold">
+                  <ShieldAlert className="h-4 w-4 text-rose-600 shrink-0" />
+                  <span>Startup Permanently Terminated. Stage advancement locked.</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 relative" ref={menuRef}>
+                  {/* Primary Button */}
+                  {nextStageDef ? (
+                    <button
+                      onClick={() => handleOpenTransitionModal(nextStageDef)}
+                      className="flex-1 inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white text-xs font-extrabold py-3 px-4 rounded-xl shadow-3xs transition-all cursor-pointer"
+                      id="primary-stage-advance-btn"
+                    >
+                      <span>Move to {nextStageDef.label}</span>
+                      <ChevronRight className="h-4 w-4 stroke-[3]" />
+                    </button>
+                  ) : (
+                    <div className="flex-1 p-3 bg-gray-100 border border-gray-200 rounded-xl text-center text-xs font-bold text-gray-500">
+                      {currentStageDef.key === 'ENROLLED' ? 'Application Fully Enrolled' : 'Terminal / Exception Stage Reached'}
                     </div>
+                  )}
 
-                    <button
-                      onClick={() => handleOpenTransitionModal(getStageDef('WAITLISTED'))}
-                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-amber-50 text-amber-900 font-bold flex items-center gap-2 transition-all cursor-pointer"
-                    >
-                      <Clock className="h-3.5 w-3.5 text-amber-600" />
-                      <span>Move to Waitlist</span>
-                    </button>
+                  {/* Kebab Button (...) */}
+                  <button
+                    onClick={() => setMenuOpen(!menuOpen)}
+                    className="p-3 bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 rounded-xl transition-all cursor-pointer"
+                    title="Exception stage options"
+                    id="stage-kebab-menu-btn"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
 
-                    <button
-                      onClick={() => handleOpenTransitionModal(getStageDef('BACKUP_CANDIDATE'))}
-                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-violet-50 text-violet-900 font-bold flex items-center gap-2 transition-all cursor-pointer"
-                    >
-                      <UserCheck className="h-3.5 w-3.5 text-violet-600" />
-                      <span>Move to Backup Candidate</span>
-                    </button>
+                  {/* Dropdown Menu */}
+                  {menuOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 rounded-2xl shadow-xl z-30 p-2 space-y-1 text-xs">
+                      <div className="px-3 py-2 text-[9px] font-black uppercase tracking-widest text-gray-400 font-mono border-b border-gray-100">
+                        Exception / Branch Options
+                      </div>
 
-                    <button
-                      onClick={() => handleOpenTransitionModal(getStageDef('REJECTED'))}
-                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-rose-50 text-rose-900 font-bold flex items-center gap-2 transition-all cursor-pointer"
-                    >
-                      <XCircle className="h-3.5 w-3.5 text-rose-600" />
-                      <span>Reject Application</span>
-                    </button>
+                      <button
+                        onClick={() => handleOpenTransitionModal(getStageDef('WAITLISTED'))}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-amber-50 text-amber-900 font-bold flex items-center gap-2 transition-all cursor-pointer"
+                      >
+                        <Clock className="h-3.5 w-3.5 text-amber-600" />
+                        <span>Move to Waitlist</span>
+                      </button>
 
-                    <div className="my-1 border-t border-gray-100" />
+                      <button
+                        onClick={() => handleOpenTransitionModal(getStageDef('BACKUP_CANDIDATE'))}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-violet-50 text-violet-900 font-bold flex items-center gap-2 transition-all cursor-pointer"
+                      >
+                        <UserCheck className="h-3.5 w-3.5 text-violet-600" />
+                        <span>Move to Backup Candidate</span>
+                      </button>
 
-                    <button
-                      onClick={handleOpenManualModal}
-                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-100 text-gray-700 font-bold flex items-center gap-2 transition-all cursor-pointer"
-                    >
-                      <FileText className="h-3.5 w-3.5 text-gray-500" />
-                      <span>Set Stage Manually...</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+                      <button
+                        onClick={() => handleOpenTransitionModal(getStageDef('REJECTED'))}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-rose-50 text-rose-900 font-bold flex items-center gap-2 transition-all cursor-pointer"
+                      >
+                        <XCircle className="h-3.5 w-3.5 text-rose-600" />
+                        <span>Reject Application</span>
+                      </button>
+
+                      <div className="my-1 border-t border-gray-100" />
+
+                      <button
+                        onClick={handleOpenManualModal}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-100 text-gray-700 font-bold flex items-center gap-2 transition-all cursor-pointer"
+                      >
+                        <FileText className="h-3.5 w-3.5 text-gray-500" />
+                        <span>Set Stage Manually...</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Visual Step Tracker Mini List */}
@@ -887,7 +924,10 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
                   id="confirm-stage-submit-btn"
                 >
                   {submitting ? (
-                    <span>Processing...</span>
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                      <span>Processing...</span>
+                    </>
                   ) : (
                     <>
                       <span>Confirm & Update Stage</span>

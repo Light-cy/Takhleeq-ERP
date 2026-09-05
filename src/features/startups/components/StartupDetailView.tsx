@@ -4,7 +4,7 @@ import {
   CheckCircle2, AlertTriangle, TrendingUp, Calendar, DollarSign, History, 
   FileText, Sparkles, RefreshCw, Save, ShieldX, Ban, PlayCircle, Award,
   AlertCircle, CheckCircle, Send, RotateCcw, Plus, X, Users, Edit3,
-  ClipboardList, ShieldCheck, GitBranch
+  ClipboardList, ShieldCheck, GitBranch, Loader2
 } from 'lucide-react';
 import { Industry } from '../../../types/startup.types';
 import { STARTUP_PROGRESS_STAGES, getStartupStageInfo } from '../../../constants/startupStages';
@@ -35,6 +35,7 @@ export const StartupDetailView: React.FC<Props> = ({
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -93,8 +94,21 @@ export const StartupDetailView: React.FC<Props> = ({
     }
   };
 
-  const handleAdminSave = async (customPayload?: any) => {
+  const handleAdminSave = async (customPayload?: any, actionLabel?: string) => {
+    // Permanent lock check
+    if (data?.profile?.program_status === 'KICKED_OUT') {
+      if (customPayload?.program_status && customPayload.program_status !== 'KICKED_OUT') {
+        setErrorMsg('Yeh startup incubator se permanently kick out ho chuka hai. Iska status change ya reactivate nahi kiya ja sakta.');
+        return;
+      }
+      if (customPayload?.current_progress_stage && customPayload.current_progress_stage !== data.profile.current_progress_stage) {
+        setErrorMsg('Kicked out startup ka progress stage modify nahi kiya ja sakta.');
+        return;
+      }
+    }
+
     setSaving(true);
+    setSavingAction(actionLabel || customPayload?.program_status || (customPayload?.current_progress_stage ? 'STAGE' : 'general'));
     setErrorMsg(null);
     setSuccessMsg(null);
     try {
@@ -114,6 +128,7 @@ export const StartupDetailView: React.FC<Props> = ({
       setErrorMsg(err.message || 'Failed to save changes');
     } finally {
       setSaving(false);
+      setSavingAction(null);
     }
   };
 
@@ -223,6 +238,23 @@ export const StartupDetailView: React.FC<Props> = ({
 
   return (
     <div className="space-y-6 text-left">
+      {/* Action Progress Floating Toast */}
+      {saving && (
+        <div className="fixed top-5 right-5 z-50 bg-gray-900/95 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-gray-700 text-xs font-bold animate-in fade-in slide-in-from-top-3 backdrop-blur-md">
+          <Loader2 className="h-4 w-4 animate-spin text-rose-400 shrink-0" />
+          <div>
+            <p className="font-extrabold text-[12px] leading-none">
+              {savingAction === 'KICKED_OUT' ? 'Terminating & Kicking Out Startup...' :
+               savingAction === 'ACTIVE' ? 'Activating Startup...' :
+               savingAction === 'PAUSED' ? 'Pausing Startup Program Status...' :
+               savingAction === 'GRADUATED' ? 'Graduating Startup...' :
+               savingAction === 'STAGE' ? 'Updating Maturity Stage...' :
+               'Saving Changes & Notifying Founder...'}
+            </p>
+            <p className="text-[10px] text-gray-300 font-normal mt-0.5">Please wait, updating system records and status</p>
+          </div>
+        </div>
+      )}
       
       {/* Top Breadcrumb Header */}
       <div className="flex items-center justify-between gap-4">
@@ -356,73 +388,113 @@ export const StartupDetailView: React.FC<Props> = ({
           <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 space-y-2 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-black text-gray-700 uppercase tracking-wide">
-                  Account & Program Status
+                <label className="text-xs font-black text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                  <span>Account & Program Status</span>
+                  {saving && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
                 </label>
+                {profile.program_status === 'KICKED_OUT' && (
+                  <span className="text-[9px] font-black uppercase text-rose-700 bg-rose-100 border border-rose-200 px-1.5 py-0.5 rounded font-mono">
+                    Locked
+                  </span>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-1.5">
                 <button
                   type="button"
-                  onClick={() => handleAdminSave({ program_status: 'ACTIVE' })}
-                  disabled={saving || profile.program_status === 'ACTIVE'}
-                  className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap border ${
+                  onClick={() => handleAdminSave({ program_status: 'ACTIVE' }, 'ACTIVE')}
+                  disabled={saving || profile.program_status === 'KICKED_OUT' || profile.program_status === 'ACTIVE'}
+                  className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
                     profile.program_status === 'ACTIVE'
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-500/20'
-                      : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/70 hover:text-emerald-700'
-                  } disabled:opacity-85 disabled:cursor-default`}
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-500/20 cursor-default'
+                      : profile.program_status === 'KICKED_OUT'
+                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/70 hover:text-emerald-700 cursor-pointer'
+                  } disabled:opacity-50`}
+                  title={profile.program_status === 'KICKED_OUT' ? 'Startup is permanently terminated' : undefined}
                 >
-                  <PlayCircle className={`h-3.5 w-3.5 shrink-0 ${profile.program_status === 'ACTIVE' ? 'text-white' : 'text-emerald-600'}`} />
+                  {saving && savingAction === 'ACTIVE' ? (
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-emerald-600" />
+                  ) : (
+                    <PlayCircle className={`h-3.5 w-3.5 shrink-0 ${profile.program_status === 'ACTIVE' ? 'text-white' : 'text-emerald-600'}`} />
+                  )}
                   <span>Active</span>
                   {profile.program_status === 'ACTIVE' && <span className="h-1.5 w-1.5 rounded-full bg-white ml-0.5 animate-pulse" />}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleAdminSave({ program_status: 'PAUSED' })}
-                  disabled={saving || profile.program_status === 'PAUSED'}
-                  className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap border ${
+                  onClick={() => handleAdminSave({ program_status: 'PAUSED' }, 'PAUSED')}
+                  disabled={saving || profile.program_status === 'KICKED_OUT' || profile.program_status === 'PAUSED'}
+                  className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
                     profile.program_status === 'PAUSED'
-                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-500/20'
-                      : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300 hover:bg-amber-50/70 hover:text-amber-800'
-                  } disabled:opacity-85 disabled:cursor-default`}
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-500/20 cursor-default'
+                      : profile.program_status === 'KICKED_OUT'
+                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300 hover:bg-amber-50/70 hover:text-amber-800 cursor-pointer'
+                  } disabled:opacity-50`}
+                  title={profile.program_status === 'KICKED_OUT' ? 'Startup is permanently terminated' : undefined}
                 >
-                  <Ban className={`h-3.5 w-3.5 shrink-0 ${profile.program_status === 'PAUSED' ? 'text-white' : 'text-amber-600'}`} />
+                  {saving && savingAction === 'PAUSED' ? (
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-amber-600" />
+                  ) : (
+                    <Ban className={`h-3.5 w-3.5 shrink-0 ${profile.program_status === 'PAUSED' ? 'text-white' : 'text-amber-600'}`} />
+                  )}
                   <span>Pause</span>
                   {profile.program_status === 'PAUSED' && <span className="h-1.5 w-1.5 rounded-full bg-white ml-0.5" />}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleAdminSave({ program_status: 'GRADUATED' })}
-                  disabled={saving || profile.program_status === 'GRADUATED'}
-                  className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap border ${
+                  onClick={() => handleAdminSave({ program_status: 'GRADUATED' }, 'GRADUATED')}
+                  disabled={saving || profile.program_status === 'KICKED_OUT' || profile.program_status === 'GRADUATED'}
+                  className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
                     profile.program_status === 'GRADUATED'
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-500/20'
-                      : 'bg-white text-gray-700 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/70 hover:text-indigo-700'
-                  } disabled:opacity-85 disabled:cursor-default`}
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-500/20 cursor-default'
+                      : profile.program_status === 'KICKED_OUT'
+                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/70 hover:text-indigo-700 cursor-pointer'
+                  } disabled:opacity-50`}
+                  title={profile.program_status === 'KICKED_OUT' ? 'Startup is permanently terminated' : undefined}
                 >
-                  <Award className={`h-3.5 w-3.5 shrink-0 ${profile.program_status === 'GRADUATED' ? 'text-white' : 'text-indigo-600'}`} />
+                  {saving && savingAction === 'GRADUATED' ? (
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-indigo-600" />
+                  ) : (
+                    <Award className={`h-3.5 w-3.5 shrink-0 ${profile.program_status === 'GRADUATED' ? 'text-white' : 'text-indigo-600'}`} />
+                  )}
                   <span>Graduate</span>
                   {profile.program_status === 'GRADUATED' && <span className="h-1.5 w-1.5 rounded-full bg-white ml-0.5" />}
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleAdminSave({ program_status: 'KICKED_OUT' })}
+                  onClick={() => handleAdminSave({ program_status: 'KICKED_OUT' }, 'KICKED_OUT')}
                   disabled={saving || profile.program_status === 'KICKED_OUT'}
-                  className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap border ${
+                  className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
                     profile.program_status === 'KICKED_OUT'
-                      ? 'bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-500/20'
-                      : 'bg-white text-gray-700 border-gray-200 hover:border-rose-300 hover:bg-rose-50/70 hover:text-rose-700'
-                  } disabled:opacity-85 disabled:cursor-default`}
+                      ? 'bg-rose-700 text-white border-rose-700 shadow-xs ring-2 ring-rose-500/20 cursor-default'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-rose-300 hover:bg-rose-50/70 hover:text-rose-700 cursor-pointer'
+                  } disabled:opacity-90`}
                 >
-                  <ShieldX className={`h-3.5 w-3.5 shrink-0 ${profile.program_status === 'KICKED_OUT' ? 'text-white' : 'text-rose-600'}`} />
-                  <span>Kick Out</span>
+                  {saving && savingAction === 'KICKED_OUT' ? (
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-rose-300" />
+                  ) : (
+                    <ShieldX className={`h-3.5 w-3.5 shrink-0 ${profile.program_status === 'KICKED_OUT' ? 'text-white' : 'text-rose-600'}`} />
+                  )}
+                  <span>{profile.program_status === 'KICKED_OUT' ? 'Terminated' : 'Kick Out'}</span>
                   {profile.program_status === 'KICKED_OUT' && <span className="h-1.5 w-1.5 rounded-full bg-white ml-0.5" />}
                 </button>
               </div>
             </div>
-            <p className="text-[10px] text-gray-500 font-medium mt-1">Updates status & sends explanation email.</p>
+            {profile.program_status === 'KICKED_OUT' ? (
+              <div className="mt-1 p-2 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-1.5">
+                <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-rose-600 mt-0.5" />
+                <span className="text-[10px] text-rose-700 leading-tight font-medium">
+                  Permanently Terminated: Kicked out status permanent hai aur dobara change ya active nahi ho sakta.
+                </span>
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-500 font-medium mt-1">Updates status & sends explanation email.</p>
+            )}
           </div>
 
           {/* Quick Password Reset */}
@@ -462,8 +534,8 @@ export const StartupDetailView: React.FC<Props> = ({
                   setFormData({ ...formData, current_progress_stage: val });
                   handleAdminSave({ current_progress_stage: val });
                 }}
-                disabled={saving}
-                className="w-full bg-white border border-gray-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:border-primary truncate"
+                disabled={saving || profile.program_status === 'KICKED_OUT'}
+                className="w-full bg-white border border-gray-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:border-primary truncate disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
               >
                 {STARTUP_PROGRESS_STAGES.map(stg => (
                   <option key={stg.key} value={stg.key}>{stg.label}</option>

@@ -176,7 +176,9 @@ export const StartupDirectoryTab: React.FC<Props> = ({ isStaff, cohortsList = []
             >
               <option value="">All Cohorts</option>
               {cohortsList.map((c: any) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>
+                  {c.name} {c.status === 'COMPLETED' ? '(Graduated)' : `(${c.status})`}
+                </option>
               ))}
             </select>
           </div>

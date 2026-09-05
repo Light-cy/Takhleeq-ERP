@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, Building2, Globe, Sparkles, Check, Clock, TrendingUp, AlertCircle, 
   History, ShieldAlert, ArrowRight, RotateCcw, Edit3, Plus, User, Mail, Phone,
-  FileText, CheckCircle2, Lock
+  FileText, CheckCircle2, Lock, Loader2
 } from 'lucide-react';
 import { StartupProfile, Industry, StartupProgressStage, StartupStageHistory, StartupPivot, StartupAuditLog } from '../../../types/startup.types';
 import { STARTUP_PROGRESS_STAGES, getStartupStageInfo, getStartupStageIndex } from '../../../constants/startupStages';
@@ -99,6 +99,17 @@ export const StartupProfileDetailModal: React.FC<Props> = ({
   const currentStageIdx = getStartupStageIndex(profile.current_progress_stage);
 
   const handleSaveProfile = async () => {
+    if (profile.program_status === 'KICKED_OUT') {
+      if (formData.program_status && formData.program_status !== 'KICKED_OUT') {
+        setErrorMsg('Yeh startup incubator se permanently kick out ho chuka hai. Iska status reactivate ya change nahi kiya ja sakta.');
+        return;
+      }
+      if (formData.current_progress_stage && formData.current_progress_stage !== profile.current_progress_stage) {
+        setErrorMsg('Kicked out startup ka progress stage modify nahi kiya ja sakta.');
+        return;
+      }
+    }
+
     setLoading(true);
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -116,6 +127,11 @@ export const StartupProfileDetailModal: React.FC<Props> = ({
   };
 
   const handleUpdateStageSubmit = async () => {
+    if (profile.program_status === 'KICKED_OUT') {
+      setErrorMsg('Yeh startup incubator se permanently kick out ho chuka hai. Stage advancement permanently locked hai.');
+      return;
+    }
+
     setLoading(true);
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -322,7 +338,8 @@ export const StartupProfileDetailModal: React.FC<Props> = ({
                         disabled={loading}
                         className="px-4 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
                       >
-                        {loading ? 'Saving...' : 'Save Changes'}
+                        {loading && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+                        <span>{loading ? 'Saving...' : 'Save Changes'}</span>
                       </button>
                     </>
                   )}
@@ -502,20 +519,33 @@ export const StartupProfileDetailModal: React.FC<Props> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-extrabold text-gray-500 uppercase tracking-wider mb-1">Program Status (Staff Restricted)</label>
+                    <label className="block text-[11px] font-extrabold text-gray-500 uppercase tracking-wider mb-1">
+                      Program Status (Staff Restricted)
+                    </label>
                     {isEditing && isStaff ? (
-                      <select
-                        value={formData.program_status || 'ACTIVE'}
-                        onChange={e => setFormData({ ...formData, program_status: e.target.value as any })}
-                        className="w-full bg-white border border-gray-200 rounded-xl p-2 text-xs font-bold text-gray-900"
-                      >
-                        <option value="ACTIVE">Active</option>
-                        <option value="PAUSED">Paused</option>
-                        <option value="GRADUATED">Graduated</option>
-                        <option value="KICKED_OUT">Kicked Out</option>
-                      </select>
+                      profile.program_status === 'KICKED_OUT' ? (
+                        <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2">
+                          <ShieldAlert className="h-4 w-4 text-rose-600 shrink-0" />
+                          <span className="font-bold text-[11px]">
+                            Permanently Locked (Kicked Out). Status dobara change ya active nahi ho sakta.
+                          </span>
+                        </div>
+                      ) : (
+                        <select
+                          value={formData.program_status || 'ACTIVE'}
+                          onChange={e => setFormData({ ...formData, program_status: e.target.value as any })}
+                          className="w-full bg-white border border-gray-200 rounded-xl p-2 text-xs font-bold text-gray-900"
+                        >
+                          <option value="ACTIVE">Active</option>
+                          <option value="PAUSED">Paused</option>
+                          <option value="GRADUATED">Graduated</option>
+                          <option value="KICKED_OUT">Kicked Out</option>
+                        </select>
+                      )
                     ) : (
-                      <span className="inline-block px-2.5 py-1 bg-gray-200 text-gray-800 rounded-lg text-xs font-black uppercase font-mono">
+                      <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-black uppercase font-mono ${
+                        profile.program_status === 'KICKED_OUT' ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-gray-200 text-gray-800'
+                      }`}>
                         {profile.program_status}
                       </span>
                     )}
@@ -588,16 +618,23 @@ export const StartupProfileDetailModal: React.FC<Props> = ({
                   </p>
                 </div>
                 {isStaff && (
-                  <button
-                    onClick={() => {
-                      setTargetStage(profile.current_progress_stage);
-                      setShowStageModal(true);
-                    }}
-                    className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <TrendingUp className="h-4 w-4" />
-                    Update Progress Stage
-                  </button>
+                  profile.program_status === 'KICKED_OUT' ? (
+                    <span className="text-xs font-mono font-bold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                      <ShieldAlert className="h-4 w-4 text-rose-600" />
+                      Stage Locked (Permanently Terminated)
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setTargetStage(profile.current_progress_stage);
+                        setShowStageModal(true);
+                      }}
+                      className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <TrendingUp className="h-4 w-4" />
+                      Update Progress Stage
+                    </button>
+                  )
                 )}
               </div>
 
@@ -863,9 +900,10 @@ export const StartupProfileDetailModal: React.FC<Props> = ({
               <button
                 onClick={handleUpdateStageSubmit}
                 disabled={loading}
-                className="px-5 py-2 bg-primary hover:bg-primary/90 text-white text-xs font-bold rounded-xl cursor-pointer shadow-xs disabled:opacity-50"
+                className="px-5 py-2 bg-primary hover:bg-primary/90 text-white text-xs font-bold rounded-xl cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
               >
-                {loading ? 'Updating...' : 'Confirm Stage Update'}
+                {loading && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+                <span>{loading ? 'Updating...' : 'Confirm Stage Update'}</span>
               </button>
             </div>
           </div>

@@ -7,7 +7,7 @@
       "full_name": "Qaseeb Ahmed",
       "password": "Tk#304544",
       "is_active": true,
-      "last_login": "2026-09-04T14:34:31.789Z",
+      "last_login": "2026-09-05T00:47:45.730Z",
       "created_at": "2026-08-09T13:44:11.773Z"
     },
     {
@@ -109,6 +109,16 @@
       "is_active": true,
       "last_login": "2026-09-04T14:39:10.896Z",
       "created_at": "2026-09-04T14:39:10.897Z"
+    },
+    {
+      "id": 12,
+      "microsoft_id": null,
+      "email": "student@ucp.edu.pk",
+      "full_name": "Student",
+      "password": null,
+      "is_active": true,
+      "last_login": "2026-09-05T02:06:29.676Z",
+      "created_at": "2026-09-05T02:06:29.676Z"
     }
   ],
   "roles": [
@@ -234,6 +244,10 @@
     {
       "user_id": 11,
       "role_id": 1
+    },
+    {
+      "user_id": 12,
+      "role_id": 4
     }
   ],
   "cohorts": [
@@ -241,7 +255,15 @@
       "id": 1,
       "name": "Cohort 1",
       "status": "ACTIVE",
-      "created_at": "2026-08-09T14:15:19.814Z"
+      "created_at": "2026-08-09T14:15:19.814Z",
+      "intake_year": "2026",
+      "start_date": "2026-09-01",
+      "end_date": "2026-12-20",
+      "max_capacity": 20,
+      "assigned_manager_id": "1",
+      "assigned_manager_name": "Dr. Qaseeb Niaz (Director Incubation)",
+      "description": "",
+      "updated_at": "2026-09-05T01:17:27.835Z"
     }
   ],
   "applicants": [
@@ -288,7 +310,29 @@
     }
   ],
   "cohort_sessions": [],
-  "session_attendance": [],
+  "session_attendance": [
+    {
+      "id": 3,
+      "session_id": 4,
+      "applicant_id": 1,
+      "status": "not_marked",
+      "marked_at": "2026-09-05T01:39:52.368Z"
+    },
+    {
+      "id": 4,
+      "session_id": 5,
+      "applicant_id": 1,
+      "status": "not_marked",
+      "marked_at": "2026-09-05T01:40:37.617Z"
+    },
+    {
+      "id": 5,
+      "session_id": 6,
+      "applicant_id": 1,
+      "status": "not_marked",
+      "marked_at": "2026-09-05T01:40:37.626Z"
+    }
+  ],
   "team_checkins": [],
   "performance_warnings": [],
   "assignments": [],
@@ -984,6 +1028,373 @@
         "permissions": []
       },
       "timestamp": "2026-08-30T15:25:03.341Z"
+    },
+    {
+      "id": 55,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-09-05T00:47:45.734Z"
+    },
+    {
+      "id": 56,
+      "action": "Updated configuration & settings for cohort 'Cohort 2026 Alpha'",
+      "entity_type": "cohort_settings",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "id": 1,
+        "name": "Cohort 1",
+        "status": "ACTIVE",
+        "created_at": "2026-08-09T14:15:19.814Z",
+        "intake_year": "2026",
+        "start_date": "2026-09-01",
+        "end_date": "2026-12-20",
+        "max_capacity": 20,
+        "assigned_manager_id": "1",
+        "assigned_manager_name": "Dr. Qaseeb Niaz (Director Incubation)",
+        "description": "",
+        "updated_at": "2026-09-05T01:17:00.056Z"
+      },
+      "new_value": {
+        "id": 1,
+        "name": "Cohort 2026 Alpha",
+        "status": "ACTIVE",
+        "created_at": "2026-08-09T14:15:19.814Z",
+        "intake_year": "2026",
+        "start_date": "2026-09-15",
+        "end_date": "2026-12-30",
+        "max_capacity": 25,
+        "assigned_manager_id": "2",
+        "assigned_manager_name": "Maheen Malik (Senior Manager)",
+        "description": "Premier acceleration batch",
+        "updated_at": "2026-09-05T01:17:27.809Z"
+      },
+      "timestamp": "2026-09-05T01:17:27.810Z"
+    },
+    {
+      "id": 57,
+      "action": "Updated configuration & settings for cohort 'Cohort 1'",
+      "entity_type": "cohort_settings",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "id": 1,
+        "name": "Cohort 2026 Alpha",
+        "status": "ACTIVE",
+        "created_at": "2026-08-09T14:15:19.814Z",
+        "intake_year": "2026",
+        "start_date": "2026-09-15",
+        "end_date": "2026-12-30",
+        "max_capacity": 25,
+        "assigned_manager_id": "2",
+        "assigned_manager_name": "Maheen Malik (Senior Manager)",
+        "description": "Premier acceleration batch",
+        "updated_at": "2026-09-05T01:17:27.809Z"
+      },
+      "new_value": {
+        "id": 1,
+        "name": "Cohort 1",
+        "status": "ACTIVE",
+        "created_at": "2026-08-09T14:15:19.814Z",
+        "intake_year": "2026",
+        "start_date": "2026-09-01",
+        "end_date": "2026-12-20",
+        "max_capacity": 20,
+        "assigned_manager_id": "1",
+        "assigned_manager_name": "Dr. Qaseeb Niaz (Director Incubation)",
+        "description": "",
+        "updated_at": "2026-09-05T01:17:27.835Z"
+      },
+      "timestamp": "2026-09-05T01:17:27.836Z"
+    },
+    {
+      "id": 58,
+      "action": "Updated dynamic application form settings: form is now OFFLINE with 27 dynamic fields.",
+      "entity_type": "cohort_form",
+      "entity_id": "settings",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": {
+        "is_active": false,
+        "fieldsCount": 27
+      },
+      "timestamp": "2026-09-05T01:28:46.949Z"
+    },
+    {
+      "id": 59,
+      "action": "Updated dynamic application form settings: form is now ONLINE with 27 dynamic fields.",
+      "entity_type": "cohort_form",
+      "entity_id": "settings",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": {
+        "is_active": true,
+        "fieldsCount": 27
+      },
+      "timestamp": "2026-09-05T01:28:47.003Z"
+    },
+    {
+      "id": 60,
+      "action": "Scheduled new cohort session: 'Financial Modeling Masterclass' led by Dr. Qaseeb Ahmed on 2026-09-15 (10:00 - 12:00)",
+      "entity_type": "session",
+      "entity_id": "2",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": {
+        "id": 2,
+        "cohort_id": 1,
+        "title": "Financial Modeling Masterclass",
+        "date": "2026-09-15",
+        "start_time": "10:00",
+        "end_time": "12:00",
+        "mentor_name": "Dr. Qaseeb Ahmed",
+        "topic_category": "Masterclass",
+        "venue": "Auditorium 1",
+        "recording_url": null,
+        "attendance_sheet_photo_url": null,
+        "created_at": "2026-09-05T01:39:52.326Z"
+      },
+      "timestamp": "2026-09-05T01:39:52.328Z"
+    },
+    {
+      "id": 61,
+      "action": "Scheduled new cohort session: 'Product-Market Fit & Traction' led by Syed Usman on 2026-09-16 (14:00 - 16:00)",
+      "entity_type": "session",
+      "entity_id": "3",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": {
+        "id": 3,
+        "cohort_id": 1,
+        "title": "Product-Market Fit & Traction",
+        "date": "2026-09-16",
+        "start_time": "14:00",
+        "end_time": "16:00",
+        "mentor_name": "Syed Usman",
+        "topic_category": "Masterclass",
+        "venue": "Executive Boardroom",
+        "recording_url": null,
+        "attendance_sheet_photo_url": null,
+        "created_at": "2026-09-05T01:39:52.345Z"
+      },
+      "timestamp": "2026-09-05T01:39:52.347Z"
+    },
+    {
+      "id": 62,
+      "action": "Scheduled new cohort session: 'Legal Structuring & Term Sheets' led by Dr. Qaseeb Ahmed on 2026-09-15 (14:00 - 16:00)",
+      "entity_type": "session",
+      "entity_id": "4",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": {
+        "id": 4,
+        "cohort_id": 1,
+        "title": "Legal Structuring & Term Sheets",
+        "date": "2026-09-15",
+        "start_time": "14:00",
+        "end_time": "16:00",
+        "mentor_name": "Dr. Qaseeb Ahmed",
+        "topic_category": "Masterclass",
+        "venue": "Auditorium 1",
+        "recording_url": null,
+        "attendance_sheet_photo_url": null,
+        "created_at": "2026-09-05T01:39:52.367Z"
+      },
+      "timestamp": "2026-09-05T01:39:52.369Z"
+    },
+    {
+      "id": 63,
+      "action": "Scheduled new cohort session: 'Test Session Alpha' led by Dr. Qaseeb on 2026-09-20 (10:00 - 11:30)",
+      "entity_type": "session",
+      "entity_id": "5",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": {
+        "id": 5,
+        "cohort_id": 1,
+        "title": "Test Session Alpha",
+        "date": "2026-09-20",
+        "start_time": "10:00",
+        "end_time": "11:30",
+        "mentor_name": "Dr. Qaseeb",
+        "topic_category": null,
+        "venue": "Auditorium 1",
+        "recording_url": null,
+        "attendance_sheet_photo_url": null,
+        "created_at": "2026-09-05T01:40:37.615Z"
+      },
+      "timestamp": "2026-09-05T01:40:37.618Z"
+    },
+    {
+      "id": 64,
+      "action": "Scheduled new cohort session: 'Test Session Beta' led by Dr. Qaseeb on 2026-09-21 (10:00 - 11:30)",
+      "entity_type": "session",
+      "entity_id": "6",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": {
+        "id": 6,
+        "cohort_id": 1,
+        "title": "Test Session Beta",
+        "date": "2026-09-21",
+        "start_time": "10:00",
+        "end_time": "11:30",
+        "mentor_name": "Dr. Qaseeb",
+        "topic_category": null,
+        "venue": "Auditorium 1",
+        "recording_url": null,
+        "attendance_sheet_photo_url": null,
+        "created_at": "2026-09-05T01:40:37.625Z"
+      },
+      "timestamp": "2026-09-05T01:40:37.627Z"
+    },
+    {
+      "id": 65,
+      "action": "Scheduled new cohort session: 'Session One' led by Dr. Qaseeb on 2026-09-15 (10:00 - 12:00)",
+      "entity_type": "session",
+      "entity_id": "1",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": {
+        "id": 1,
+        "cohort_id": 1,
+        "title": "Session One",
+        "date": "2026-09-15",
+        "start_time": "10:00",
+        "end_time": "12:00",
+        "mentor_name": "Dr. Qaseeb",
+        "topic_category": null,
+        "venue": "Auditorium 1",
+        "recording_url": null,
+        "attendance_sheet_photo_url": null,
+        "created_at": "2026-09-05T01:45:24.878Z"
+      },
+      "timestamp": "2026-09-05T01:45:24.880Z"
+    },
+    {
+      "id": 66,
+      "action": "Scheduled new cohort session: 'Session Two' led by Dr. Qaseeb on 2026-09-16 (10:00 - 12:00)",
+      "entity_type": "session",
+      "entity_id": "2",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": {
+        "id": 2,
+        "cohort_id": 1,
+        "title": "Session Two",
+        "date": "2026-09-16",
+        "start_time": "10:00",
+        "end_time": "12:00",
+        "mentor_name": "Dr. Qaseeb",
+        "topic_category": null,
+        "venue": "Auditorium 1",
+        "recording_url": null,
+        "attendance_sheet_photo_url": null,
+        "created_at": "2026-09-05T01:45:24.888Z"
+      },
+      "timestamp": "2026-09-05T01:45:24.890Z"
+    },
+    {
+      "id": 67,
+      "action": "Scheduled new cohort session: 'Session Three' led by Dr. Qaseeb on 2026-09-15 (14:00 - 16:00)",
+      "entity_type": "session",
+      "entity_id": "3",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": {
+        "id": 3,
+        "cohort_id": 1,
+        "title": "Session Three",
+        "date": "2026-09-15",
+        "start_time": "14:00",
+        "end_time": "16:00",
+        "mentor_name": "Dr. Qaseeb",
+        "topic_category": null,
+        "venue": "Auditorium 1",
+        "recording_url": null,
+        "attendance_sheet_photo_url": null,
+        "created_at": "2026-09-05T01:45:24.899Z"
+      },
+      "timestamp": "2026-09-05T01:45:24.901Z"
+    },
+    {
+      "id": 68,
+      "action": "Cancelled/deleted cohort session 'Session One'",
+      "entity_type": "session_delete",
+      "entity_id": "1",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": {
+        "id": 1,
+        "cohort_id": 1,
+        "title": "Session One",
+        "date": "2026-09-15",
+        "start_time": "10:00",
+        "end_time": "12:00",
+        "mentor_name": "Dr. Qaseeb",
+        "topic_category": null,
+        "venue": "Auditorium 1",
+        "recording_url": null,
+        "attendance_sheet_photo_url": null,
+        "created_at": "2026-09-05T01:45:24.878Z",
+        "attendance_summary": "0 of 1 marked present",
+        "assignments_summary": "No assignments yet"
+      },
+      "timestamp": "2026-09-05T01:45:24.928Z"
+    },
+    {
+      "id": 69,
+      "action": "Cancelled/deleted cohort session 'Session Two'",
+      "entity_type": "session_delete",
+      "entity_id": "2",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": {
+        "id": 2,
+        "cohort_id": 1,
+        "title": "Session Two",
+        "date": "2026-09-16",
+        "start_time": "10:00",
+        "end_time": "12:00",
+        "mentor_name": "Dr. Qaseeb",
+        "topic_category": null,
+        "venue": "Auditorium 1",
+        "recording_url": null,
+        "attendance_sheet_photo_url": null,
+        "created_at": "2026-09-05T01:45:24.888Z",
+        "attendance_summary": "0 of 1 marked present",
+        "assignments_summary": "No assignments yet"
+      },
+      "timestamp": "2026-09-05T01:45:24.936Z"
+    },
+    {
+      "id": 70,
+      "action": "Cancelled/deleted cohort session 'Session Three'",
+      "entity_type": "session_delete",
+      "entity_id": "3",
+      "actor_email": "director@takhleeq.pk",
+      "previous_value": null,
+      "new_value": {
+        "id": 3,
+        "cohort_id": 1,
+        "title": "Session Three",
+        "date": "2026-09-15",
+        "start_time": "14:00",
+        "end_time": "16:00",
+        "mentor_name": "Dr. Qaseeb",
+        "topic_category": null,
+        "venue": "Auditorium 1",
+        "recording_url": null,
+        "attendance_sheet_photo_url": null,
+        "created_at": "2026-09-05T01:45:24.899Z",
+        "attendance_summary": "0 of 1 marked present",
+        "assignments_summary": "No assignments yet"
+      },
+      "timestamp": "2026-09-05T01:45:24.946Z"
     }
   ],
   "rooms": [
@@ -1517,7 +1928,7 @@
       "revenue_status": "PRE_REVENUE",
       "funding_status": "BOOTSTRAPPED",
       "created_at": "2026-08-09T16:23:18.836Z",
-      "updated_at": "2026-08-09T16:23:18.836Z"
+      "updated_at": "2026-09-05T00:48:29.470Z"
     }
   ],
   "startup_stage_history": [
@@ -1565,6 +1976,26 @@
       "old_value": null,
       "new_value": null,
       "created_at": "2026-08-09T16:23:18.848Z"
+    },
+    {
+      "id": 4,
+      "startup_profile_id": 1,
+      "changed_by_user_id": null,
+      "changed_by_email": "admin@takhleeq.pk",
+      "field_name": "program_status",
+      "old_value": "ACTIVE",
+      "new_value": "KICKED_OUT",
+      "created_at": "2026-09-05T00:48:14.233Z"
+    },
+    {
+      "id": 5,
+      "startup_profile_id": 1,
+      "changed_by_user_id": null,
+      "changed_by_email": "admin@takhleeq.pk",
+      "field_name": "program_status",
+      "old_value": "KICKED_OUT",
+      "new_value": "ACTIVE",
+      "created_at": "2026-09-05T00:48:29.472Z"
     }
   ],
   "checkins": [

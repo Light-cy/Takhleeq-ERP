@@ -162,7 +162,9 @@ export const PublicCohortApplyPage: React.FC<PublicCohortApplyPageProps> = ({ on
   }
 
   // Handle case where administrator sets Form Settings to Offline
-  if (formSettings && !formSettings.is_active && !submittedToken) {
+  const isFormActive = Boolean(formSettings && (formSettings.is_active === true || formSettings.is_active === 'true' || formSettings.is_active === 1));
+
+  if (formSettings && !isFormActive && !submittedToken) {
     return (
       <div className="flex-1 max-w-4xl mx-auto px-4 py-16 text-center" id="public-apply-closed">
         <div className="max-w-xl mx-auto bg-white border border-gray-100 rounded-2xl p-8 md:p-12 shadow-3xs space-y-6">

@@ -15,6 +15,7 @@ import {
   Building2, 
   User, 
   Calendar, 
+  CalendarRange,
   CheckCircle2, 
   AlertTriangle, 
   TrendingUp, 
@@ -1144,29 +1145,96 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
     );
   }
 
-  if (error || !applicant) {
+  if (error) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="bg-white border border-red-200 rounded-2xl p-8 max-w-md w-full shadow-sm text-center space-y-4">
           <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center mx-auto text-red-600">
             <AlertCircle className="w-6 h-6" />
           </div>
-          <h3 className="text-lg font-black text-gray-900">Startup Profile Unlinked</h3>
+          <h3 className="text-lg font-black text-gray-900">Synchronization Error</h3>
           <p className="text-xs text-gray-600 leading-relaxed">
-            {error || 'No active startup applicant record found matching your email. Please contact incubator staff.'}
+            {error}
           </p>
           <div className="pt-2 flex flex-col gap-2">
             <button
               onClick={loadDashboardData}
-              className="w-full bg-primary hover:bg-primary/95 text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all"
+              className="w-full bg-primary hover:bg-primary/95 text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
             >
               Retry Sync
             </button>
             <button
               onClick={() => onNavigate('/')}
-              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs transition-colors"
+              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
             >
               Back to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!applicant) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="bg-white border border-gray-200 rounded-3xl p-8 max-w-lg w-full shadow-lg text-center space-y-6">
+          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto text-primary shadow-xs">
+            <Building2 className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <span className="inline-block px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[10px] font-black uppercase font-mono tracking-widest">
+              Founder Workspace Notice
+            </span>
+            <h3 className="text-2xl font-black text-gray-900 tracking-tight">No Active Startup Enrolled</h3>
+            <p className="text-xs text-gray-600 leading-relaxed font-medium">
+              Your logged-in account is not currently registered as an active founder in any accepted Takhleeq incubation cohort.
+              This workspace is reserved for enrolled startup founders to submit deliverables, track milestone attendance, and access mentor sessions.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-left">
+            <button
+              onClick={() => onNavigate('/cohort-apply')}
+              className="p-4 rounded-2xl border border-primary/20 bg-primary/5 hover:bg-primary/10 hover:border-primary/40 transition-all text-left group cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-primary uppercase tracking-wider">Apply for Cohort</span>
+                <ArrowRight className="w-4 h-4 text-primary group-hover:translate-x-0.5 transition-transform" />
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1 leading-normal">
+                Submit an application for the next incubation cycle.
+              </p>
+            </button>
+
+            <button
+              onClick={() => onNavigate('/cohort-track')}
+              className="p-4 rounded-2xl border border-gray-200 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 transition-all text-left group cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-gray-800 uppercase tracking-wider">Track Application</span>
+                <ArrowRight className="w-4 h-4 text-gray-600 group-hover:translate-x-0.5 transition-transform" />
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1 leading-normal">
+                Check status using your CNIC, tracking token or email.
+              </p>
+            </button>
+          </div>
+
+          <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
+            <button
+              onClick={() => onNavigate('/booking')}
+              className="flex-1 bg-primary hover:bg-primary/95 text-white font-bold py-2.5 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+            >
+              <CalendarRange className="w-4 h-4" />
+              <span>Book Spaces</span>
+            </button>
+            <button
+              onClick={() => onNavigate('/')}
+              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 px-4 rounded-xl text-xs transition-colors cursor-pointer"
+            >
+              Return to Home
             </button>
           </div>
         </div>

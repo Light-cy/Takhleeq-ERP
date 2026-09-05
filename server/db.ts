@@ -62,9 +62,42 @@ function initializeLocalDB() {
       updated = true;
     }
     
-    db.cohort_form_settings = {
-      is_active: true,
-      fields: [
+    if (!db.cohort_form_settings) {
+      db.cohort_form_settings = {
+        is_active: true,
+        fields: [
+          { id: 'field_startup_name', label: 'Q1. What is the name of your startup?', type: 'text', required: true, placeholder: 'Enter startup name' },
+          { id: 'field_q2_venture_type', label: 'Q2. Is this a product-based or service-based venture?', type: 'select', required: true, options: ['Product-based', 'Service-based', 'Hybrid / Both'] },
+          { id: 'field_startup_desc', label: 'Q3. Describe your idea/startup. What does it do, and how does it work?', type: 'textarea', required: true, placeholder: 'Be concise but clear about your concept or business model' },
+          { id: 'field_q4_services', label: 'Q4. If you’re providing services, describe your offerings and any clients you’ve worked with', type: 'textarea', required: false, placeholder: 'Describe service offerings and client history if applicable' },
+          { id: 'field_q5_business_model', label: 'Q5. What is your business model? (e.g., B2B, B2C, subscription-based, etc.)', type: 'text', required: true, placeholder: 'e.g. B2B SaaS, B2C Subscription, Marketplace commission' },
+          { id: 'field_q6_discovery', label: 'Q6. How did you get to know about Takhleeq Cohort 11 Incubation Program?', type: 'select', required: true, options: ['Email', 'Takhleeq Socials', 'UCP Socials', 'Dean/hod/faculty email or word', 'Digital display across ucp (tv screens etc)'] },
+          { id: 'field_q7_stage', label: 'Q7. What stage is your startup currently at?', type: 'select', required: true, options: ['Idea stage', 'Problem Discovery / validation', 'Proof of Concept / MVP', 'Post Revenue', 'Scale'] },
+          { id: 'field_q8_team_size', label: 'Q8. Number of members in Team', type: 'select', required: true, options: ['Solo', '2', '3', '4'] },
+          { id: 'field_founder_name', label: 'Q9. Team lead name', type: 'text', required: true, placeholder: 'Enter full name of the team lead' },
+          { id: 'field_q10_father_name', label: "Q10. Team Lead Father's Name", type: 'text', required: true, placeholder: "Enter father's name" },
+          { id: 'field_q11_gender', label: "Q11. Team Lead's Gender", type: 'select', required: true, options: ['Male', 'Female'] },
+          { id: 'field_founder_email', label: "Q12. Team Lead's Email", type: 'email', required: true, placeholder: 'Enter email address' },
+          { id: 'field_founder_phone', label: "Q13. Team Lead's Contact Number", type: 'phone', required: true, placeholder: 'e.g. 0300-1234567' },
+          { id: 'field_q14_roll_number', label: "Q14. Team Lead's Roll Number", type: 'text', required: false, placeholder: 'Enter student roll number if applicable' },
+          { id: 'field_founder_cnic', label: "Q15. Team Lead's CNIC/Passport Number", type: 'cnic', required: true, placeholder: 'e.g. 35201-1234567-1' },
+          { id: 'field_q16_location', label: "Q16. Team Lead's Location", type: 'text', required: true, placeholder: 'e.g. Lahore, Pakistan' },
+          { id: 'field_q17_postal_address', label: "Q17. Team Lead's Postal Address", type: 'text', required: true, placeholder: 'Enter full home/postal address' },
+          { id: 'field_q18_team_role', label: 'Q18. Team Lead: Role in the Team', type: 'text', required: true, placeholder: 'e.g. Founder & CEO, Chief Technology Officer' },
+          { id: 'field_q19_skillset', label: 'Q19. Team Lead: How does your skillset contribute to this venture?', type: 'textarea', required: true, placeholder: 'Explain technical, business or domain expertise' },
+          { id: 'field_q20_linkedin', label: 'Q20. Team Lead: LinkedIn Profile (optional)', type: 'text', required: false, placeholder: 'https://linkedin.com/in/username' },
+          { id: 'field_q21_past_projects', label: 'Q21. Team Lead: Have you worked on a project before? If yes, describe briefly.', type: 'textarea', required: false, placeholder: 'Describe previous projects, hackathons or research' },
+          { id: 'field_q22_status', label: "Q22. Team Lead: What's your current status?", type: 'select', required: true, options: ['Current Student/Faculty/Staff', 'Alumni Student'] },
+          { id: 'field_q23_batch_year', label: "Q23. What is your batch's starting year", type: 'text', required: true, placeholder: 'e.g. 2022' },
+          { id: 'field_q24_department', label: 'Q24. Department', type: 'text', required: true, placeholder: 'e.g. Computer Science, Business School' },
+          { id: 'field_q25_degree', label: 'Q25. Degree/Position', type: 'text', required: true, placeholder: 'e.g. BS Computer Science, Assistant Professor' },
+          { id: 'field_q26_working', label: 'Q26. Are you currently working?', type: 'select', required: true, options: ['Yes', 'No'] },
+          { id: 'field_q27_work_details', label: 'Q27. If Yes, Where are you working? Provide Company name and designation.', type: 'text', required: false, placeholder: 'Company name & designation if working' }
+        ]
+      };
+      updated = true;
+    } else if (!db.cohort_form_settings.fields || !Array.isArray(db.cohort_form_settings.fields) || db.cohort_form_settings.fields.length === 0) {
+      db.cohort_form_settings.fields = [
         { id: 'field_startup_name', label: 'Q1. What is the name of your startup?', type: 'text', required: true, placeholder: 'Enter startup name' },
         { id: 'field_q2_venture_type', label: 'Q2. Is this a product-based or service-based venture?', type: 'select', required: true, options: ['Product-based', 'Service-based', 'Hybrid / Both'] },
         { id: 'field_startup_desc', label: 'Q3. Describe your idea/startup. What does it do, and how does it work?', type: 'textarea', required: true, placeholder: 'Be concise but clear about your concept or business model' },
@@ -92,8 +125,9 @@ function initializeLocalDB() {
         { id: 'field_q25_degree', label: 'Q25. Degree/Position', type: 'text', required: true, placeholder: 'e.g. BS Computer Science, Assistant Professor' },
         { id: 'field_q26_working', label: 'Q26. Are you currently working?', type: 'select', required: true, options: ['Yes', 'No'] },
         { id: 'field_q27_work_details', label: 'Q27. If Yes, Where are you working? Provide Company name and designation.', type: 'text', required: false, placeholder: 'Company name & designation if working' }
-      ]
-    };
+      ];
+      updated = true;
+    }
 
     if (!db.applicants || !Array.isArray(db.applicants)) {
       db.applicants = [];
@@ -395,18 +429,39 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   // --- MODULE 02 COHORT QUERY INTERCEPTORS (JSON FALLBACK ENGINE) ---
   
   // 1. Cohort Form Settings Interceptors
-  if (q.includes('select * from cohort_form_settings') || q.includes('select is_active, fields from cohort_form_settings')) {
-    return { rows: [db.cohort_form_settings] };
-  }
-  if (q.includes('update cohort_form_settings')) {
-    db.cohort_form_settings.is_active = params[0] === true || params[0] === 'true';
-    db.cohort_form_settings.fields = typeof params[1] === 'string' ? JSON.parse(params[1]) : params[1];
-    saveLocalDB(db);
-    return { rows: [db.cohort_form_settings] };
+  if (q.includes('cohort_form_settings')) {
+    if (q.includes('update')) {
+      db.cohort_form_settings = db.cohort_form_settings || { is_active: true, fields: [] };
+      db.cohort_form_settings.is_active = Boolean(params[0] === true || params[0] === 'true' || params[0] === 1);
+      if (params[1] !== undefined) {
+        db.cohort_form_settings.fields = typeof params[1] === 'string' ? JSON.parse(params[1]) : params[1];
+      }
+      saveLocalDB(db);
+      return { rows: [db.cohort_form_settings] };
+    }
+    if (q.includes('insert into')) {
+      db.cohort_form_settings = db.cohort_form_settings || { is_active: true, fields: [] };
+      db.cohort_form_settings.is_active = Boolean(params[0] === true || params[0] === 'true' || params[0] === 1);
+      if (params[1] !== undefined) {
+        db.cohort_form_settings.fields = typeof params[1] === 'string' ? JSON.parse(params[1]) : params[1];
+      }
+      saveLocalDB(db);
+      return { rows: [db.cohort_form_settings] };
+    }
+    return { rows: db.cohort_form_settings ? [db.cohort_form_settings] : [] };
   }
 
   // 2. Cohorts Interceptors
-  if (q.includes('select * from cohorts') || q.includes('select * from cohorts order by id')) {
+  if (q.includes('from cohorts')) {
+    if (q.includes('where id =') || q.includes('where c.id =')) {
+      let targetId = params && params[0] !== undefined ? parseInt(params[0]) : NaN;
+      if (isNaN(targetId)) {
+        const match = q.match(/where\s+(?:c\.)?id\s*=\s*(\d+)/);
+        if (match) targetId = parseInt(match[1]);
+      }
+      const found = (db.cohorts || []).find((c: any) => c.id === targetId);
+      return { rows: found ? [found] : [] };
+    }
     return { rows: db.cohorts || [] };
   }
   if (q.includes('insert into cohorts')) {
@@ -417,12 +472,33 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     saveLocalDB(db);
     return { rows: [newCohort] };
   }
-  if (q.includes('update cohorts set status =')) {
-    const status = params[0];
-    const id = parseInt(params[1]);
+  if (q.includes('update cohorts set')) {
+    if (q.includes('set status =') && !q.includes('name =')) {
+      const status = params[0];
+      const id = parseInt(params[1]);
+      const c = (db.cohorts || []).find((x: any) => x.id === id);
+      if (c) {
+        c.status = status;
+        c.updated_at = new Date().toISOString();
+        saveLocalDB(db);
+      }
+      return { rows: c ? [c] : [] };
+    }
+    // Full cohort settings update:
+    // UPDATE cohorts SET name = $1, intake_year = $2, start_date = $3, end_date = $4, max_capacity = $5, assigned_manager_id = $6, assigned_manager_name = $7, status = $8, description = $9 WHERE id = $10
+    const id = parseInt(params[params.length - 1]);
     const c = (db.cohorts || []).find((x: any) => x.id === id);
     if (c) {
-      c.status = status;
+      if (params[0] !== undefined) c.name = params[0];
+      if (params[1] !== undefined) c.intake_year = params[1];
+      if (params[2] !== undefined) c.start_date = params[2];
+      if (params[3] !== undefined) c.end_date = params[3];
+      if (params[4] !== undefined) c.max_capacity = parseInt(params[4]) || 20;
+      if (params[5] !== undefined) c.assigned_manager_id = params[5];
+      if (params[6] !== undefined) c.assigned_manager_name = params[6];
+      if (params[7] !== undefined && params[7] !== null) c.status = params[7];
+      if (params[8] !== undefined) c.description = params[8];
+      c.updated_at = new Date().toISOString();
       saveLocalDB(db);
     }
     return { rows: c ? [c] : [] };
@@ -434,13 +510,13 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       const tok = String(params[0] || '').toUpperCase().trim();
       return { rows: (db.applicants || []).filter((a: any) => String(a.tracking_token).toUpperCase().trim() === tok) };
     }
-    if (q.includes('where id =') || q.includes('id = $1')) {
-      const aid = parseInt(params[0]);
-      return { rows: (db.applicants || []).filter((a: any) => a.id === aid) };
-    }
-    if (q.includes('where cohort_id =') || q.includes('where a.cohort_id =')) {
+    if (q.includes('where cohort_id =') || q.includes('where a.cohort_id =') || q.includes('cohort_id = $1')) {
       const cid = parseInt(params[0]);
       return { rows: (db.applicants || []).filter((a: any) => a.cohort_id === cid) };
+    }
+    if (q.includes('where id =') || q.includes('where a.id =') || /\b(a\.)?id\s*=\s*\$1\b/.test(q)) {
+      const aid = parseInt(params[0]);
+      return { rows: (db.applicants || []).filter((a: any) => a.id === aid) };
     }
     if (q.includes('lower(email) =') || q.includes('email = $1')) {
       const em = String(params[0] || '').toLowerCase().trim();
@@ -510,24 +586,39 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     const idVal = parseInt(params[params.length - 1]);
     const app = (db.applicants || []).find((x: any) => x.id === idVal);
     if (app) {
+      const isAlreadyKicked = app.program_status === 'KICKED_OUT' || app.status === 'KICKED_OUT';
       if (q.includes('founder_password = $1')) {
         app.founder_password = params[0];
       } else if (q.includes('status = $1') && q.includes('program_status = $2') && q.includes('cohort_id = $3')) {
-        app.status = params[0];
-        app.program_status = typeof params[1] === 'string' && params[1] !== '{}' ? params[1] : (['CONFIRMED', 'ENROLLED'].includes(app.status) ? 'ACTIVE' : 'NOT_ENROLLED');
-        app.cohort_id = params[2] ? parseInt(params[2]) : null;
-      } else if (q.includes('program_status = $1')) {
-        app.program_status = typeof params[0] === 'string' && params[0] !== '{}' ? params[0] : 'NOT_ENROLLED';
+        if (!isAlreadyKicked || params[0] === 'KICKED_OUT') {
+          app.status = params[0];
+          app.program_status = typeof params[1] === 'string' && params[1] !== '{}' ? params[1] : (['CONFIRMED', 'ENROLLED'].includes(app.status) ? 'ACTIVE' : 'NOT_ENROLLED');
+          app.cohort_id = params[2] ? parseInt(params[2]) : null;
+        }
+      } else if (q.includes('program_status = $1') || q.includes('program_status =')) {
+        if (q.includes("'graduated'") || q.includes('graduated')) {
+          if (!isAlreadyKicked) app.program_status = 'GRADUATED';
+        } else if (q.includes("'kicked_out'") || q.includes('kicked_out')) {
+          app.program_status = 'KICKED_OUT';
+        } else {
+          if (!isAlreadyKicked || params[0] === 'KICKED_OUT') {
+            app.program_status = typeof params[0] === 'string' && params[0] !== '{}' ? params[0] : 'NOT_ENROLLED';
+          }
+        }
       } else if (q.includes('status = $1') && q.includes('cohort_id = $2')) {
-        app.status = params[0];
-        app.cohort_id = params[1] ? parseInt(params[1]) : null;
-        if (['CONFIRMED', 'ENROLLED'].includes(app.status) && (!app.program_status || app.program_status === '{}' || app.program_status === 'NOT_ENROLLED')) {
-          app.program_status = 'ACTIVE';
+        if (!isAlreadyKicked) {
+          app.status = params[0];
+          app.cohort_id = params[1] ? parseInt(params[1]) : null;
+          if (['CONFIRMED', 'ENROLLED'].includes(app.status) && (!app.program_status || app.program_status === '{}' || app.program_status === 'NOT_ENROLLED')) {
+            app.program_status = 'ACTIVE';
+          }
         }
       } else if (q.includes('status = $1')) {
-        app.status = params[0];
-        if (['CONFIRMED', 'ENROLLED'].includes(app.status) && (!app.program_status || app.program_status === '{}' || app.program_status === 'NOT_ENROLLED')) {
-          app.program_status = 'ACTIVE';
+        if (!isAlreadyKicked || params[0] === 'KICKED_OUT') {
+          app.status = params[0];
+          if (['CONFIRMED', 'ENROLLED'].includes(app.status) && (!app.program_status || app.program_status === '{}' || app.program_status === 'NOT_ENROLLED')) {
+            app.program_status = 'ACTIVE';
+          }
         }
       } else if (q.includes('cohort_id = $1')) {
         app.cohort_id = params[0] ? parseInt(params[0]) : null;
@@ -626,12 +717,37 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     }
 
     let list: any[] = [];
-    if (params.length > 0 && (q.includes('where id = $1') || q.includes('id = $1'))) {
-      const sid = parseInt(params[0]);
-      list = (db.cohort_sessions || []).filter((s: any) => s.id === sid);
-    } else if (params.length > 0 && (q.includes('where cohort_id = $1') || q.includes('cohort_id = $1'))) {
+    if (q.includes('date = $1') || (q.includes('mentor_name') && params.length >= 2)) {
+      const targetDate = params[0] ? String(params[0]).split('T')[0] : '';
+      const targetMentor = params[1] ? String(params[1]).trim().toLowerCase() : '';
+      const toMin = (t: string) => {
+        if (!t) return 0;
+        const [h, m] = String(t).split(':').map(Number);
+        return (h || 0) * 60 + (m || 0);
+      };
+      const targetStart = params[2] ? toMin(params[2]) : 0;
+      const targetEnd = params[3] ? toMin(params[3]) : 1440;
+
+      list = (db.cohort_sessions || []).filter((s: any) => {
+        const sDate = s.date ? String(s.date).split('T')[0] : '';
+        if (sDate !== targetDate) return false;
+
+        const sMentor = s.mentor_name ? String(s.mentor_name).trim().toLowerCase() : '';
+        if (sMentor !== targetMentor) return false;
+
+        if (params.length >= 4) {
+          const sStart = toMin(s.start_time);
+          const sEnd = toMin(s.end_time);
+          return sStart < targetEnd && sEnd > targetStart;
+        }
+        return true;
+      });
+    } else if (params.length > 0 && (q.includes('where cohort_id = $1') || q.includes('cohort_id = $1') || q.includes('cohort_id ='))) {
       const cid = parseInt(params[0]);
       list = (db.cohort_sessions || []).filter((s: any) => s.cohort_id === cid);
+    } else if (params.length > 0 && (q.includes('where id =') || q.includes('where s.id =') || /\b(s\.)?id\s*=\s*\$1\b/.test(q))) {
+      const sid = parseInt(params[0]);
+      list = (db.cohort_sessions || []).filter((s: any) => s.id === sid);
     } else {
       list = db.cohort_sessions || [];
     }
@@ -2458,17 +2574,20 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     const idVal = parseInt(params[params.length - 1]);
     const profile = db.startup_profiles.find((p: any) => p.id === idVal);
     if (profile) {
+      const isAlreadyKicked = profile.program_status === 'KICKED_OUT';
       if (q.includes('set current_progress_stage =')) {
-        profile.current_progress_stage = params[0];
+        if (!isAlreadyKicked) profile.current_progress_stage = params[0];
       } else if (q.includes('set program_status =')) {
-        profile.program_status = params[0];
+        if (!isAlreadyKicked || params[0] === 'KICKED_OUT') {
+          profile.program_status = params[0];
+        }
       } else if (params.length >= 8) {
         profile.startup_name = params[0] || profile.startup_name;
         profile.description = params[1] || profile.description;
         profile.industry_id = params[2] ? parseInt(params[2]) : profile.industry_id;
         profile.cohort_id = params[3] ? parseInt(params[3]) : profile.cohort_id;
-        profile.current_progress_stage = params[4] || profile.current_progress_stage;
-        profile.program_status = params[5] || profile.program_status;
+        if (!isAlreadyKicked) profile.current_progress_stage = params[4] || profile.current_progress_stage;
+        if (!isAlreadyKicked || params[5] === 'KICKED_OUT') profile.program_status = params[5] || profile.program_status;
         profile.team_size = params[6] !== undefined ? parseInt(params[6]) : profile.team_size;
         profile.revenue_status = params[7] || profile.revenue_status;
       } else {
@@ -2476,7 +2595,13 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
         if (setMatch && setMatch[1]) {
           const colName = setMatch[1].toLowerCase();
           if (colName !== 'updated_at') {
-            profile[colName] = params[0];
+            if (colName === 'program_status' && isAlreadyKicked && params[0] !== 'KICKED_OUT') {
+              // Ignore change
+            } else if (colName === 'current_progress_stage' && isAlreadyKicked) {
+              // Ignore change
+            } else {
+              profile[colName] = params[0];
+            }
           }
         }
       }
@@ -2995,6 +3120,14 @@ async function ensureDBReady() {
               status VARCHAR(50) DEFAULT 'DRAFT',
               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
+          ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS intake_year VARCHAR(50);
+          ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS start_date VARCHAR(50);
+          ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS end_date VARCHAR(50);
+          ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS max_capacity INTEGER DEFAULT 20;
+          ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS assigned_manager_id VARCHAR(50);
+          ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS assigned_manager_name VARCHAR(255);
+          ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS description TEXT;
+          ALTER TABLE cohorts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
         `);
 
         // 2. cohort_form_settings table

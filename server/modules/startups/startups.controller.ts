@@ -393,10 +393,18 @@ export const updateStartupProfile = async (req: Request, res: Response) => {
     }
 
     const currentProfile = profileRes.rows[0];
+    const body = req.body || {};
+
+    // PERMANENT LOCK ENFORCEMENT: Kicked out startups cannot be reactivated
+    if (String(currentProfile.program_status).toUpperCase() === 'KICKED_OUT' && body.program_status && String(body.program_status).toUpperCase() !== 'KICKED_OUT') {
+      return res.status(400).json({
+        success: false,
+        error: 'Permanent Termination: Yeh startup incubator se permanently kick out / terminate ho chuka hai. Iska status change ya reactivate nahi kiya ja sakta.'
+      });
+    }
 
     // Restricted fields for non-staff founders
     const restrictedFields = ['cohort_id', 'current_progress_stage', 'program_status', 'enrollment_date'];
-    const body = req.body || {};
 
     if (!isStaff) {
       // Check if founder is trying to update restricted fields
@@ -1173,6 +1181,21 @@ export const adminUpdateStartupProfile = async (req: Request, res: Response) => 
 
     // 2. Program Status Update (ACTIVE, PAUSED / Temporarily Blocked, KICKED_OUT / Terminated)
     const oldProgramStatus = profile.program_status || 'ACTIVE';
+
+    // PERMANENT LOCK ENFORCEMENT: Kicked out startups cannot be reactivated or modified
+    if (String(oldProgramStatus).toUpperCase() === 'KICKED_OUT') {
+      if (body.program_status && String(body.program_status).toUpperCase() !== 'KICKED_OUT') {
+        return res.status(400).json({
+          error: 'Permanent Termination: Yeh startup incubator se permanently kick out / terminate ho chuka hai. Iska status change ya reactivate nahi kiya ja sakta.'
+        });
+      }
+      if (body.current_progress_stage && String(body.current_progress_stage).toUpperCase() !== String(profile.current_progress_stage).toUpperCase()) {
+        return res.status(400).json({
+          error: 'Permanent Termination: Kicked out startup ka progress stage modify nahi kiya ja sakta.'
+        });
+      }
+    }
+
     if (body.program_status && String(body.program_status).toUpperCase() !== String(oldProgramStatus).toUpperCase()) {
       const newStatus = String(body.program_status).toUpperCase();
       await query(`UPDATE startup_profiles SET program_status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;`, [newStatus, profileId]);

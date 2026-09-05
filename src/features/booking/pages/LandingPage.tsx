@@ -25,16 +25,19 @@ import {
   Facebook, 
   Twitter, 
   Instagram,
-  ArrowUpRight
+  ArrowUpRight,
+  LogOut,
+  User
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface LandingPageProps {
   onNavigate: (path: string, tab?: string) => void;
   activeUser: any;
+  onLogout?: () => void;
 }
 
-export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
+export function LandingPage({ onNavigate, activeUser, onLogout }: LandingPageProps) {
   // 12 incubation program components
   const components = [
     { name: 'Ideation', icon: Brain, desc: 'Developing and screening viable business models.' },
@@ -79,13 +82,59 @@ export function LandingPage({ onNavigate, activeUser }: LandingPageProps) {
 
           {/* Right Action */}
           <div className="flex items-center gap-3">
-            <button 
-              onClick={() => onNavigate('/staff/login')}
-              className="bg-primary hover:bg-primary/95 text-white text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-sm shadow-primary/10 cursor-pointer"
-              id="landing-staff-login-btn"
-            >
-              Login
-            </button>
+            {activeUser ? (
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200/90 px-3 py-1.5 rounded-xl">
+                  <div className="h-6 w-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-black text-xs shrink-0">
+                    {(activeUser.name || activeUser.email || 'U')[0].toUpperCase()}
+                  </div>
+                  <div className="text-left hidden sm:block">
+                    <p className="text-xs font-bold text-gray-900 leading-tight">
+                      {activeUser.name ? activeUser.name.split(' (')[0] : activeUser.email}
+                    </p>
+                    <p className="text-[10px] text-gray-400 font-bold capitalize leading-tight">
+                      {activeUser.role || 'Member'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (activeUser.role === 'Cohort Founder') {
+                      onNavigate('/founder-dashboard');
+                    } else if (activeUser.role === 'UCP Member') {
+                      onNavigate('/booking');
+                    } else {
+                      onNavigate('/staff/dashboard');
+                    }
+                  }}
+                  className="bg-primary hover:bg-primary/95 text-white text-xs font-bold uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all shadow-sm shadow-primary/10 cursor-pointer flex items-center gap-1.5"
+                  id="landing-portal-btn"
+                >
+                  <span>{activeUser.role === 'UCP Member' ? 'Book Spaces' : 'Go to Portal'}</span>
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </button>
+
+                {onLogout && (
+                  <button
+                    onClick={onLogout}
+                    className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 border border-gray-200/90 hover:border-rose-200 rounded-xl transition-all cursor-pointer"
+                    title="Sign Out"
+                    id="landing-logout-btn"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button 
+                onClick={() => onNavigate('/login')}
+                className="bg-primary hover:bg-primary/95 text-white text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-sm shadow-primary/10 cursor-pointer"
+                id="landing-staff-login-btn"
+              >
+                Login
+              </button>
+            )}
           </div>
         </div>
       </header>

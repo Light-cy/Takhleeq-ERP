@@ -36,7 +36,9 @@ import {
   Paperclip,
   Link as LinkIcon,
   Lock,
-  AlertTriangle
+  AlertTriangle,
+  Save,
+  Loader2
 } from 'lucide-react';
 import { downloadFileLocally, getCleanFileName, parseAssignmentAttachments, formatFileSize, AssignmentAttachment } from '../../../../utils/fileDownload';
 import { CohortFeedbackTab } from '../../components/CohortFeedbackTab';
@@ -53,6 +55,7 @@ import { StartupDirectoryTab } from '../../../startups/components/StartupDirecto
 import { ApplicationDetailsPage } from './ApplicationDetailsPage';
 import { SessionDetailModal } from '../../components/SessionDetailModal';
 import { CheckinDetailPage } from '../../../checkins/pages/CheckinDetailPage';
+import { BulkGraduateConfirmationModal } from '../../components/BulkGraduateConfirmationModal';
 
 const getTodayDateString = () => {
   const d = new Date();
@@ -76,6 +79,12 @@ interface CohortManagementPageProps {
   currentPath?: string;
   onNavigate?: (path: string) => void;
 }
+
+const PROGRAM_MANAGERS = [
+  { id: '1', name: 'Dr. Qaseeb Niaz (Director Incubation)' },
+  { id: '2', name: 'Maheen Malik (Senior Manager)' },
+  { id: '3', name: 'Hassan Raza (Operations Lead)' }
+];
 
 export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({ 
   currentUser, 
@@ -209,12 +218,61 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       setSelectedCohortId(selectedCohort.id);
     }
   }, [selectedCohort?.id]);
+
+  // Cohort Settings State
+  const [savingCohortSettings, setSavingCohortSettings] = useState(false);
+  const [cohortSettingsForm, setCohortSettingsForm] = useState<{
+    name: string;
+    intake_year: string;
+    start_date: string;
+    end_date: string;
+    max_capacity: number;
+    assigned_manager_id: string;
+    assigned_manager_name: string;
+    description: string;
+  }>({
+    name: '',
+    intake_year: '2026',
+    start_date: '2026-09-01',
+    end_date: '2026-12-20',
+    max_capacity: 20,
+    assigned_manager_id: '1',
+    assigned_manager_name: 'Dr. Qaseeb Niaz (Director Incubation)',
+    description: ''
+  });
+
+  // Sync cohortSettingsForm whenever selectedCohort changes
+  useEffect(() => {
+    if (selectedCohort) {
+      setCohortSettingsForm({
+        name: selectedCohort.name || '',
+        intake_year: selectedCohort.intake_year || '2026',
+        start_date: selectedCohort.start_date || '2026-09-01',
+        end_date: selectedCohort.end_date || '2026-12-20',
+        max_capacity: typeof selectedCohort.max_capacity === 'number' ? selectedCohort.max_capacity : 20,
+        assigned_manager_id: selectedCohort.assigned_manager_id || '1',
+        assigned_manager_name: selectedCohort.assigned_manager_name || 'Dr. Qaseeb Niaz (Director Incubation)',
+        description: selectedCohort.description || ''
+      });
+    }
+  }, [
+    selectedCohort?.id,
+    selectedCohort?.name,
+    selectedCohort?.intake_year,
+    selectedCohort?.start_date,
+    selectedCohort?.end_date,
+    selectedCohort?.max_capacity,
+    selectedCohort?.assigned_manager_id,
+    selectedCohort?.assigned_manager_name,
+    selectedCohort?.description
+  ]);
   
   // Form Builder Temp fields
   const [newFieldLabel, setNewFieldLabel] = useState('');
   const [newFieldType, setNewFieldType] = useState<'text' | 'email' | 'number' | 'phone' | 'cnic' | 'file'>('text');
   const [newFieldPlaceholder, setNewFieldPlaceholder] = useState('');
   const [newFieldRequired, setNewFieldRequired] = useState(false);
+  const [isTogglingForm, setIsTogglingForm] = useState(false);
 
   // Scheduling Temp Form
   const [sessionTitle, setSessionTitle] = useState('');
@@ -634,7 +692,9 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
   // --- SUBTAB 1: FORM BUILDER ACTIONS ---
   const handleToggleFormActive = async () => {
+    if (isTogglingForm) return;
     const nextActive = !formSettings.is_active;
+    setIsTogglingForm(true);
     try {
       const res = await fetchWithAuth('/api/cohort-form-settings', {
         method: 'POST',
@@ -646,6 +706,8 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       triggerSuccess(`Dynamic application form is now ${nextActive ? 'ONLINE' : 'OFFLINE'}.`);
     } catch (err: any) {
       triggerError(err.message);
+    } finally {
+      setIsTogglingForm(false);
     }
   };
 
@@ -802,12 +864,10 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
 
   // --- SUBTAB 3: COHORT & WORKSHOP SCHEDULER ---
   const uncompletedCohort = cohorts.find(c => c.status !== 'COMPLETED');
+  const [cohortToGraduate, setCohortToGraduate] = useState<Cohort | null>(null);
+  const [isGraduatingCohort, setIsGraduatingCohort] = useState(false);
 
   const handleOpenCreateCohortModal = () => {
-    if (uncompletedCohort) {
-      triggerError(`Cannot create a new cohort until '${uncompletedCohort.name}' is bulk graduated and marked as Completed.`);
-      return;
-    }
     setShowCreateCohortForm(true);
   };
 
@@ -857,10 +917,15 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
     }
   };
 
-  const handleUpdateCohortStatus = async (newStatus: 'DRAFT' | 'ACTIVE' | 'COMPLETED', bulkGraduate: boolean = false) => {
-    if (!selectedCohort) return;
+  const handleUpdateCohortStatus = async (
+    newStatus: 'DRAFT' | 'ACTIVE' | 'COMPLETED',
+    bulkGraduate: boolean = false,
+    cohortIdOverride?: number
+  ) => {
+    const targetCohort = cohortIdOverride ? cohorts.find(c => c.id === cohortIdOverride) : selectedCohort;
+    if (!targetCohort) return;
     try {
-      const res = await fetchWithAuth(`/api/cohorts/${selectedCohort.id}/status`, {
+      const res = await fetchWithAuth(`/api/cohorts/${targetCohort.id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus, auto_graduate_founders: bulkGraduate })
@@ -868,8 +933,10 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to change cohort state.');
 
-      setCohorts(prev => prev.map(c => c.id === selectedCohort.id ? { ...c, status: newStatus } : c));
-      setSelectedCohort(prev => prev ? { ...prev, status: newStatus } : null);
+      setCohorts(prev => prev.map(c => c.id === targetCohort.id ? { ...c, status: newStatus } : c));
+      if (selectedCohort?.id === targetCohort.id) {
+        setSelectedCohort(prev => prev ? { ...prev, status: newStatus } : null);
+      }
       triggerSuccess(`Cohort status updated to '${newStatus}'. Graduated seats count: ${data.bulkGraduatedCount || 0}`);
       
       // Reload applicants to see graduation/status changes
@@ -885,7 +952,71 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
         }
       }
     } catch (err: any) {
-      triggerError(err.message || 'Failed to change cohort state.');
+      triggerError(err.message || 'Failed to update cohort status.');
+    }
+  };
+
+  const handleConfirmBulkGraduateInPage = async () => {
+    if (!cohortToGraduate) return;
+    setIsGraduatingCohort(true);
+    try {
+      await handleUpdateCohortStatus('COMPLETED', true, cohortToGraduate.id);
+      setCohortToGraduate(null);
+    } finally {
+      setIsGraduatingCohort(false);
+    }
+  };
+
+  const handleSaveCohortSettings = async () => {
+    if (!selectedCohort) return;
+    if (!cohortSettingsForm.name.trim()) {
+      triggerError('Cohort name cannot be empty.');
+      return;
+    }
+
+    setSavingCohortSettings(true);
+    try {
+      const res = await fetchWithAuth(`/api/cohorts/${selectedCohort.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: cohortSettingsForm.name.trim(),
+          intake_year: cohortSettingsForm.intake_year.trim(),
+          start_date: cohortSettingsForm.start_date,
+          end_date: cohortSettingsForm.end_date,
+          max_capacity: Number(cohortSettingsForm.max_capacity) || 20,
+          assigned_manager_id: cohortSettingsForm.assigned_manager_id,
+          assigned_manager_name: cohortSettingsForm.assigned_manager_name,
+          description: cohortSettingsForm.description.trim()
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update cohort settings.');
+      }
+
+      const updatedCohort: Cohort = data.cohort;
+
+      // Update selectedCohort and cohorts array in local state
+      setSelectedCohort(updatedCohort);
+      setCohorts(prev => prev.map(c => c.id === updatedCohort.id ? updatedCohort : c));
+
+      // Refresh parent context so header and sidebar dropdowns immediately reflect the new name and settings
+      if (onRefresh) {
+        try {
+          await onRefresh();
+        } catch (e) {
+          console.error('Error refreshing parent context:', e);
+        }
+      }
+
+      triggerSuccess(`Cohort settings for '${updatedCohort.name}' saved and applied successfully!`);
+    } catch (err: any) {
+      console.error('Failed to save cohort settings:', err);
+      triggerError(err.message || 'Failed to save cohort settings.');
+    } finally {
+      setSavingCohortSettings(false);
     }
   };
 
@@ -1335,10 +1466,15 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 </div>
                 <button
                   type="button"
+                  id="toggle-form-active-btn"
+                  disabled={isTogglingForm}
                   onClick={handleToggleFormActive}
-                  className="text-primary hover:text-rose-900 transition-all cursor-pointer p-1"
+                  className="text-primary hover:text-rose-900 transition-all cursor-pointer p-1 disabled:opacity-60 flex items-center justify-center min-w-[48px]"
+                  title={formSettings.is_active ? 'Click to turn Form Offline' : 'Click to turn Form Online'}
                 >
-                  {formSettings.is_active ? (
+                  {isTogglingForm ? (
+                    <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                  ) : formSettings.is_active ? (
                     <ToggleRight className="h-12 w-12 text-primary" />
                   ) : (
                     <ToggleLeft className="h-12 w-12 text-gray-300" />
@@ -2365,9 +2501,10 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 <label className="text-gray-500 text-[10px] block font-mono">Cohort Name</label>
                 <input
                   type="text"
-                  value={selectedCohort.name}
-                  onChange={(e) => setSelectedCohort({ ...selectedCohort, name: e.target.value })}
-                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-2.5 text-xs text-gray-800 font-bold focus:outline-none"
+                  value={cohortSettingsForm.name}
+                  onChange={(e) => setCohortSettingsForm({ ...cohortSettingsForm, name: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-2.5 text-xs text-gray-800 font-bold focus:outline-none focus:border-primary"
+                  placeholder="e.g. Cohort 1"
                 />
               </div>
 
@@ -2375,8 +2512,10 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 <label className="text-gray-500 text-[10px] block font-mono">Intake Year</label>
                 <input
                   type="text"
-                  defaultValue="2026"
-                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-2.5 text-xs text-gray-800 font-bold focus:outline-none"
+                  value={cohortSettingsForm.intake_year}
+                  onChange={(e) => setCohortSettingsForm({ ...cohortSettingsForm, intake_year: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-2.5 text-xs text-gray-800 font-bold focus:outline-none focus:border-primary"
+                  placeholder="e.g. 2026"
                 />
               </div>
 
@@ -2384,8 +2523,9 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 <label className="text-gray-500 text-[10px] block font-mono">Start Date</label>
                 <input
                   type="date"
-                  defaultValue="2026-09-01"
-                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-2.5 text-xs text-gray-800 font-bold focus:outline-none"
+                  value={cohortSettingsForm.start_date}
+                  onChange={(e) => setCohortSettingsForm({ ...cohortSettingsForm, start_date: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-2.5 text-xs text-gray-800 font-bold focus:outline-none focus:border-primary"
                 />
               </div>
 
@@ -2393,8 +2533,9 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 <label className="text-gray-500 text-[10px] block font-mono">End Date</label>
                 <input
                   type="date"
-                  defaultValue="2026-12-20"
-                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-2.5 text-xs text-gray-800 font-bold focus:outline-none"
+                  value={cohortSettingsForm.end_date}
+                  onChange={(e) => setCohortSettingsForm({ ...cohortSettingsForm, end_date: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-2.5 text-xs text-gray-800 font-bold focus:outline-none focus:border-primary"
                 />
               </div>
 
@@ -2402,27 +2543,64 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                 <label className="text-gray-500 text-[10px] block font-mono">Maximum Capacity (Seats)</label>
                 <input
                   type="number"
-                  defaultValue={20}
-                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-2.5 text-xs text-gray-800 font-bold focus:outline-none"
+                  min="1"
+                  max="500"
+                  value={cohortSettingsForm.max_capacity}
+                  onChange={(e) => setCohortSettingsForm({ ...cohortSettingsForm, max_capacity: parseInt(e.target.value) || 0 })}
+                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-2.5 text-xs text-gray-800 font-bold focus:outline-none focus:border-primary"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-gray-500 text-[10px] block font-mono">Assigned Program Manager</label>
-                <select className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-2.5 text-xs text-gray-800 font-bold focus:outline-none cursor-pointer">
-                  <option value="1">Dr. Qaseeb Niaz (Director Incubation)</option>
-                  <option value="2">Maheen Malik (Senior Manager)</option>
-                  <option value="3">Hassan Raza (Operations Lead)</option>
+                <select 
+                  value={cohortSettingsForm.assigned_manager_id}
+                  onChange={(e) => {
+                    const chosen = PROGRAM_MANAGERS.find(m => m.id === e.target.value);
+                    setCohortSettingsForm({
+                      ...cohortSettingsForm,
+                      assigned_manager_id: e.target.value,
+                      assigned_manager_name: chosen ? chosen.name : e.target.value
+                    });
+                  }}
+                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-2.5 text-xs text-gray-800 font-bold focus:outline-none focus:border-primary cursor-pointer"
+                >
+                  {PROGRAM_MANAGERS.map(pm => (
+                    <option key={pm.id} value={pm.id}>{pm.name}</option>
+                  ))}
                 </select>
+              </div>
+
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-gray-500 text-[10px] block font-mono">Cohort Overview & Focus Areas (Optional)</label>
+                <textarea
+                  value={cohortSettingsForm.description}
+                  onChange={(e) => setCohortSettingsForm({ ...cohortSettingsForm, description: e.target.value })}
+                  rows={2}
+                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-4 py-2.5 text-xs text-gray-800 font-bold focus:outline-none focus:border-primary resize-none"
+                  placeholder="e.g. Incubation program focused on deep tech, enterprise software, and scalable venture building."
+                />
               </div>
 
               <div className="md:col-span-2 pt-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => triggerSuccess('Cohort Settings Saved Successfully!')}
-                  className="bg-primary hover:bg-[#5A0F0F] text-white py-2.5 px-6 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer shadow-3xs"
+                  id="save-cohort-config-btn"
+                  disabled={savingCohortSettings}
+                  onClick={handleSaveCohortSettings}
+                  className="bg-primary hover:bg-[#5A0F0F] text-white py-2.5 px-6 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer shadow-3xs flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Save Cohort Config
+                  {savingCohortSettings ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving Config...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Save Cohort Config</span>
+                    </>
+                  )}
                 </button>
 
                 {/* Cohort Lifecycle & Bulk Graduate Actions */}
@@ -2441,11 +2619,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                   {selectedCohort.status !== 'COMPLETED' && (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (window.confirm(`Are you sure you want to Complete '${selectedCohort.name}' and BULK GRADUATE all active startups enrolled in this cohort?`)) {
-                          handleUpdateCohortStatus('COMPLETED', true);
-                        }
-                      }}
+                      onClick={() => setCohortToGraduate(selectedCohort)}
                       className="bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-xl font-bold text-xs uppercase tracking-wider cursor-pointer shadow-3xs flex items-center gap-1.5"
                     >
                       <GraduationCap className="w-4 h-4" />
@@ -3207,11 +3381,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setShowCreateCohortForm(false);
-                      setSelectedCohort(uncompletedCohort);
-                      if (window.confirm(`Are you sure you want to Complete '${uncompletedCohort.name}' and BULK GRADUATE all active startups enrolled in this cohort?`)) {
-                        handleUpdateCohortStatus('COMPLETED', true);
-                      }
+                      setCohortToGraduate(uncompletedCohort);
                     }}
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-[11px] uppercase tracking-wider cursor-pointer shadow-3xs transition-all"
                   >
@@ -3351,6 +3521,24 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {cohortToGraduate && (
+        <BulkGraduateConfirmationModal
+          isOpen={!!cohortToGraduate}
+          onClose={() => setCohortToGraduate(null)}
+          onConfirm={handleConfirmBulkGraduateInPage}
+          cohortName={cohortToGraduate.name}
+          startups={(applicants || []).filter(a => {
+            const matchesC = String(a.cohort_id) === String(cohortToGraduate.id) || (!a.cohort_id && String(cohortToGraduate.id) === '1');
+            const ps = typeof a.program_status === 'string' && a.program_status !== '{}' ? a.program_status.toUpperCase() : '';
+            const s = String(a.status || '').toUpperCase();
+            if (['PAUSED', 'KICKED_OUT', 'SUSPENDED', 'DROPPED', 'REJECTED'].includes(ps)) return false;
+            if (['PAUSED', 'KICKED_OUT', 'SUSPENDED', 'DROPPED', 'REJECTED'].includes(s)) return false;
+            return ps === 'ACTIVE' || ['ENROLLED', 'CONFIRMED', 'ACCEPTED'].includes(s);
+          })}
+          isSubmitting={isGraduatingCohort}
+        />
       )}
 
     </div>

@@ -550,7 +550,7 @@ export default function App() {
 
     switch (normalizedPath) {
       case '/':
-        return <LandingPage onNavigate={navigate} activeUser={activeUser} />;
+        return <LandingPage onNavigate={navigate} activeUser={activeUser} onLogout={handleLogout} />;
         
       case '/login':
         return (

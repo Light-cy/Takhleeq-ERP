@@ -5,6 +5,14 @@ export interface Cohort {
   name: string;
   status: CohortStatus;
   created_at: string;
+  intake_year?: string;
+  start_date?: string;
+  end_date?: string;
+  max_capacity?: number;
+  assigned_manager_id?: string;
+  assigned_manager_name?: string;
+  description?: string;
+  updated_at?: string;
 }
 
 export type FormFieldValidation = 'text' | 'email' | 'number' | 'cnic' | 'phone' | 'file' | 'select' | 'textarea';

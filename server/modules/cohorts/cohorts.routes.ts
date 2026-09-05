@@ -14,6 +14,7 @@ import {
   getCohorts,
   createCohort,
   updateCohortStatus,
+  updateCohortSettings,
   getCohortSessions,
   createCohortSession,
   deleteCohortSession,
@@ -116,6 +117,8 @@ router.put('/applicants/:id/orientation', requireAuth, requirePermission('cohort
 // Cohort lists and metadata
 router.get('/cohorts', requireAuth, getCohorts);
 router.post('/cohorts', requireAuth, requirePermission('cohort:form_manage'), createCohort);
+router.put('/cohorts/:id', requireAuth, requireAnyPermission(COHORT_VIEW_PERMS), updateCohortSettings);
+router.patch('/cohorts/:id', requireAuth, requireAnyPermission(COHORT_VIEW_PERMS), updateCohortSettings);
 router.put('/cohorts/:id/status', requireAuth, requirePermission('cohort:form_manage'), updateCohortStatus);
 
 // Session Scheduling

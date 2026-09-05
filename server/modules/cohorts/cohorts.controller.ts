@@ -45,44 +45,58 @@ export const updateCohortFormSettings = async (req: AuthenticatedRequest, res: R
   const admin = req.currentUser;
   const { is_active, fields } = req.body;
 
-  if (is_active === undefined || !fields || !Array.isArray(fields)) {
-    return res.status(400).json({ error: 'Missing required body: is_active and fields (array) are required.' });
+  if (is_active === undefined && fields === undefined) {
+    return res.status(400).json({ error: 'Missing required body: provide is_active or fields.' });
   }
 
   try {
-    // Dynamic fields validation
-    for (const f of fields) {
-      if (!f.id || !f.label || !f.type) {
-        return res.status(400).json({ error: 'Validation Failure: Each form field must have an id, label, and type.' });
+    // Check if settings record exists (it is a single record)
+    const checkSettings = await query('SELECT * FROM cohort_form_settings LIMIT 1');
+    const existing = checkSettings.rows.length > 0 ? checkSettings.rows[0] : null;
+
+    const nextActive = is_active !== undefined ? Boolean(is_active === true || is_active === 'true' || is_active === 1) : (existing ? existing.is_active : true);
+    let nextFields = fields !== undefined ? fields : (existing ? existing.fields : []);
+
+    if (typeof nextFields === 'string') {
+      try {
+        nextFields = JSON.parse(nextFields);
+      } catch (e) {
+        nextFields = [];
       }
     }
 
-    const fieldsJson = typeof fields === 'string' ? fields : JSON.stringify(fields);
-    
-    // Check if settings record exists (it is a single record)
-    const checkSettings = await query('SELECT * FROM cohort_form_settings LIMIT 1');
-    if (checkSettings.rows.length === 0) {
+    if (Array.isArray(nextFields)) {
+      for (const f of nextFields) {
+        if (!f.id || !f.label || !f.type) {
+          return res.status(400).json({ error: 'Validation Failure: Each form field must have an id, label, and type.' });
+        }
+      }
+    }
+
+    const fieldsJson = typeof nextFields === 'string' ? nextFields : JSON.stringify(nextFields);
+
+    if (!existing) {
       await query(
         `INSERT INTO cohort_form_settings (is_active, fields) VALUES ($1, $2)`,
-        [is_active, fieldsJson]
+        [nextActive, fieldsJson]
       );
     } else {
       await query(
         `UPDATE cohort_form_settings SET is_active = $1, fields = $2`,
-        [is_active, fieldsJson]
+        [nextActive, fieldsJson]
       );
     }
 
     await logAudit(
-      `Updated dynamic application form settings: form is now ${is_active ? 'ONLINE' : 'OFFLINE'} with ${fields.length} dynamic fields.`,
+      `Updated dynamic application form settings: form is now ${nextActive ? 'ONLINE' : 'OFFLINE'} with ${Array.isArray(nextFields) ? nextFields.length : 0} dynamic fields.`,
       'cohort_form',
       'settings',
       admin?.email || 'Admin',
       null,
-      { is_active, fieldsCount: fields.length }
+      { is_active: nextActive, fieldsCount: Array.isArray(nextFields) ? nextFields.length : 0 }
     );
 
-    res.json({ success: true, is_active, fields });
+    res.json({ success: true, is_active: nextActive, fields: nextFields });
   } catch (err: any) {
     console.error('Failed to update cohort form settings:', err);
     res.status(500).json({ error: 'Internal Server Error while saving form configuration.' });
@@ -91,25 +105,26 @@ export const updateCohortFormSettings = async (req: AuthenticatedRequest, res: R
 
 // 2. PUBLIC APPLICANT SUBMISSIONS
 export const submitApplicant = async (req: AuthenticatedRequest, res: Response) => {
-  const { name, email, phone, cnic, startup_name, startup_description, form_data } = req.body;
-
-  // Baseline validation of core Pakistani identity criteria
-  if (!name || !email || !phone || !cnic || !startup_name || !startup_description) {
-    return res.status(400).json({ error: 'Baseline criteria error: Name, Email, Phone, CNIC, Startup Name, and Startup Description are strictly required.' });
-  }
-
-  const normalizedEmail = String(email).toLowerCase().trim();
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(normalizedEmail)) {
-    return res.status(400).json({ error: 'Please provide a valid email address.' });
-  }
-
   try {
-    // Check if form is currently active
+    // Check if form is currently active first
     const settingsRes = await query('SELECT is_active FROM cohort_form_settings LIMIT 1');
-    const isActive = settingsRes.rows.length > 0 ? settingsRes.rows[0].is_active : true;
+    const rawActive = settingsRes.rows.length > 0 ? settingsRes.rows[0].is_active : true;
+    const isActive = Boolean(rawActive === true || rawActive === 'true' || rawActive === 1);
     if (!isActive) {
       return res.status(403).json({ error: 'Application Closed: The admission intake window for Takhleeq Cohort is currently offline.' });
+    }
+
+    const { name, email, phone, cnic, startup_name, startup_description, form_data } = req.body;
+
+    // Baseline validation of core Pakistani identity criteria
+    if (!name || !email || !phone || !cnic || !startup_name || !startup_description) {
+      return res.status(400).json({ error: 'Baseline criteria error: Name, Email, Phone, CNIC, Startup Name, and Startup Description are strictly required.' });
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      return res.status(400).json({ error: 'Please provide a valid email address.' });
     }
 
     // STRICT UNIQUE EMAIL CHECK: Prevent duplicate submissions with the same email address
@@ -358,6 +373,16 @@ export const updateApplicantStatus = async (req: AuthenticatedRequest, res: Resp
       return res.status(404).json({ error: 'Applicant not found.' });
     }
     const prev = prevRes.rows[0];
+
+    // PERMANENT LOCK ENFORCEMENT: Kicked out startups cannot be reactivated or transitioned
+    const currentPStatus = String(prev.program_status || '').toUpperCase();
+    const currentStatus = String(prev.status || '').toUpperCase();
+    if (currentPStatus === 'KICKED_OUT' || currentStatus === 'KICKED_OUT') {
+      return res.status(400).json({
+        error: 'Permanent Termination: Yeh startup incubator se permanently kick out / terminate ho chuka hai. Iska status change ya reactivate nahi kiya ja sakta.'
+      });
+    }
+
     const newStatus = status || prev.status;
     let newProgramStatus = program_status;
     if (!newProgramStatus) {
@@ -618,11 +643,20 @@ export const updateApplicantProgramStatus = async (req: AuthenticatedRequest, re
   }
 
   try {
-    const prevRes = await query('SELECT program_status, startup_name FROM applicants WHERE id = $1', [parseInt(id)]);
+    const prevRes = await query('SELECT program_status, status, startup_name FROM applicants WHERE id = $1', [parseInt(id)]);
     if (prevRes.rows.length === 0) {
       return res.status(404).json({ error: 'Applicant not found.' });
     }
     const prev = prevRes.rows[0];
+
+    // PERMANENT LOCK ENFORCEMENT: Kicked out startups cannot be reactivated
+    const currentPStatus = String(prev.program_status || '').toUpperCase();
+    const currentStatus = String(prev.status || '').toUpperCase();
+    if ((currentPStatus === 'KICKED_OUT' || currentStatus === 'KICKED_OUT') && program_status.toUpperCase() !== 'KICKED_OUT') {
+      return res.status(400).json({
+        error: 'Permanent Termination: Yeh startup incubator se permanently kick out / terminate ho chuka hai. Iska status change ya reactivate nahi kiya ja sakta.'
+      });
+    }
 
     const result = await query(
       `UPDATE applicants SET program_status = $1 WHERE id = $2 RETURNING *`,
@@ -787,23 +821,27 @@ export const updateCohortStatus = async (req: AuthenticatedRequest, res: Respons
       );
       const blockedIds = activeWarnings.rows.map(w => w.applicant_id);
 
-      // We retrieve all enrolled/active founders
+      // We retrieve all enrolled/active founders (excluding any KICKED_OUT startups)
       const founders = await query(
-        `SELECT id, startup_name FROM applicants WHERE cohort_id = $1 AND (status = 'CONFIRMED' OR status = 'ENROLLED' OR program_status = 'ACTIVE')`,
+        `SELECT id, startup_name, program_status, status FROM applicants WHERE cohort_id = $1 AND (status = 'CONFIRMED' OR status = 'ENROLLED' OR program_status = 'ACTIVE')`,
         [parseInt(id)]
       );
 
-      const toGraduate = founders.rows.filter(f => !blockedIds.includes(f.id));
+      const toGraduate = founders.rows.filter(f => {
+        const pStatus = String(f.program_status || '').toUpperCase();
+        const sStatus = String(f.status || '').toUpperCase();
+        return pStatus !== 'KICKED_OUT' && sStatus !== 'KICKED_OUT' && !blockedIds.includes(f.id);
+      });
 
       for (const f of toGraduate) {
         await query(
-          `UPDATE applicants SET program_status = 'GRADUATED' WHERE id = $1`,
-          [f.id]
+          `UPDATE applicants SET program_status = $1 WHERE id = $2`,
+          ['GRADUATED', f.id]
         );
         try {
           await query(
-            `UPDATE startup_profiles SET program_status = 'GRADUATED', updated_at = CURRENT_TIMESTAMP WHERE applicant_id = $1 OR LOWER(startup_name) = LOWER($2)`,
-            [f.id, f.startup_name]
+            `UPDATE startup_profiles SET program_status = $1, updated_at = CURRENT_TIMESTAMP WHERE applicant_id = $2 OR LOWER(startup_name) = LOWER($3)`,
+            ['GRADUATED', f.id, f.startup_name]
           );
         } catch (e) {
           // ignore
@@ -825,6 +863,100 @@ export const updateCohortStatus = async (req: AuthenticatedRequest, res: Respons
   } catch (err: any) {
     console.error('Failed to update cohort status:', err);
     res.status(500).json({ error: 'Internal Server Error while updating cohort status.' });
+  }
+};
+
+export const updateCohortSettings = async (req: AuthenticatedRequest, res: Response) => {
+  const admin = req.currentUser;
+  const { id } = req.params;
+  const {
+    name,
+    intake_year,
+    start_date,
+    end_date,
+    max_capacity,
+    assigned_manager_id,
+    assigned_manager_name,
+    status,
+    description
+  } = req.body;
+
+  if (!id || isNaN(parseInt(id))) {
+    return res.status(400).json({ error: 'Valid cohort ID is required.' });
+  }
+
+  try {
+    const prevRes = await query('SELECT * FROM cohorts WHERE id = $1', [parseInt(id)]);
+    if (prevRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Cohort not found.' });
+    }
+    const prev = prevRes.rows[0];
+
+    const updatedName = (name !== undefined && name !== null && String(name).trim().length > 0)
+      ? String(name).trim()
+      : prev.name;
+    const updatedIntakeYear = intake_year !== undefined ? String(intake_year).trim() : (prev.intake_year || '2026');
+    const updatedStartDate = start_date !== undefined ? String(start_date).trim() : (prev.start_date || '2026-09-01');
+    const updatedEndDate = end_date !== undefined ? String(end_date).trim() : (prev.end_date || '2026-12-20');
+    const updatedMaxCapacity = max_capacity !== undefined ? (parseInt(max_capacity) || 20) : (prev.max_capacity || 20);
+    const updatedManagerId = assigned_manager_id !== undefined ? String(assigned_manager_id).trim() : (prev.assigned_manager_id || '1');
+    const updatedManagerName = assigned_manager_name !== undefined ? String(assigned_manager_name).trim() : (prev.assigned_manager_name || 'Dr. Qaseeb Niaz (Director Incubation)');
+    const updatedStatus = status !== undefined ? String(status).trim() : prev.status;
+    const updatedDescription = description !== undefined ? String(description).trim() : (prev.description || '');
+
+    const updateRes = await query(
+      `UPDATE cohorts SET 
+        name = $1, 
+        intake_year = $2, 
+        start_date = $3, 
+        end_date = $4, 
+        max_capacity = $5, 
+        assigned_manager_id = $6, 
+        assigned_manager_name = $7, 
+        status = $8, 
+        description = $9 
+       WHERE id = $10 
+       RETURNING *`,
+      [
+        updatedName,
+        updatedIntakeYear,
+        updatedStartDate,
+        updatedEndDate,
+        updatedMaxCapacity,
+        updatedManagerId,
+        updatedManagerName,
+        updatedStatus,
+        updatedDescription,
+        parseInt(id)
+      ]
+    );
+
+    const updatedCohort = updateRes.rows[0] || {
+      id: parseInt(id),
+      name: updatedName,
+      intake_year: updatedIntakeYear,
+      start_date: updatedStartDate,
+      end_date: updatedEndDate,
+      max_capacity: updatedMaxCapacity,
+      assigned_manager_id: updatedManagerId,
+      assigned_manager_name: updatedManagerName,
+      status: updatedStatus,
+      description: updatedDescription
+    };
+
+    await logAudit(
+      `Updated configuration & settings for cohort '${updatedCohort.name}'`,
+      'cohort_settings',
+      String(id),
+      admin?.email || 'Admin',
+      prev,
+      updatedCohort
+    );
+
+    res.json({ success: true, cohort: updatedCohort });
+  } catch (err: any) {
+    console.error('Failed to update cohort settings:', err);
+    res.status(500).json({ error: err.message || 'Internal Server Error while updating cohort settings.' });
   }
 };
 
@@ -943,17 +1075,46 @@ export const createCohortSession = async (req: AuthenticatedRequest, res: Respon
     return res.status(400).json({ error: 'Missing required session parameters: title, date, start_time, and end_time are required.' });
   }
 
+  if (start_time >= end_time) {
+    return res.status(400).json({ error: 'Invalid session time: Session end time must be later than start time.' });
+  }
+
   try {
     // Schedule conflicts prevention (verify if mentor is already booked for another session at this date and overlapping time)
     if (mentor_name && mentor_name.trim().length > 0) {
       const conflicts = await query(
         `SELECT * FROM cohort_sessions 
-         WHERE date = $1 AND mentor_name = $2 
-         AND ((start_time <= $3 AND end_time > $3) OR (start_time < $4 AND end_time >= $4))`,
+         WHERE date = $1 AND LOWER(TRIM(mentor_name)) = LOWER(TRIM($2)) 
+         AND ((start_time < $4 AND end_time > $3))`,
         [date, mentor_name.trim(), start_time, end_time]
       );
-      if (conflicts.rows.length > 0) {
-        return res.status(400).json({ error: `Mentor Conflict Prevention: Mentor '${mentor_name}' is already booked for session '${conflicts.rows[0].title}' on this date during the overlapping hours.` });
+
+      const targetDate = String(date).split('T')[0];
+      const targetMentor = String(mentor_name).trim().toLowerCase();
+      const toMin = (t: string) => {
+        if (!t) return 0;
+        const [h, m] = String(t).split(':').map(Number);
+        return (h || 0) * 60 + (m || 0);
+      };
+      const tStart = toMin(start_time);
+      const tEnd = toMin(end_time);
+
+      const realConflicts = (conflicts.rows || []).filter((sess: any) => {
+        const sessDate = sess.date ? String(sess.date).split('T')[0] : '';
+        if (sessDate !== targetDate) return false;
+
+        const sessMentor = sess.mentor_name ? String(sess.mentor_name).trim().toLowerCase() : '';
+        if (sessMentor !== targetMentor) return false;
+
+        const sStart = toMin(sess.start_time);
+        const sEnd = toMin(sess.end_time);
+        return sStart < tEnd && sEnd > tStart;
+      });
+
+      if (realConflicts.length > 0) {
+        return res.status(400).json({ 
+          error: `Mentor Conflict Prevention: Mentor '${mentor_name}' is already booked for session '${realConflicts[0].title}' on this date during overlapping hours (${realConflicts[0].start_time} - ${realConflicts[0].end_time}).` 
+        });
       }
     }
 
@@ -1839,9 +2000,10 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
       [req.currentUser.email.trim()]
     );
 
-    if (applicantRes.rows.length === 0) {
-      // Fallback for Admins / Staff or users without explicit startup enrollment
-      applicantRes = await query(`SELECT * FROM applicants ORDER BY id ASC LIMIT 1`);
+    // If logged in as staff/admin and an explicit applicant_id query param is supplied, allow preview
+    const isStaffOrAdmin = ['Administrator', 'Incubation Director', 'Cohort Manager'].includes(req.currentUser.role);
+    if (applicantRes.rows.length === 0 && isStaffOrAdmin && req.query.applicant_id) {
+      applicantRes = await query(`SELECT * FROM applicants WHERE id = $1`, [parseInt(req.query.applicant_id as string)]);
     }
 
     if (applicantRes.rows.length === 0) {
@@ -2032,12 +2194,8 @@ export const updateApplicantProfile = async (req: AuthenticatedRequest, res: Res
   } = req.body;
 
   try {
-    const targetId = parseInt(id) || 1;
+    const targetId = parseInt(id) || 0;
     let appRes = await query('SELECT id, email, phone, form_data FROM applicants WHERE id = $1', [targetId]);
-    if (appRes.rows.length === 0) {
-      // Fallback to first applicant if specific ID is missing
-      appRes = await query('SELECT id, email, phone, form_data FROM applicants ORDER BY id ASC LIMIT 1');
-    }
 
     if (appRes.rows.length === 0) {
       return res.status(404).json({
@@ -2670,8 +2828,7 @@ export const getFeedbackForms = async (req: AuthenticatedRequest, res: Response)
       }
     }
     if (!currentApplicantId) {
-      const appRes = await query(`SELECT id FROM applicants ORDER BY id ASC LIMIT 1`);
-      currentApplicantId = appRes.rows[0]?.id || 1;
+      currentApplicantId = null;
     }
 
     const currentUserId = req.currentUser?.id || 0;
@@ -2742,11 +2899,6 @@ export const getPendingFeedbackForms = async (req: AuthenticatedRequest, res: Re
       `SELECT * FROM applicants WHERE LOWER(email) = LOWER($1) ORDER BY id DESC LIMIT 1`,
       [req.currentUser.email.trim()]
     );
-
-    if (applicantRes.rows.length === 0) {
-      // Fallback for demo/admin testing
-      applicantRes = await query(`SELECT * FROM applicants ORDER BY id ASC LIMIT 1`);
-    }
 
     if (applicantRes.rows.length === 0) {
       return res.json({ success: true, pendingForms: [] });
@@ -2832,9 +2984,7 @@ export const submitFeedbackFormResponse = async (req: AuthenticatedRequest, res:
     }
 
     if (!applicantId) {
-      // Fallback
-      const appRes = await query(`SELECT id FROM applicants ORDER BY id ASC LIMIT 1`);
-      applicantId = appRes.rows[0]?.id || 1;
+      return res.status(403).json({ error: 'Only registered founders in an active cohort can submit feedback.' });
     }
 
     const userId = req.currentUser?.id || null;

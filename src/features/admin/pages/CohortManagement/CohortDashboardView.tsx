@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   GraduationCap, 
   Users, 
@@ -24,6 +24,7 @@ import {
   MilestoneSubmission, 
   AuditRecord 
 } from '../../../../types';
+import { BulkGraduateConfirmationModal } from '../../components/BulkGraduateConfirmationModal';
 
 interface CohortDashboardViewProps {
   selectedCohort: Cohort | null;
@@ -112,6 +113,19 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
   ).slice(0, 8);
 
   const uncompletedCohort = cohorts.find(c => c.status !== 'COMPLETED');
+  const [showBulkGraduateModal, setShowBulkGraduateModal] = useState(false);
+  const [isGraduating, setIsGraduating] = useState(false);
+
+  const handleConfirmGraduate = async () => {
+    if (!onUpdateCohortStatus) return;
+    setIsGraduating(true);
+    try {
+      await onUpdateCohortStatus('COMPLETED', true);
+      setShowBulkGraduateModal(false);
+    } finally {
+      setIsGraduating(false);
+    }
+  };
 
   return (
     <div className="space-y-6 text-left font-sans" id="cohort-main-dashboard">
@@ -135,7 +149,9 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
               className="bg-gray-50 border border-gray-150 text-sm font-black text-gray-900 rounded-xl px-3 py-1.5 cursor-pointer focus:outline-none focus:border-primary shadow-2xs"
             >
               {cohorts.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>
+                  {c.name} {c.status === 'COMPLETED' ? '(Graduated / Completed)' : `(${c.status})`}
+                </option>
               ))}
             </select>
 
@@ -162,11 +178,7 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
             {onUpdateCohortStatus && selectedCohort && selectedCohort.status !== 'COMPLETED' && (
               <button
                 type="button"
-                onClick={() => {
-                  if (window.confirm(`Are you sure you want to Complete '${selectedCohort.name}' and BULK GRADUATE all ${activeStartups.length} active startups?`)) {
-                    onUpdateCohortStatus('COMPLETED', true);
-                  }
-                }}
+                onClick={() => setShowBulkGraduateModal(true)}
                 className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-3xs"
                 title="Mark this cohort as Completed and automatically graduate all active founders"
               >
@@ -530,6 +542,17 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
           )}
         </div>
       </div>
+
+      {selectedCohort && (
+        <BulkGraduateConfirmationModal
+          isOpen={showBulkGraduateModal}
+          onClose={() => setShowBulkGraduateModal(false)}
+          onConfirm={handleConfirmGraduate}
+          cohortName={selectedCohort.name}
+          startups={activeStartups}
+          isSubmitting={isGraduating}
+        />
+      )}
 
     </div>
   );
