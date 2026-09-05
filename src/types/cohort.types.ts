@@ -79,6 +79,10 @@ export interface CohortSession {
   start_time: string;
   end_time: string;
   mentor_name: string | null;
+  topic_category?: string;
+  venue?: string;
+  recording_url?: string;
+  is_design_thinking_bootcamp?: boolean;
   attendance_summary?: string;
   assignments_summary?: string;
   feedback_count?: number;

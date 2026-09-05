@@ -1069,7 +1069,7 @@ export const getCohortSessions = async (req: AuthenticatedRequest, res: Response
 export const createCohortSession = async (req: AuthenticatedRequest, res: Response) => {
   const admin = req.currentUser;
   const { id } = req.params; // cohort_id
-  const { title, date, start_time, end_time, mentor_name, topic_category, venue, recording_url } = req.body;
+  const { title, date, start_time, end_time, mentor_name, topic_category, venue, recording_url, is_design_thinking_bootcamp } = req.body;
 
   if (!title || !date || !start_time || !end_time) {
     return res.status(400).json({ error: 'Missing required session parameters: title, date, start_time, and end_time are required.' });
@@ -1078,6 +1078,8 @@ export const createCohortSession = async (req: AuthenticatedRequest, res: Respon
   if (start_time >= end_time) {
     return res.status(400).json({ error: 'Invalid session time: Session end time must be later than start time.' });
   }
+
+  const isBootcamp = Boolean(is_design_thinking_bootcamp === true || is_design_thinking_bootcamp === 'true' || is_design_thinking_bootcamp === 1);
 
   try {
     // Schedule conflicts prevention (verify if mentor is already booked for another session at this date and overlapping time)
@@ -1119,8 +1121,8 @@ export const createCohortSession = async (req: AuthenticatedRequest, res: Respon
     }
 
     const result = await query(
-      `INSERT INTO cohort_sessions (cohort_id, title, date, start_time, end_time, mentor_name, topic_category, venue, recording_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      `INSERT INTO cohort_sessions (cohort_id, title, date, start_time, end_time, mentor_name, topic_category, venue, recording_url, is_design_thinking_bootcamp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
       [
         parseInt(id),
         title.trim(),
@@ -1130,7 +1132,8 @@ export const createCohortSession = async (req: AuthenticatedRequest, res: Respon
         mentor_name ? mentor_name.trim() : null,
         topic_category ? topic_category.trim() : null,
         venue ? venue.trim() : null,
-        recording_url ? recording_url.trim() : null
+        recording_url ? recording_url.trim() : null,
+        isBootcamp
       ]
     );
 
@@ -1168,7 +1171,7 @@ export const createCohortSession = async (req: AuthenticatedRequest, res: Respon
     }
 
     await logAudit(
-      `Scheduled new cohort session: '${title}' led by ${mentor_name || 'Internal Staff'} on ${date} (${start_time} - ${end_time})`,
+      `${isBootcamp ? '[Design Thinking Bootcamp] ' : ''}Scheduled new cohort session: '${title}' led by ${mentor_name || 'Internal Staff'} on ${date} (${start_time} - ${end_time})`,
       'session',
       String(session.id),
       admin?.email || 'Admin',
@@ -1180,6 +1183,49 @@ export const createCohortSession = async (req: AuthenticatedRequest, res: Respon
   } catch (err: any) {
     console.error('Failed to schedule session:', err);
     res.status(500).json({ error: 'Internal Server Error while creating session.' });
+  }
+};
+
+export const updateCohortSession = async (req: AuthenticatedRequest, res: Response) => {
+  const admin = req.currentUser;
+  const { id } = req.params; // session_id
+  const { is_design_thinking_bootcamp, title, mentor_name, venue, recording_url } = req.body;
+
+  try {
+    const sessRes = await query('SELECT * FROM cohort_sessions WHERE id = $1', [parseInt(id)]);
+    if (sessRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found.' });
+    }
+    const current = sessRes.rows[0];
+
+    let updatedSession = { ...current };
+
+    if (is_design_thinking_bootcamp !== undefined) {
+      const isDt = Boolean(is_design_thinking_bootcamp === true || is_design_thinking_bootcamp === 'true' || is_design_thinking_bootcamp === 1);
+      const updateRes = await query(
+        'UPDATE cohort_sessions SET is_design_thinking_bootcamp = $1 WHERE id = $2 RETURNING *',
+        [isDt, parseInt(id)]
+      );
+      if (updateRes.rows && updateRes.rows.length > 0) {
+        updatedSession = updateRes.rows[0];
+      } else {
+        updatedSession.is_design_thinking_bootcamp = isDt;
+      }
+    }
+
+    await logAudit(
+      `Updated session '${current.title}' (Design Thinking Bootcamp: ${updatedSession.is_design_thinking_bootcamp ? 'YES' : 'NO'})`,
+      'session_update',
+      String(id),
+      admin?.email || 'Admin',
+      current,
+      updatedSession
+    );
+
+    res.json({ success: true, session: updatedSession });
+  } catch (err: any) {
+    console.error('Failed to update session:', err);
+    res.status(500).json({ error: 'Failed to update session.' });
   }
 };
 

@@ -104,6 +104,27 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
   const [feedbackRatingFilter, setFeedbackRatingFilter] = useState<number | 'all'>('all');
   const [feedbackSearch, setFeedbackSearch] = useState('');
   const [deletingFeedbackId, setDeletingFeedbackId] = useState<number | null>(null);
+  const [togglingBootcamp, setTogglingBootcamp] = useState(false);
+
+  const handleToggleBootcamp = async () => {
+    try {
+      setTogglingBootcamp(true);
+      const nextValue = !session.is_design_thinking_bootcamp;
+      const res = await fetchWithAuth(`/api/sessions/${session.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_design_thinking_bootcamp: nextValue })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update session track.');
+      onUpdateSession({ ...session, is_design_thinking_bootcamp: nextValue });
+      triggerSuccess(nextValue ? 'Session marked as Design Thinking Bootcamp.' : 'Session switched to standard track.');
+    } catch (err: any) {
+      triggerError(err.message);
+    } finally {
+      setTogglingBootcamp(false);
+    }
+  };
 
   // Active Startups Filter: Exclude startups in KICKED_OUT, PAUSED, SUSPENDED, DROPPED, or REJECTED status
   const activeEligibleStartups = cohortStartups.filter((st: any) => {
@@ -531,10 +552,16 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
           )}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-1">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="bg-primary/10 text-primary text-[9px] font-black uppercase px-2 py-0.5 rounded font-mono">
                   {session.topic_category || 'Session Detail'}
                 </span>
+                {session.is_design_thinking_bootcamp && (
+                  <span className="bg-amber-50 text-amber-800 text-[9px] font-black uppercase px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 font-mono">
+                    <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                    Design Thinking Bootcamp
+                  </span>
+                )}
                 <span className="text-xs text-gray-400 font-bold font-mono">
                   {session.date} • {session.start_time?.substring(0, 5)} - {session.end_time?.substring(0, 5)}
                 </span>
@@ -551,10 +578,16 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
       ) : (
         <div className="p-5 border-b border-gray-100 flex justify-between items-start bg-gray-50/50">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="bg-primary/10 text-primary text-[9px] font-black uppercase px-2 py-0.5 rounded font-mono">
                 {session.topic_category || 'Session Detail'}
               </span>
+              {session.is_design_thinking_bootcamp && (
+                <span className="bg-amber-50 text-amber-800 text-[9px] font-black uppercase px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 font-mono">
+                  <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                  Design Thinking Bootcamp
+                </span>
+              )}
               <span className="text-xs text-gray-400 font-bold font-mono">
                 {session.date} • {session.start_time?.substring(0, 5)} - {session.end_time?.substring(0, 5)}
               </span>
@@ -634,6 +667,25 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
           {/* TAB 1: OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
+              {/* Curriculum Track Banner */}
+              <div className="p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/5 rounded-xl border border-amber-200 flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase text-amber-850 block font-mono tracking-wider">Curriculum Track</span>
+                  <div className="flex items-center gap-2 text-xs font-bold text-gray-900">
+                    <Sparkles className="h-4 w-4 text-amber-600 shrink-0" />
+                    <span>{session.is_design_thinking_bootcamp ? 'Design Thinking Bootcamp Session' : 'Standard Incubation Session'}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={togglingBootcamp}
+                  onClick={handleToggleBootcamp}
+                  className="px-3 py-1.5 bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold transition-all shadow-3xs cursor-pointer disabled:opacity-50"
+                >
+                  {togglingBootcamp ? 'Updating...' : `Switch to ${session.is_design_thinking_bootcamp ? 'Standard' : 'Bootcamp'}`}
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-2">
                   <span className="text-[10px] font-black uppercase text-gray-400 block font-mono">Speaker / Mentor</span>

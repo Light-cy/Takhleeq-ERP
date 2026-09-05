@@ -17,6 +17,7 @@ import {
   updateCohortSettings,
   getCohortSessions,
   createCohortSession,
+  updateCohortSession,
   deleteCohortSession,
   getSessionAttendance,
   saveSessionAttendance,
@@ -124,6 +125,7 @@ router.put('/cohorts/:id/status', requireAuth, requirePermission('cohort:form_ma
 // Session Scheduling
 router.get('/cohorts/:id/sessions', requireAuth, getCohortSessions);
 router.post('/cohorts/:id/sessions', requireAuth, requirePermission('cohort:session_manage'), createCohortSession);
+router.patch('/sessions/:id', requireAuth, requirePermission('cohort:session_manage'), updateCohortSession);
 router.delete('/sessions/:id', requireAuth, requirePermission('cohort:session_manage'), deleteCohortSession);
 
 // Session Specific Feedback & Ratings (Opens after session date, active for 7 days)

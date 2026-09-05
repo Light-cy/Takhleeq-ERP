@@ -13,7 +13,8 @@ import {
   FileText,
   CheckCircle2,
   Layers,
-  Lock
+  Lock,
+  Sparkles
 } from 'lucide-react';
 import { 
   Cohort, 
@@ -432,7 +433,15 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
                   className="p-3 bg-gray-50/70 border border-gray-150 hover:border-primary/40 rounded-xl transition-all cursor-pointer text-xs space-y-1"
                 >
                   <div className="flex justify-between items-start gap-2">
-                    <h4 className="font-extrabold text-gray-900 truncate">{sess.title}</h4>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <h4 className="font-extrabold text-gray-900 truncate">{sess.title}</h4>
+                      {sess.is_design_thinking_bootcamp && (
+                        <span className="inline-flex items-center gap-0.5 text-[8px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
+                          <Sparkles className="w-2 h-2 text-amber-600" />
+                          Bootcamp
+                        </span>
+                      )}
+                    </div>
                     {sess.mentor_name && (
                       <span className="text-[10px] font-bold text-primary shrink-0">{sess.mentor_name}</span>
                     )}

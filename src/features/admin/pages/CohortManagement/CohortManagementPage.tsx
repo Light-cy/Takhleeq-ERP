@@ -283,6 +283,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   const [sessionCategory, setSessionCategory] = useState('Masterclass');
   const [sessionVenue, setSessionVenue] = useState('Auditorium 1');
   const [sessionRecordingUrl, setSessionRecordingUrl] = useState('');
+  const [isDesignThinkingBootcamp, setIsDesignThinkingBootcamp] = useState(false);
 
   // Weekly Check-in Temp Form
   const [checkinStartupId, setCheckinStartupId] = useState<string>('');
@@ -1037,7 +1038,8 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
           mentor_name: sessionMentor,
           topic_category: sessionCategory,
           venue: sessionVenue,
-          recording_url: sessionRecordingUrl
+          recording_url: sessionRecordingUrl,
+          is_design_thinking_bootcamp: isDesignThinkingBootcamp
         })
       });
       const data = await res.json();
@@ -1053,6 +1055,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       setSessionCategory('Masterclass');
       setSessionVenue('Auditorium 1');
       setSessionRecordingUrl('');
+      setIsDesignThinkingBootcamp(false);
       triggerSuccess(`Workshop scheduled: '${data.session.title}'.`);
     } catch (err: any) {
       triggerError(err.message);
@@ -1939,6 +1942,35 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                     />
                   </div>
 
+                  {/* Design Thinking Bootcamp Toggle */}
+                  <div className="p-3 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent border border-amber-200/80 rounded-xl flex items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                        <span className="text-xs font-black text-gray-900">Design Thinking Bootcamp</span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-mono uppercase">Track</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500">
+                        Mark this session as part of the specialized Design Thinking Bootcamp curriculum.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isDesignThinkingBootcamp}
+                      onClick={() => setIsDesignThinkingBootcamp(!isDesignThinkingBootcamp)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        isDesignThinkingBootcamp ? 'bg-amber-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          isDesignThinkingBootcamp ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
                   <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
                     <button
                       type="button"
@@ -2004,6 +2036,12 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                         <div className="space-y-2 flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-extrabold text-gray-900 text-sm group-hover:text-primary transition-colors">{sess.title}</h4>
+                            {sess.is_design_thinking_bootcamp && (
+                              <span className="bg-amber-50 text-amber-800 text-[9px] font-black uppercase px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1">
+                                <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                                Design Thinking Bootcamp
+                              </span>
+                            )}
                             {sess.topic_category && (
                               <span className="bg-primary/5 text-primary text-[9px] font-black uppercase px-2 py-0.5 rounded border border-primary/10">
                                 {sess.topic_category}

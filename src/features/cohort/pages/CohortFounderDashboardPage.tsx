@@ -117,6 +117,7 @@ interface Session {
   topic_category?: string;
   venue?: string;
   recording_url?: string;
+  is_design_thinking_bootcamp?: boolean;
 }
 
 interface Attendance {
@@ -1826,9 +1827,17 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                     <div className="space-y-3">
                       {upcomingSessionsList.slice(0, 3).map((sess) => (
                         <div key={sess.id} className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl space-y-1.5">
-                          <span className="text-[10px] font-black uppercase text-primary tracking-wide">
-                            {sess.topic_category || 'Workshop'}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-black uppercase text-primary tracking-wide">
+                              {sess.topic_category || 'Workshop'}
+                            </span>
+                            {sess.is_design_thinking_bootcamp && (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                                <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                                Bootcamp
+                              </span>
+                            )}
+                          </div>
                           <h4 className="text-xs font-bold text-gray-900">{sess.title}</h4>
                           <div className="flex items-center justify-between text-[11px] text-gray-500 pt-1">
                             <span className="flex items-center gap-1">
@@ -1998,6 +2007,14 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                         </div>
 
                         <div>
+                          {sess.is_design_thinking_bootcamp && (
+                            <div className="mb-1">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                                <Sparkles className="w-3 h-3 text-amber-600" />
+                                Design Thinking Bootcamp
+                              </span>
+                            </div>
+                          )}
                           <h3 className="text-sm font-bold text-gray-900">{sess.title}</h3>
                           <p className="text-xs text-gray-500 mt-1">
                             Mentor: <strong className="text-gray-800">{sess.mentor_name || 'Incubator Staff'}</strong>

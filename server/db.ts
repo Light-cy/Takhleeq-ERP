@@ -675,6 +675,16 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   // 4. Cohort Sessions Interceptors
   if (q.includes('cohort_sessions') && !q.includes('from assignments') && !q.includes('assignments a') && !q.includes('delete from assignments') && !q.includes('insert into assignments')) {
     if (q.includes('update cohort_sessions')) {
+      if (q.includes('is_design_thinking_bootcamp')) {
+        const isDt = params[0] === true || params[0] === 'true' || params[0] === 1;
+        const sid = parseInt(params[1]);
+        const sess = (db.cohort_sessions || []).find((s: any) => s.id === sid);
+        if (sess) {
+          sess.is_design_thinking_bootcamp = isDt;
+          saveLocalDB(db);
+        }
+        return { rows: sess ? [sess] : [] };
+      }
       const photoUrl = params[0];
       const sid = parseInt(params[1]);
       const sess = (db.cohort_sessions || []).find((s: any) => s.id === sid);
@@ -697,6 +707,7 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
         topic_category: params[6] || null,
         venue: params[7] || null,
         recording_url: params[8] || null,
+        is_design_thinking_bootcamp: params[9] === true || params[9] === 'true' || params[9] === 1 || false,
         attendance_sheet_photo_url: null,
         created_at: new Date().toISOString()
       };
@@ -3217,6 +3228,7 @@ async function ensureDBReady() {
               venue VARCHAR(255),
               recording_url VARCHAR(1024),
               attendance_sheet_photo_url TEXT,
+              is_design_thinking_bootcamp BOOLEAN DEFAULT FALSE,
               created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
         `);
@@ -3227,6 +3239,7 @@ async function ensureDBReady() {
           await pool.query(`ALTER TABLE cohort_sessions ADD COLUMN IF NOT EXISTS venue VARCHAR(255);`);
           await pool.query(`ALTER TABLE cohort_sessions ADD COLUMN IF NOT EXISTS recording_url VARCHAR(1024);`);
           await pool.query(`ALTER TABLE cohort_sessions ADD COLUMN IF NOT EXISTS attendance_sheet_photo_url TEXT;`);
+          await pool.query(`ALTER TABLE cohort_sessions ADD COLUMN IF NOT EXISTS is_design_thinking_bootcamp BOOLEAN DEFAULT FALSE;`);
         } catch (e) {
           console.error("Failed to alter cohort_sessions table columns", e);
         }
