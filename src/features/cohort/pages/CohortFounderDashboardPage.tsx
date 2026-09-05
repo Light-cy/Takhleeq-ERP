@@ -62,9 +62,13 @@ import {
   FileCheck,
   X,
   Send,
-  RotateCcw
+  RotateCcw,
+  CheckSquare,
+  Square,
+  ListTodo
 } from 'lucide-react';
 import { downloadFileLocally, formatFileSize, getCleanFileName, parseAssignmentAttachments } from '../../../utils/fileDownload';
+import { updateChecklistItem } from '../../checkins/api/checkinsApi';
 
 const CustomIncomeTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -128,24 +132,50 @@ interface Attendance {
   logged_at: string;
 }
 
+interface CheckinChecklistItem {
+  id: number;
+  checkin_id: number;
+  originating_checkin_id?: number;
+  description: string;
+  is_completed: boolean;
+  created_at?: string;
+}
+
 interface Checkin {
   id: number;
-  cohort_id: number;
-  applicant_id: number;
-  logged_by: string;
-  blockers: string;
-  progress_score: number;
+  cohort_id?: number;
+  startup_profile_id?: number;
+  applicant_id?: number;
+  scheduled_at?: string;
+  notes?: string;
+  attendance_status?: 'attended' | 'no_show' | 'unmarked';
+  created_by_user_id?: number;
+  created_by_email?: string;
+  logged_by?: string;
+  blockers?: string;
+  progress_score?: number;
   mentor_notes?: string;
   created_at: string;
+  updated_at?: string;
+  checklist_items?: CheckinChecklistItem[];
+  total_checklist_items?: number;
+  completed_checklist_items?: number;
 }
 
 interface Warning {
   id: number;
   applicant_id: number;
+  cohort_id?: number;
+  startup_profile_id?: number;
   reason: string;
-  meeting_date: string;
+  meeting_date?: string;
+  severity?: 'YELLOW' | 'RED';
+  category?: string;
+  issued_by?: string;
   status: 'ACTIVE' | 'RESOLVED' | 'REVOKED';
+  resolution_notes?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 interface TeamMember {
@@ -206,7 +236,58 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   const [warnings, setWarnings] = useState<Warning[]>([]);
 
   // Navigation Tab State
-  const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'assignments' | 'profile_financials' | 'pivots' | 'feedback'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'assignments' | 'checkins' | 'profile_financials' | 'pivots' | 'feedback' | 'warnings'>('overview');
+  const [checkinFilter, setCheckinFilter] = useState<'all' | 'pending' | 'completed'>('all');
+  const [togglingItemId, setTogglingItemId] = useState<number | null>(null);
+
+  const handleToggleChecklistItem = async (chkId: number, item: CheckinChecklistItem) => {
+    const nextCompleted = !item.is_completed;
+    
+    // Optimistic UI update
+    setCheckins(prev => prev.map(c => {
+      if (c.id !== chkId) return c;
+      const updatedItems = (c.checklist_items || []).map(i => 
+        i.id === item.id ? { ...i, is_completed: nextCompleted } : i
+      );
+      const compCount = updatedItems.filter(i => i.is_completed).length;
+      return {
+        ...c,
+        checklist_items: updatedItems,
+        completed_checklist_items: compCount
+      };
+    }));
+
+    setTogglingItemId(item.id);
+    try {
+      await updateChecklistItem(item.id, { is_completed: nextCompleted });
+      setToastMessage({
+        type: 'success',
+        text: nextCompleted 
+          ? `Marked task as completed!` 
+          : `Marked task as pending.`
+      });
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (err: any) {
+      console.error('Failed to update checklist item:', err);
+      // Revert if error
+      setCheckins(prev => prev.map(c => {
+        if (c.id !== chkId) return c;
+        const revertedItems = (c.checklist_items || []).map(i => 
+          i.id === item.id ? { ...i, is_completed: item.is_completed } : i
+        );
+        const compCount = revertedItems.filter(i => i.is_completed).length;
+        return {
+          ...c,
+          checklist_items: revertedItems,
+          completed_checklist_items: compCount
+        };
+      }));
+      setToastMessage({ type: 'error', text: 'Failed to update checklist item status.' });
+      setTimeout(() => setToastMessage(null), 4000);
+    } finally {
+      setTogglingItemId(null);
+    }
+  };
 
   // Dynamic Profile JSON-backed states (all saved to applicant.form_data.profile)
   const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
@@ -1005,6 +1086,10 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   const pendingSurveysList = feedbackSurveys.filter(s => s.status === 'Active' && !s.user_submitted && !s.has_submitted);
   const pendingSurveysCount = pendingSurveysList.length;
 
+  const totalActionItems = checkins.reduce((acc, c) => acc + (c.checklist_items?.length || 0), 0);
+  const completedActionItems = checkins.reduce((acc, c) => acc + (c.checklist_items?.filter(i => i.is_completed).length || 0), 0);
+  const pendingActionItems = Math.max(0, totalActionItems - completedActionItems);
+
   // Attendance rate calculation
   const calculatedAttendanceRate = () => {
     if (!sessions.length || !attendance.length) return 100;
@@ -1314,19 +1399,39 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
 
           {/* ACTIVE WARNING ALERT BANNER */}
           {activeWarnings.length > 0 && (
-            <div className="mt-4 p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-center justify-between gap-3 text-red-900 animate-pulse">
+            <div 
+              onClick={() => setActiveTab('warnings')}
+              className={`mt-4 p-3.5 border rounded-xl flex items-center justify-between gap-3 animate-pulse cursor-pointer transition-all ${
+                activeWarnings.some(w => w.severity === 'RED')
+                  ? 'bg-rose-50 border-rose-200 text-rose-900 hover:bg-rose-100/70'
+                  : 'bg-amber-50 border-amber-200 text-amber-900 hover:bg-amber-100/70'
+              }`}
+            >
               <div className="flex items-center gap-3">
-                <ShieldAlert className="w-5 h-5 text-red-600 shrink-0" />
+                <ShieldAlert className={`w-5 h-5 shrink-0 ${
+                  activeWarnings.some(w => w.severity === 'RED') ? 'text-rose-600' : 'text-amber-600'
+                }`} />
                 <div className="text-xs">
-                  <span className="font-extrabold uppercase text-red-700">Official Notice: Active Performance Warning Issued</span>
-                  <p className="text-red-800 font-medium mt-0.5">
-                    "{activeWarnings[0].reason}" — Meeting Scheduled: {activeWarnings[0].meeting_date || 'TBD'}
+                  <span className={`font-extrabold uppercase ${
+                    activeWarnings.some(w => w.severity === 'RED') ? 'text-rose-700' : 'text-amber-700'
+                  }`}>
+                    Official Notice: {activeWarnings.some(w => w.severity === 'RED') ? 'Critical Red Performance Warning' : 'Incubator Yellow Performance Notice'}
+                  </span>
+                  <p className="font-medium mt-0.5">
+                    "{activeWarnings[0].reason}" {activeWarnings.length > 1 ? `(+${activeWarnings.length - 1} more active warning)` : ''}
                   </p>
                 </div>
               </div>
-              <span className="text-[10px] font-bold uppercase bg-red-100 text-red-800 px-2.5 py-1 rounded-lg border border-red-200">
-                Urgent Action Required
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-lg border ${
+                  activeWarnings.some(w => w.severity === 'RED')
+                    ? 'bg-rose-100 text-rose-800 border-rose-200'
+                    : 'bg-amber-100 text-amber-800 border-amber-200'
+                }`}>
+                  Action Required
+                </span>
+                <ChevronRight className="w-4 h-4 opacity-60" />
+              </div>
             </div>
           )}
 
@@ -1387,6 +1492,28 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
 
             <button
               type="button"
+              onClick={() => setActiveTab('checkins')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
+                activeTab === 'checkins'
+                  ? 'bg-primary text-white shadow-2xs'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              <span>1-on-1 Check-ins & Tasks</span>
+              {checkins.length > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  activeTab === 'checkins' 
+                    ? 'bg-white text-primary' 
+                    : (pendingActionItems > 0 ? 'bg-amber-100 text-amber-900 font-extrabold' : 'bg-gray-100 text-gray-700')
+                }`}>
+                  {pendingActionItems > 0 ? `${pendingActionItems} Tasks` : `${checkins.length}`}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab('profile_financials')}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
                 activeTab === 'profile_financials'
@@ -1437,6 +1564,28 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                 </span>
               )}
             </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('warnings')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 cursor-pointer ${
+                activeTab === 'warnings'
+                  ? 'bg-primary text-white shadow-2xs'
+                  : (activeWarnings.length > 0 ? 'text-rose-600 bg-rose-50 hover:bg-rose-100' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900')
+              }`}
+            >
+              <AlertTriangle className={`w-3.5 h-3.5 ${activeWarnings.length > 0 ? 'text-rose-600' : ''}`} />
+              <span>Notices & Warnings</span>
+              {warnings.length > 0 && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  activeWarnings.length > 0
+                    ? (activeTab === 'warnings' ? 'bg-white text-rose-600' : 'bg-rose-100 text-rose-800 animate-pulse')
+                    : (activeTab === 'warnings' ? 'bg-white text-primary' : 'bg-gray-100 text-gray-600')
+                }`}>
+                  {warnings.length}
+                </span>
+              )}
+            </button>
           </nav>
 
         </div>
@@ -1451,6 +1600,49 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
         {activeTab === 'overview' && (
           <div className="space-y-8 animate-fade-in">
             
+            {/* Active Warnings Urgent Banner in Overview */}
+            {activeWarnings.length > 0 && (
+              <div className={`p-5 rounded-2xl border-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs animate-fade-in ${
+                activeWarnings.some(w => w.severity === 'RED')
+                  ? 'bg-rose-50 border-rose-300 text-rose-950'
+                  : 'bg-amber-50 border-amber-300 text-amber-950'
+              }`}>
+                <div className="flex items-start gap-3.5">
+                  <div className={`p-3 rounded-xl shrink-0 shadow-xs ${
+                    activeWarnings.some(w => w.severity === 'RED') ? 'bg-rose-600 text-white' : 'bg-amber-500 text-white'
+                  }`}>
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-black">
+                        {activeWarnings.length} Official Compliance Notice{activeWarnings.length > 1 ? 's' : ''} Issued
+                      </h3>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                        activeWarnings.some(w => w.severity === 'RED') ? 'bg-rose-200 text-rose-900' : 'bg-amber-200 text-amber-900'
+                      }`}>
+                        Action Required
+                      </span>
+                    </div>
+                    <p className="text-xs mt-0.5 font-medium opacity-90">
+                      "{activeWarnings[0].reason}"
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('warnings')}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-xs shrink-0 cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                    activeWarnings.some(w => w.severity === 'RED') ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-600 hover:bg-amber-700'
+                  }`}
+                >
+                  <span>Review Formal Notice</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {/* Pending Cohort Surveys Action Banner */}
             {pendingSurveysCount > 0 && (
               <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border border-amber-300 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
@@ -1751,52 +1943,159 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
 
                   </div>
 
-                  {/* Staff Mentorship Logs Section */}
+                  {/* 1-on-1 Advisory Check-in Logs & Action Checklist Items */}
                   <div className="pt-4 border-t border-gray-100">
-                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Staff Mentorship Check-in Logs</h4>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                          <CheckSquare className="w-3.5 h-3.5 text-primary" />
+                          <span>1-on-1 Advisory Check-ins & Action Items</span>
+                        </h4>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          Assigned deliverables & advisory notes from incubator staff
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('checkins')}
+                        className="text-xs font-bold text-primary hover:text-primary/80 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>View All & Tasks</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
                     {checkins.length === 0 ? (
                       <div className="py-6 text-center text-xs text-gray-400 space-y-1">
                         <MessageSquare className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                        <p>No weekly check-in logs recorded yet by incubator staff.</p>
+                        <p>No 1-on-1 check-in meetings or action items recorded yet by incubator staff.</p>
                       </div>
                     ) : (
-                      <div className="divide-y divide-gray-100">
-                        {checkins.map((chk) => (
-                          <div key={chk.id} className="py-4 space-y-2">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-bold text-gray-900">Logged by: {chk.logged_by || 'Staff Mentor'}</span>
-                              <span className="text-gray-400 font-mono">{new Date(chk.created_at).toLocaleDateString()}</span>
-                            </div>
-                            
-                            <div className="flex items-center gap-3 text-xs">
-                              <span className="font-bold text-gray-600">Progress Score:</span>
-                              <div className="flex items-center gap-1">
-                                {[1, 2, 3, 4, 5].map((s) => (
-                                  <Star
-                                    key={s}
-                                    className={`w-3.5 h-3.5 ${
-                                      s <= (chk.progress_score || 0)
-                                        ? 'text-amber-400 fill-amber-400'
-                                        : 'text-gray-200'
-                                    }`}
-                                  />
-                                ))}
+                      <div className="divide-y divide-gray-100 space-y-4">
+                        {checkins.slice(0, 3).map((chk) => {
+                          const items = chk.checklist_items || [];
+                          const completedCount = items.filter(i => i.is_completed).length;
+                          const hasItems = items.length > 0;
+
+                          return (
+                            <div key={chk.id} className="pt-3 first:pt-0 space-y-3 text-left">
+                              <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-gray-900">
+                                    {chk.created_by_email || chk.logged_by || 'Incubator Mentor'}
+                                  </span>
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
+                                    chk.attendance_status === 'attended' 
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      : chk.attendance_status === 'no_show'
+                                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                      : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                  }`}>
+                                    {chk.attendance_status === 'attended' ? 'Attended' : chk.attendance_status === 'no_show' ? 'No Show' : 'Scheduled'}
+                                  </span>
+                                </div>
+                                <span className="text-gray-400 font-mono text-[11px]">
+                                  {new Date(chk.scheduled_at || chk.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </span>
                               </div>
+
+                              {/* Progress score if present */}
+                              {chk.progress_score !== undefined && chk.progress_score > 0 && (
+                                <div className="flex items-center gap-3 text-xs">
+                                  <span className="font-bold text-gray-600">Progress Score:</span>
+                                  <div className="flex items-center gap-1">
+                                    {[1, 2, 3, 4, 5].map((s) => (
+                                      <Star
+                                        key={s}
+                                        className={`w-3.5 h-3.5 ${
+                                          s <= (chk.progress_score || 0)
+                                            ? 'text-amber-400 fill-amber-400'
+                                            : 'text-gray-200'
+                                        }`}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Checkin Meeting Notes */}
+                              {(chk.notes || chk.mentor_notes) && (
+                                <div className="text-xs text-gray-800 bg-slate-50/80 p-3 rounded-xl border border-slate-200/60 space-y-1">
+                                  <strong className="text-gray-900 block font-bold">Meeting Notes & Mentor Advice:</strong>
+                                  <p className="text-gray-700 whitespace-pre-line leading-relaxed">
+                                    {chk.notes || chk.mentor_notes}
+                                  </p>
+                                </div>
+                              )}
+
+                              {chk.blockers && (
+                                <p className="text-xs text-rose-950 bg-rose-50/60 p-3 rounded-xl border border-rose-100">
+                                  <strong className="text-rose-900">Blockers Identified:</strong> {chk.blockers}
+                                </p>
+                              )}
+
+                              {/* Assigned Action Checklist Items with Live Two-Way Toggling */}
+                              {hasItems && (
+                                <div className="bg-white rounded-xl border border-gray-200/80 p-3 space-y-2">
+                                  <div className="flex items-center justify-between text-xs pb-1 border-b border-gray-100">
+                                    <span className="font-bold text-gray-800 flex items-center gap-1.5">
+                                      <ListTodo className="w-3.5 h-3.5 text-primary" />
+                                      <span>Assigned Action Items ({completedCount}/{items.length})</span>
+                                    </span>
+                                    <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full ${
+                                      completedCount === items.length
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-amber-100 text-amber-800'
+                                    }`}>
+                                      {completedCount === items.length ? 'All Complete' : `${items.length - completedCount} Pending`}
+                                    </span>
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    {items.map((item) => {
+                                      const isUpdating = togglingItemId === item.id;
+                                      return (
+                                        <div
+                                          key={item.id}
+                                          onClick={() => !isUpdating && handleToggleChecklistItem(chk.id, item)}
+                                          className={`flex items-start gap-2.5 p-2 rounded-lg text-xs transition-all cursor-pointer select-none border ${
+                                            item.is_completed 
+                                              ? 'bg-emerald-50/40 border-emerald-200/60 text-gray-500' 
+                                              : 'bg-gray-50/80 hover:bg-gray-100 border-gray-200/70 text-gray-900'
+                                          }`}
+                                        >
+                                          <button
+                                            type="button"
+                                            disabled={isUpdating}
+                                            className="mt-0.5 shrink-0 focus:outline-none cursor-pointer"
+                                          >
+                                            {isUpdating ? (
+                                              <RefreshCw className="w-4 h-4 text-primary animate-spin" />
+                                            ) : item.is_completed ? (
+                                              <CheckSquare className="w-4 h-4 text-emerald-600 fill-emerald-100" />
+                                            ) : (
+                                              <Square className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                                            )}
+                                          </button>
+                                          <div className="flex-1 min-w-0">
+                                            <span className={`leading-relaxed ${item.is_completed ? 'line-through text-gray-400' : 'font-medium'}`}>
+                                              {item.description}
+                                            </span>
+                                          </div>
+                                          <span className={`text-[9px] font-bold uppercase font-mono px-1.5 py-0.5 rounded shrink-0 ${
+                                            item.is_completed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'
+                                          }`}>
+                                            {item.is_completed ? 'Done' : 'To Do'}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-
-                            {chk.blockers && (
-                              <p className="text-xs text-gray-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                <strong className="text-gray-900">Blockers Identified:</strong> {chk.blockers}
-                              </p>
-                            )}
-
-                            {chk.mentor_notes && (
-                              <p className="text-xs text-emerald-950 bg-emerald-50/60 p-3 rounded-xl border border-emerald-100">
-                                <strong className="text-emerald-900">Mentor Recommendations:</strong> {chk.mentor_notes}
-                              </p>
-                            )}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -3797,6 +4096,464 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                   </div>
 
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* TAB 7: OFFICIAL NOTICES & PERFORMANCE WARNINGS                       */}
+        {/* ==================================================================== */}
+        {activeTab === 'warnings' && (
+          <div className="space-y-6 text-left animate-fade-in">
+            {/* Header Banner */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-2">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div className="flex items-center gap-3">
+                  <div className={`p-3 rounded-xl ${activeWarnings.length > 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-black text-gray-900">Official Incubator Compliance & Performance Notices</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Formal compliance notices and official warning letters issued by the program management team.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded-full text-[11px] font-black uppercase font-mono border ${
+                    activeWarnings.length > 0
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}>
+                    {activeWarnings.length > 0 ? `${activeWarnings.length} Active Notice${activeWarnings.length > 1 ? 's' : ''}` : 'Good Standing'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Active Warnings Section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-rose-600" />
+                  <span>Active Warnings Requiring Attention ({activeWarnings.length})</span>
+                </h3>
+              </div>
+
+              {activeWarnings.length === 0 ? (
+                <div className="bg-white border border-dashed border-gray-200 rounded-2xl p-10 text-center space-y-2">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+                  <h4 className="text-sm font-black text-gray-900">Clean Standing — No Active Warnings</h4>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto">
+                    Your startup is currently in good standing with all incubator attendance, weekly milestone deliverables, and code of conduct policies. Keep up the great work!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {activeWarnings.map((warn) => (
+                    <div
+                      key={warn.id}
+                      className={`p-5 rounded-2xl border-2 space-y-3.5 transition-all shadow-xs ${
+                        warn.severity === 'RED'
+                          ? 'bg-rose-50/70 border-rose-300'
+                          : 'bg-amber-50/70 border-amber-300'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-gray-200/70 pb-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase font-mono border ${
+                            warn.severity === 'RED'
+                              ? 'bg-rose-600 text-white border-rose-700'
+                              : 'bg-amber-500 text-white border-amber-600'
+                          }`}>
+                            {warn.severity === 'RED' ? 'RED (Critical Warning)' : 'YELLOW (Official Notice)'}
+                          </span>
+                          <span className="text-xs font-black text-gray-900">
+                            {warn.category || 'Attendance & Policy Compliance'}
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-gray-500">
+                          Issued: {warn.created_at ? new Date(warn.created_at).toLocaleDateString() : 'Recent'} by {warn.issued_by || 'Incubator Management'}
+                        </span>
+                      </div>
+
+                      <div className="bg-white/95 p-4 rounded-xl border border-gray-200/80 space-y-1">
+                        <span className="text-[10px] font-mono font-bold uppercase text-gray-400 block">
+                          Official Reason / Management Observation:
+                        </span>
+                        <p className="text-xs text-gray-800 font-medium leading-relaxed">
+                          "{warn.reason}"
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] pt-1">
+                        <span className="text-rose-800 font-bold flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                          Please connect directly with your designated incubator lead or program manager to resolve this issue.
+                        </span>
+                        <span className="px-2.5 py-1 bg-rose-100 text-rose-800 text-[10px] font-black uppercase rounded-lg border border-rose-200 self-start sm:self-auto">
+                          Action Required
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Resolved & Historical Warnings Section */}
+            {warnings.filter(w => w.status !== 'ACTIVE').length > 0 && (
+              <div className="space-y-4 pt-4 border-t border-gray-100">
+                <h3 className="text-xs font-black uppercase tracking-wider text-gray-500 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Historical & Resolved Notices ({warnings.filter(w => w.status !== 'ACTIVE').length})</span>
+                </h3>
+
+                <div className="space-y-3">
+                  {warnings.filter(w => w.status !== 'ACTIVE').map((warn) => (
+                    <div key={warn.id} className="p-4 rounded-xl border border-gray-200 bg-gray-50/60 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px] font-black uppercase font-mono">
+                            {warn.status}
+                          </span>
+                          <span className="font-bold text-gray-800">{warn.category || 'Administrative Notice'}</span>
+                        </div>
+                        <span className="text-[10px] text-gray-400 font-mono">
+                          Issued: {warn.created_at ? new Date(warn.created_at).toLocaleDateString() : ''}
+                        </span>
+                      </div>
+                      <p className="text-gray-600 italic">"{warn.reason}"</p>
+                      {warn.resolution_notes && (
+                        <div className="pt-2 border-t border-gray-200 text-emerald-900 bg-emerald-50/50 p-2.5 rounded-lg text-[11px]">
+                          <span className="font-bold block uppercase text-[9px] text-emerald-700 font-mono">Resolution Remarks:</span>
+                          "{warn.resolution_notes}"
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* TAB 8: 1-ON-1 ADVISORY CHECK-INS & ACTION CHECKLIST TASKS            */}
+        {/* ==================================================================== */}
+        {activeTab === 'checkins' && (
+          <div className="space-y-6 text-left animate-fade-in">
+            {/* Header Banner */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="p-3.5 rounded-2xl bg-primary/10 text-primary border border-primary/20 shrink-0 shadow-2xs">
+                    <CheckSquare className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-black text-gray-900 tracking-tight">
+                      1-on-1 Advisory Check-ins & Assigned Action Deliverables
+                    </h2>
+                    <p className="text-xs text-gray-500 mt-0.5 max-w-2xl leading-relaxed">
+                      Review strategic guidance, advisory notes, and progress logs recorded during 1-on-1 sessions with incubator mentors. Check off assigned deliverables as you complete them to keep staff updated in real time.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={loadDashboardData}
+                    disabled={loading}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-all flex items-center gap-2 cursor-pointer shadow-2xs"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                    <span>Sync Check-ins</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Summary Stat Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-gray-100">
+                <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Total Sessions</span>
+                  <div className="text-xl font-black text-slate-900 mt-1 font-mono">{checkins.length}</div>
+                  <span className="text-[10px] text-slate-400">1-on-1 advisory meetings</span>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200/80 rounded-xl p-3.5">
+                  <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider block">Action Items</span>
+                  <div className="text-xl font-black text-blue-900 mt-1 font-mono">{totalActionItems}</div>
+                  <span className="text-[10px] text-blue-600">Assigned deliverables</span>
+                </div>
+
+                <div className="bg-emerald-50 border border-emerald-200/80 rounded-xl p-3.5">
+                  <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider block">Completed Tasks</span>
+                  <div className="text-xl font-black text-emerald-900 mt-1 font-mono">{completedActionItems}</div>
+                  <span className="text-[10px] text-emerald-600">
+                    {totalActionItems > 0 ? `${Math.round((completedActionItems / totalActionItems) * 100)}% completion rate` : 'All tasks up to date'}
+                  </span>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3.5">
+                  <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block">Pending Tasks</span>
+                  <div className="text-xl font-black text-amber-950 mt-1 font-mono">{pendingActionItems}</div>
+                  <span className="text-[10px] text-amber-700">Awaiting your execution</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter Navigation */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 bg-gray-100/80 p-1 rounded-xl border border-gray-200/60">
+                <button
+                  type="button"
+                  onClick={() => setCheckinFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    checkinFilter === 'all'
+                      ? 'bg-white text-gray-900 shadow-2xs'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  All Meetings ({checkins.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckinFilter('pending')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    checkinFilter === 'pending'
+                      ? 'bg-white text-amber-900 shadow-2xs'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Pending Action Items ({checkins.filter(c => (c.checklist_items || []).some(i => !i.is_completed)).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckinFilter('completed')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    checkinFilter === 'completed'
+                      ? 'bg-white text-emerald-900 shadow-2xs'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Completed Tasks ({checkins.filter(c => (c.checklist_items || []).some(i => i.is_completed)).length})
+                </button>
+              </div>
+
+              <span className="text-[11px] text-gray-500 font-medium">
+                Changes to checklist tasks sync immediately with incubator staff.
+              </span>
+            </div>
+
+            {/* Check-ins List */}
+            {checkins.length === 0 ? (
+              <div className="bg-white border border-dashed border-gray-200 rounded-2xl p-12 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-gray-50 border border-gray-200 flex items-center justify-center mx-auto text-gray-400">
+                  <CheckSquare className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-gray-900">No Advisory Check-in Meetings Yet</h3>
+                <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
+                  When incubator staff and mentors schedule 1-on-1 advisory sessions with your startup, their notes, guidance recommendations, and assigned action checklists will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {checkins
+                  .filter(chk => {
+                    if (checkinFilter === 'pending') {
+                      return (chk.checklist_items || []).some(i => !i.is_completed);
+                    }
+                    if (checkinFilter === 'completed') {
+                      return (chk.checklist_items || []).some(i => i.is_completed);
+                    }
+                    return true;
+                  })
+                  .map((chk) => {
+                    const items = chk.checklist_items || [];
+                    const completedItems = items.filter(i => i.is_completed);
+                    const completedCount = completedItems.length;
+                    const completionPct = items.length > 0 ? Math.round((completedCount / items.length) * 100) : 0;
+
+                    return (
+                      <div
+                        key={chk.id}
+                        className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-5 transition-all hover:border-gray-300"
+                      >
+                        {/* Session Top Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                              <span className="text-sm font-black text-gray-900">
+                                1-on-1 Advisory Session #{chk.id}
+                              </span>
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase font-mono border ${
+                                chk.attendance_status === 'attended'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : chk.attendance_status === 'no_show'
+                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200'
+                              }`}>
+                                {chk.attendance_status === 'attended' ? 'Attended' : chk.attendance_status === 'no_show' ? 'No Show' : 'Scheduled / Unmarked'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 flex items-center gap-2">
+                              <span>Staff Mentor: <strong className="text-gray-800">{chk.created_by_email || chk.logged_by || 'Incubator Advisor'}</strong></span>
+                              <span>•</span>
+                              <span className="font-mono">{new Date(chk.scheduled_at || chk.created_at).toLocaleString(undefined, { 
+                                dateStyle: 'medium', 
+                                timeStyle: 'short' 
+                              })}</span>
+                            </p>
+                          </div>
+
+                          {/* Action Items Completion Meter */}
+                          {items.length > 0 && (
+                            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 px-4 sm:text-right shrink-0">
+                              <div className="flex items-center gap-2 justify-between sm:justify-end">
+                                <span className="text-[11px] font-bold text-gray-600">Action Deliverables:</span>
+                                <span className="text-xs font-black text-gray-900 font-mono">
+                                  {completedCount} / {items.length} Done ({completionPct}%)
+                                </span>
+                              </div>
+                              <div className="w-full sm:w-36 h-2 bg-gray-200 rounded-full overflow-hidden mt-1.5">
+                                <div 
+                                  className={`h-full transition-all duration-300 ${completionPct === 100 ? 'bg-emerald-500' : 'bg-primary'}`}
+                                  style={{ width: `${completionPct}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Progress Score if recorded */}
+                        {chk.progress_score !== undefined && chk.progress_score > 0 && (
+                          <div className="flex items-center gap-3 text-xs bg-amber-50/50 p-2.5 rounded-xl border border-amber-100/70">
+                            <span className="font-bold text-amber-900">Mentor Progress Evaluation:</span>
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star
+                                  key={s}
+                                  className={`w-3.5 h-3.5 ${
+                                    s <= (chk.progress_score || 0)
+                                      ? 'text-amber-500 fill-amber-500'
+                                      : 'text-gray-200'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            <span className="text-amber-800 font-mono font-bold">({chk.progress_score} / 5)</span>
+                          </div>
+                        )}
+
+                        {/* Meeting Notes Section */}
+                        {(chk.notes || chk.mentor_notes) && (
+                          <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-4 space-y-1.5">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                              <FileText className="w-3.5 h-3.5 text-primary" />
+                              <span>Meeting Notes & Strategic Guidance</span>
+                            </h4>
+                            <p className="text-xs text-gray-800 whitespace-pre-line leading-relaxed font-sans">
+                              {chk.notes || chk.mentor_notes}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Blockers identified */}
+                        {chk.blockers && (
+                          <div className="bg-rose-50/70 border border-rose-200/70 rounded-xl p-3.5 space-y-1">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
+                              <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                              <span>Blockers & Roadblocks Flagged</span>
+                            </h4>
+                            <p className="text-xs text-rose-950 leading-relaxed font-medium">
+                              {chk.blockers}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Action Checklist Tasks */}
+                        <div className="space-y-3 pt-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-black uppercase tracking-wider text-gray-800 flex items-center gap-1.5">
+                              <ListTodo className="w-4 h-4 text-primary" />
+                              <span>Assigned Action Deliverables & Tasks ({items.length})</span>
+                            </h4>
+                            <span className="text-[11px] text-gray-500">
+                              Click any task to mark as complete
+                            </span>
+                          </div>
+
+                          {items.length === 0 ? (
+                            <div className="p-4 rounded-xl border border-dashed border-gray-200 text-center text-xs text-gray-400 bg-gray-50/50">
+                              No specific checklist action items attached to this session.
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {items.map((item) => {
+                                const isUpdating = togglingItemId === item.id;
+
+                                return (
+                                  <div
+                                    key={item.id}
+                                    onClick={() => !isUpdating && handleToggleChecklistItem(chk.id, item)}
+                                    className={`group flex items-start justify-between gap-3 p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
+                                      item.is_completed
+                                        ? 'bg-emerald-50/40 border-emerald-200 hover:bg-emerald-50/70'
+                                        : 'bg-white border-gray-200 hover:border-primary/40 hover:bg-primary/5 hover:shadow-2xs'
+                                    }`}
+                                  >
+                                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                                      <button
+                                        type="button"
+                                        disabled={isUpdating}
+                                        aria-label={item.is_completed ? 'Mark as pending' : 'Mark as completed'}
+                                        className="mt-0.5 shrink-0 focus:outline-none cursor-pointer"
+                                      >
+                                        {isUpdating ? (
+                                          <RefreshCw className="w-5 h-5 text-primary animate-spin" />
+                                        ) : item.is_completed ? (
+                                          <CheckSquare className="w-5 h-5 text-emerald-600 fill-emerald-100" />
+                                        ) : (
+                                          <Square className="w-5 h-5 text-gray-400 group-hover:text-primary transition-colors" />
+                                        )}
+                                      </button>
+                                      <div className="flex-1 min-w-0">
+                                        <p className={`text-xs leading-relaxed font-sans ${
+                                          item.is_completed 
+                                            ? 'line-through text-gray-400 font-normal' 
+                                            : 'text-gray-900 font-semibold'
+                                        }`}>
+                                          {item.description}
+                                        </p>
+                                        {item.created_at && (
+                                          <span className="text-[10px] text-gray-400 font-mono block mt-1">
+                                            Added {new Date(item.created_at).toLocaleDateString()}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="shrink-0">
+                                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase font-mono border ${
+                                        item.is_completed
+                                          ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                          : 'bg-amber-100 text-amber-900 border-amber-200'
+                                      }`}>
+                                        {item.is_completed ? 'Completed' : 'Pending'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>

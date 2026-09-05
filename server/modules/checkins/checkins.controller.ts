@@ -436,15 +436,16 @@ export const addChecklistItem = async (req: Request, res: Response) => {
 // 8. UPDATE CHECKLIST ITEM (Toggle completion or edit text)
 export const updateChecklistItem = async (req: Request, res: Response) => {
   try {
-    if (!isStaffUser(req)) {
-      return res.status(403).json({ success: false, error: 'Only authorized staff members can update checklist items' });
-    }
-
     const itemId = parseInt(req.params.itemId);
     const { is_completed, description } = req.body;
 
     if (isNaN(itemId)) {
       return res.status(400).json({ success: false, error: 'Invalid checklist item ID' });
+    }
+
+    // Only staff can edit the textual description of a checklist item
+    if (description && !isStaffUser(req)) {
+      return res.status(403).json({ success: false, error: 'Only authorized staff members can edit checklist descriptions' });
     }
 
     const updateRes = await query(

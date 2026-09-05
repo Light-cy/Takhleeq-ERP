@@ -1108,39 +1108,194 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   }
 
   // 7. Performance Warnings Interceptors
-  if (q.includes('select * from performance_warnings') && q.includes('cohort_id = $1')) {
-    const cid = parseInt(params[0]);
-    return { rows: (db.performance_warnings || []).filter((w: any) => w.cohort_id === cid) };
+  // Helper to enrich a warning record with applicant & startup info
+  const enrichWarning = (w: any) => {
+    const app = (db.applicants || []).find((a: any) => a.id === w.applicant_id);
+    const prof = (db.startup_profiles || []).find((p: any) => 
+      (w.startup_profile_id && p.id === w.startup_profile_id) || 
+      (w.applicant_id && p.applicant_id === w.applicant_id)
+    );
+    return {
+      ...w,
+      status: w.status || 'ACTIVE',
+      severity: w.severity || 'YELLOW',
+      category: w.category || 'Administrative Notice',
+      startup_name: prof?.startup_name || app?.startup_name || 'Startup',
+      founder_name: app?.name || prof?.founder_name || 'Founder',
+      founder_email: app?.email || prof?.founder_email || '',
+      startup_profile_id: w.startup_profile_id || prof?.id || null,
+      cohort_id: w.cohort_id || prof?.cohort_id || app?.cohort_id || null
+    };
+  };
+
+  if (q.includes('from performance_warnings') || (q.includes('performance_warnings') && q.includes('select'))) {
+    db.performance_warnings = db.performance_warnings || [];
+
+    // Sub-case: SELECT DISTINCT applicant_id FROM performance_warnings WHERE cohort_id = $1 AND status = 'ACTIVE'
+    if (q.includes('distinct applicant_id')) {
+      const cid = parseInt(params[0]);
+      const matched = db.performance_warnings.filter((w: any) => {
+        const cMatch = (w.cohort_id === cid);
+        const sMatch = (w.status === 'ACTIVE' || !w.status);
+        return cMatch && sMatch;
+      });
+      const uniqueAids = Array.from(new Set(matched.map((w: any) => w.applicant_id).filter(Boolean)));
+      return { rows: uniqueAids.map(aid => ({ applicant_id: aid })) };
+    }
+
+    // Sub-case: By warning ID: WHERE pw.id = $1 or WHERE id = $1
+    if ((q.includes('where pw.id = $1') || q.includes('where id = $1')) && !q.includes('cohort_id') && !q.includes('applicant_id') && !q.includes('startup_profile_id')) {
+      const wid = parseInt(params[0]);
+      const warn = db.performance_warnings.find((w: any) => w.id === wid);
+      return { rows: warn ? [enrichWarning(warn)] : [] };
+    }
+
+    // Sub-case: By applicant_id and/or startup_profile_id
+    if (q.includes('applicant_id') || q.includes('startup_profile_id')) {
+      let aid: number | null = null;
+      let spId: number | null = null;
+
+      if (params.length === 1) {
+        const val = parseInt(params[0]);
+        if (q.includes('startup_profile_id = $1') || q.includes('pw.startup_profile_id = $1') || q.includes('sp.id = $1')) {
+          spId = val;
+        } else {
+          aid = val;
+        }
+      } else if (params.length >= 2) {
+        aid = parseInt(params[0]) || null;
+        spId = parseInt(params[1]) || null;
+      }
+
+      const matched = db.performance_warnings.filter((w: any) => {
+        if (aid && w.applicant_id === aid) return true;
+        if (spId && w.startup_profile_id === spId) return true;
+        if (spId) {
+          const prof = (db.startup_profiles || []).find((p: any) => p.id === spId);
+          if (prof && prof.applicant_id && prof.applicant_id === w.applicant_id) return true;
+        }
+        if (aid) {
+          const prof = (db.startup_profiles || []).find((p: any) => p.applicant_id === aid);
+          if (prof && prof.id === w.startup_profile_id) return true;
+        }
+        return false;
+      });
+      matched.sort((a: any, b: any) => (new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()) || (b.id - a.id));
+      return { rows: matched.map(enrichWarning) };
+    }
+
+    // Sub-case: By cohort_id
+    if (q.includes('cohort_id = $1') || q.includes('pw.cohort_id = $1')) {
+      const cid = parseInt(params[0]);
+      const matched = db.performance_warnings.filter((w: any) => {
+        if (w.cohort_id === cid) return true;
+        const app = (db.applicants || []).find((a: any) => a.id === w.applicant_id);
+        if (app && app.cohort_id === cid) return true;
+        const prof = (db.startup_profiles || []).find((p: any) => p.id === w.startup_profile_id);
+        if (prof && prof.cohort_id === cid) return true;
+        return false;
+      });
+      matched.sort((a: any, b: any) => (new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()) || (b.id - a.id));
+      return { rows: matched.map(enrichWarning) };
+    }
+
+    // General fallback: return all performance warnings
+    const all = [...db.performance_warnings];
+    all.sort((a: any, b: any) => (new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()) || (b.id - a.id));
+    return { rows: all.map(enrichWarning) };
   }
+
   if (q.includes('insert into performance_warnings')) {
-    const id = Math.max(...(db.performance_warnings || []).map((w: any) => w.id), 0) + 1;
+    db.performance_warnings = db.performance_warnings || [];
+    const id = Math.max(...db.performance_warnings.map((w: any) => w.id || 0), 0) + 1;
+
+    let cohort_id: number | null = null;
+    let applicant_id: number | null = null;
+    let startup_profile_id: number | null = null;
+    let issued_by = 'Program Management';
+    let reason = '';
+    let severity = 'YELLOW';
+    let category = 'Attendance & Performance Compliance';
+    let status = 'ACTIVE';
+
+    if (q.includes('startup_profile_id')) {
+      // params: [cohort_id, applicant_id, startup_profile_id, issued_by, reason, severity, category]
+      cohort_id = params[0] ? parseInt(params[0]) : null;
+      applicant_id = params[1] ? parseInt(params[1]) : null;
+      startup_profile_id = params[2] ? parseInt(params[2]) : null;
+      issued_by = params[3] || 'Program Management';
+      reason = params[4] || '';
+      severity = (params[5] || 'YELLOW').toUpperCase();
+      category = params[6] || 'Attendance & Performance Compliance';
+    } else if (params.length >= 6) {
+      cohort_id = params[0] ? parseInt(params[0]) : null;
+      applicant_id = params[1] ? parseInt(params[1]) : null;
+      issued_by = params[2] || 'Program Management';
+      reason = params[3] || '';
+      severity = (params[4] || 'YELLOW').toUpperCase();
+      if (params[5] === 'ACTIVE' || params[5] === 'RESOLVED' || params[5] === 'REVOKED') {
+        status = params[5];
+      } else {
+        category = params[5] || 'Attendance & Performance Compliance';
+      }
+    } else {
+      cohort_id = params[0] ? parseInt(params[0]) : null;
+      applicant_id = params[1] ? parseInt(params[1]) : null;
+      issued_by = params[2] || 'Program Management';
+      reason = params[3] || '';
+      severity = (params[4] || 'YELLOW').toUpperCase();
+    }
+
+    if (!applicant_id && startup_profile_id) {
+      const prof = (db.startup_profiles || []).find((p: any) => p.id === startup_profile_id);
+      if (prof && prof.applicant_id) applicant_id = prof.applicant_id;
+    }
+    if (!startup_profile_id && applicant_id) {
+      const prof = (db.startup_profiles || []).find((p: any) => p.applicant_id === applicant_id);
+      if (prof) startup_profile_id = prof.id;
+    }
+    if (!cohort_id) {
+      if (applicant_id) {
+        const app = (db.applicants || []).find((a: any) => a.id === applicant_id);
+        if (app && app.cohort_id) cohort_id = app.cohort_id;
+      }
+      if (!cohort_id && startup_profile_id) {
+        const prof = (db.startup_profiles || []).find((p: any) => p.id === startup_profile_id);
+        if (prof && prof.cohort_id) cohort_id = prof.cohort_id;
+      }
+    }
+
     const newWarn = {
       id,
-      cohort_id: parseInt(params[0]),
-      applicant_id: parseInt(params[1]),
-      issued_by: params[2],
-      reason: params[3],
-      severity: params[4],
-      status: params[5],
+      cohort_id: cohort_id || null,
+      applicant_id: applicant_id || null,
+      startup_profile_id: startup_profile_id || null,
+      issued_by,
+      reason: String(reason || '').trim(),
+      severity: severity === 'RED' ? 'RED' : 'YELLOW',
+      category,
+      status: status || 'ACTIVE',
       resolution_notes: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-    db.performance_warnings = db.performance_warnings || [];
+
     db.performance_warnings.push(newWarn);
     saveLocalDB(db);
-    return { rows: [newWarn] };
+    return { rows: [enrichWarning(newWarn)] };
   }
+
   if (q.includes('update performance_warnings set')) {
-    const idVal = parseInt(params[2]);
-    const warn = (db.performance_warnings || []).find((x: any) => x.id === idVal);
+    db.performance_warnings = db.performance_warnings || [];
+    const idVal = parseInt(params[params.length - 1]);
+    const warn = db.performance_warnings.find((x: any) => x.id === idVal);
     if (warn) {
-      warn.status = params[0];
-      warn.resolution_notes = params[1];
+      warn.status = params[0] || 'RESOLVED';
+      warn.resolution_notes = params[1] || '';
       warn.updated_at = new Date().toISOString();
       saveLocalDB(db);
     }
-    return { rows: warn ? [warn] : [] };
+    return { rows: warn ? [enrichWarning(warn)] : [] };
   }
 
   // 7b. Cohort Feedback Interceptors
@@ -3483,6 +3638,8 @@ async function ensureDBReady() {
               updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
           );
         `);
+        await pool.query(`ALTER TABLE performance_warnings ADD COLUMN IF NOT EXISTS startup_profile_id INTEGER;`);
+        await pool.query(`ALTER TABLE performance_warnings ADD COLUMN IF NOT EXISTS category VARCHAR(100);`);
 
         // 7b. cohort_feedback table
         await pool.query(`

@@ -295,7 +295,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   const [warningStartupId, setWarningStartupId] = useState<string>('');
   const [warningSeverity, setWarningSeverity] = useState<'YELLOW' | 'RED'>('YELLOW');
   const [warningReason, setWarningReason] = useState('');
-  const [warningResolutionNotes, setWarningResolutionNotes] = useState('');
+  const [warningResolutionNotes, setWarningResolutionNotes] = useState<Record<number, string>>({});
 
   // Active Attendance Marking Sheet
   const [attendanceSheet, setAttendanceSheet] = useState<Record<number, 'PRESENT' | 'ABSENT' | 'EXCUSED'>>({});
@@ -1172,7 +1172,8 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
   };
 
   const handleResolveWarning = async (warningId: number) => {
-    if (!warningResolutionNotes.trim()) {
+    const notes = (warningResolutionNotes[warningId] || '').trim();
+    if (!notes) {
       triggerError('You must write resolution or revocation notes first.');
       return;
     }
@@ -1182,14 +1183,14 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'RESOLVED',
-          resolution_notes: warningResolutionNotes
+          resolution_notes: notes
         })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to resolve warning.');
 
-      setWarnings(prev => prev.map(w => w.id === warningId ? data.warning : w));
-      setWarningResolutionNotes('');
+      setWarnings(prev => prev.map(w => w.id === warningId ? (data.warning || { ...w, status: 'RESOLVED', resolution_notes: notes }) : w));
+      setWarningResolutionNotes(prev => ({ ...prev, [warningId]: '' }));
       triggerSuccess('Performance warning marked as resolved.');
     } catch (err: any) {
       triggerError(err.message);
@@ -2448,7 +2449,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                   ) : (
                     <div className="space-y-3 overflow-y-auto max-h-[460px] pr-1">
                       {warnings.map((warn) => {
-                        const sName = applicants.find(a => a.id === warn.applicant_id)?.startup_name || 'Startup';
+                        const sName = (warn as any).startup_name || applicants.find(a => a.id === warn.applicant_id)?.startup_name || 'Startup';
                         return (
                           <div
                             key={warn.id}
@@ -2480,8 +2481,8 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                                 <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block font-mono">Resolve warning</span>
                                 <input
                                   type="text"
-                                  value={warningResolutionNotes}
-                                  onChange={(e) => setWarningResolutionNotes(e.target.value)}
+                                  value={warningResolutionNotes[warn.id] || ''}
+                                  onChange={(e) => setWarningResolutionNotes(prev => ({ ...prev, [warn.id]: e.target.value }))}
                                   placeholder="Type resolution / revocation reason..."
                                   className="w-full bg-white border border-gray-150 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold focus:outline-none"
                                 />

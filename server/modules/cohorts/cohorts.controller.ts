@@ -1898,9 +1898,21 @@ export const createTeamCheckIn = async (req: AuthenticatedRequest, res: Response
 export const getCohortWarnings = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params; // cohort_id
   try {
+    const cohortId = parseInt(id);
     const result = await query(
-      `SELECT * FROM performance_warnings WHERE cohort_id = $1 ORDER BY id DESC`,
-      [parseInt(id)]
+      `SELECT pw.*, 
+              COALESCE(sp.startup_name, a.startup_name, 'Startup') as startup_name,
+              COALESCE(a.name, sp.founder_name, 'Founder') as founder_name,
+              COALESCE(a.email, sp.founder_email, '') as founder_email,
+              a.tracking_token
+       FROM performance_warnings pw
+       LEFT JOIN applicants a ON pw.applicant_id = a.id
+       LEFT JOIN startup_profiles sp ON (pw.startup_profile_id = sp.id OR (pw.applicant_id IS NOT NULL AND sp.applicant_id = pw.applicant_id))
+       WHERE pw.cohort_id = $1 
+          OR (pw.applicant_id IS NOT NULL AND a.cohort_id = $1)
+          OR (pw.startup_profile_id IS NOT NULL AND sp.cohort_id = $1)
+       ORDER BY pw.created_at DESC, pw.id DESC`,
+      [cohortId]
     );
     res.json(result.rows);
   } catch (err: any) {
@@ -1923,17 +1935,35 @@ export const issuePerformanceWarning = async (req: AuthenticatedRequest, res: Re
   }
 
   try {
+    const cid = parseInt(id);
+    const aid = parseInt(applicant_id);
+
+    // Look up linked startup profile to ensure both applicant_id and startup_profile_id are stored
+    const spRes = await query(
+      `SELECT id, startup_name, cohort_id FROM startup_profiles WHERE applicant_id = $1 LIMIT 1`,
+      [aid]
+    );
+    const spId = spRes.rows.length > 0 ? spRes.rows[0].id : null;
+
     const result = await query(
-      `INSERT INTO performance_warnings (cohort_id, applicant_id, issued_by, reason, severity, status)
-       VALUES ($1, $2, $3, $4, $5, 'ACTIVE') RETURNING *`,
-      [parseInt(id), parseInt(applicant_id), admin?.name || 'Staff Mentor', reason.trim(), severity]
+      `INSERT INTO performance_warnings (cohort_id, applicant_id, startup_profile_id, issued_by, reason, severity, category, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE') RETURNING *`,
+      [cid, aid, spId, admin?.name || 'Staff Mentor', reason.trim(), severity, category || 'Attendance & Performance Compliance']
     );
 
     const warning = result.rows[0];
 
-    const appRes = await query('SELECT name, email, startup_name, tracking_token FROM applicants WHERE id = $1', [parseInt(applicant_id)]);
+    const appRes = await query('SELECT name, email, startup_name, tracking_token FROM applicants WHERE id = $1', [aid]);
     const applicant = appRes.rows[0] || {};
-    const startupName = applicant.startup_name || 'Startup';
+    const startupName = applicant.startup_name || (spRes.rows[0]?.startup_name) || 'Startup';
+
+    const enrichedWarning = {
+      ...warning,
+      startup_name: startupName,
+      founder_name: applicant.name || 'Founder',
+      founder_email: applicant.email || '',
+      tracking_token: applicant.tracking_token || ''
+    };
 
     await logAudit(
       `ISSUED ${severity} PERFORMANCE WARNING to '${startupName}': Reason: ${reason}`,
@@ -1941,7 +1971,7 @@ export const issuePerformanceWarning = async (req: AuthenticatedRequest, res: Re
       String(warning.id),
       admin?.email || 'Admin',
       null,
-      warning
+      enrichedWarning
     );
 
     // Send Warning Email Notification
@@ -1962,7 +1992,7 @@ export const issuePerformanceWarning = async (req: AuthenticatedRequest, res: Re
       }
     }
 
-    res.status(201).json({ success: true, warning });
+    res.status(201).json({ success: true, warning: enrichedWarning });
   } catch (err: any) {
     console.error('Failed to issue warning:', err);
     res.status(500).json({ error: 'Internal Server Error while issuing warning.' });
@@ -1983,7 +2013,7 @@ export const resolvePerformanceWarning = async (req: AuthenticatedRequest, res: 
   }
 
   try {
-    const prevRes = await query('SELECT applicant_id, severity FROM performance_warnings WHERE id = $1', [parseInt(id)]);
+    const prevRes = await query('SELECT * FROM performance_warnings WHERE id = $1', [parseInt(id)]);
     if (prevRes.rows.length === 0) {
       return res.status(404).json({ error: 'Performance warning record not found.' });
     }
@@ -1996,9 +2026,33 @@ export const resolvePerformanceWarning = async (req: AuthenticatedRequest, res: 
 
     const updated = result.rows[0];
 
-    const appRes = await query('SELECT name, email, startup_name FROM applicants WHERE id = $1', [prev.applicant_id]);
-    const applicant = appRes.rows[0] || {};
-    const startupName = applicant.startup_name || 'Startup';
+    let startupName = 'Startup';
+    let founderName = 'Founder';
+    let founderEmail = '';
+
+    if (prev.applicant_id) {
+      const appRes = await query('SELECT name, email, startup_name FROM applicants WHERE id = $1', [prev.applicant_id]);
+      if (appRes.rows.length > 0) {
+        startupName = appRes.rows[0].startup_name || startupName;
+        founderName = appRes.rows[0].name || founderName;
+        founderEmail = appRes.rows[0].email || founderEmail;
+      }
+    }
+    if (prev.startup_profile_id && (!founderEmail || startupName === 'Startup')) {
+      const spRes = await query('SELECT startup_name, founder_name, founder_email FROM startup_profiles WHERE id = $1', [prev.startup_profile_id]);
+      if (spRes.rows.length > 0) {
+        startupName = startupName === 'Startup' ? (spRes.rows[0].startup_name || startupName) : startupName;
+        founderName = founderName === 'Founder' ? (spRes.rows[0].founder_name || founderName) : founderName;
+        founderEmail = founderEmail || spRes.rows[0].founder_email || '';
+      }
+    }
+
+    const enrichedUpdated = {
+      ...updated,
+      startup_name: startupName,
+      founder_name: founderName,
+      founder_email: founderEmail
+    };
 
     await logAudit(
       `RESOLVED performance warning for '${startupName}': Status set to ${status}. Notes: ${resolution_notes}`,
@@ -2006,15 +2060,15 @@ export const resolvePerformanceWarning = async (req: AuthenticatedRequest, res: 
       String(id),
       admin?.email || 'Admin',
       { previousStatus: 'ACTIVE', severity: prev.severity },
-      updated
+      enrichedUpdated
     );
 
     // Send Warning Resolution Email Notification
-    if (applicant.email) {
+    if (founderEmail) {
       try {
         await sendWarningResolutionEmail({
-          founderName: applicant.name || 'Founder',
-          founderEmail: applicant.email,
+          founderName,
+          founderEmail,
           startupName,
           severity: prev.severity,
           status,
@@ -2026,7 +2080,7 @@ export const resolvePerformanceWarning = async (req: AuthenticatedRequest, res: 
       }
     }
 
-    res.json({ success: true, warning: updated });
+    res.json({ success: true, warning: enrichedUpdated });
   } catch (err: any) {
     console.error('Failed to resolve warning:', err);
     res.status(500).json({ error: 'Failed to update warning resolution.' });
@@ -2174,26 +2228,16 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
       });
     }
 
-    // 5. Fetch Weekly Team Check-ins
-    const checkinsRes = await query(
-      `SELECT * FROM team_checkins WHERE applicant_id = $1 ORDER BY created_at DESC`,
-      [applicant.id]
-    );
-
-    // 6. Fetch Performance Warnings
-    const warningsRes = await query(
-      `SELECT * FROM performance_warnings WHERE applicant_id = $1 ORDER BY created_at DESC`,
-      [applicant.id]
-    );
-
-    // 7. Sync & Merge linked startup_profile data
+    // 5. Sync & Merge linked startup_profile data
     const spRes = await query(
       `SELECT * FROM startup_profiles WHERE applicant_id = $1 OR LOWER(founder_email) = LOWER($2) LIMIT 1`,
       [applicant.id, applicant.email]
     );
 
+    let spId = null;
     if (spRes.rows.length > 0) {
       const sp = spRes.rows[0];
+      spId = sp.id;
       applicant.startup_profile_id = sp.id;
       if (sp.startup_name) applicant.startup_name = sp.startup_name;
       if (sp.description) applicant.startup_description = sp.description;
@@ -2214,6 +2258,58 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
       applicant.form_data.profile.pitch_deck_url = sp.pitch_deck_url || applicant.form_data.profile.pitch_deck_url || '';
     }
 
+    // 6. Fetch Performance Warnings (linked by applicant_id OR startup_profile_id)
+    const warningsRes = await query(
+      `SELECT * FROM performance_warnings WHERE applicant_id = $1 OR startup_profile_id = $2 ORDER BY created_at DESC`,
+      [applicant.id, spId || 0]
+    );
+
+    // 7. Fetch 1-on-1 Advisory Check-ins & Checklist Items
+    let fullCheckins: any[] = [];
+    if (spId) {
+      const checkinsRes = await query(
+        `SELECT c.*, sp.startup_name, c2.name as cohort_name 
+         FROM checkins c 
+         LEFT JOIN startup_profiles sp ON c.startup_profile_id = sp.id 
+         LEFT JOIN cohorts c2 ON c.cohort_id = c2.id 
+         WHERE c.startup_profile_id = $1 
+         ORDER BY c.scheduled_at DESC, c.created_at DESC;`,
+        [spId]
+      );
+      const chkRows = checkinsRes.rows || [];
+      fullCheckins = await Promise.all(
+        chkRows.map(async (chk: any) => {
+          const itemsRes = await query(
+            `SELECT * FROM checkin_checklist_items WHERE checkin_id = $1 ORDER BY id ASC;`,
+            [chk.id]
+          );
+          const items = itemsRes.rows || [];
+          return {
+            ...chk,
+            checklist_items: items,
+            total_checklist_items: items.length,
+            completed_checklist_items: items.filter((i: any) => i.is_completed).length
+          };
+        })
+      );
+    }
+
+    // Also fetch legacy team_checkins if any
+    const legacyTeamCheckinsRes = await query(
+      `SELECT * FROM team_checkins WHERE applicant_id = $1 ORDER BY created_at DESC`,
+      [applicant.id]
+    );
+    const legacyCheckins = (legacyTeamCheckinsRes.rows || []).map((tc: any) => ({
+      ...tc,
+      notes: tc.mentor_notes || tc.blockers,
+      scheduled_at: tc.created_at,
+      checklist_items: tc.checklist_items || [],
+      total_checklist_items: (tc.checklist_items || []).length,
+      completed_checklist_items: (tc.checklist_items || []).filter((i: any) => i.is_completed).length
+    }));
+
+    const allCheckins = [...fullCheckins, ...legacyCheckins];
+
     res.json({
       success: true,
       applicant,
@@ -2221,7 +2317,7 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
       sessions,
       attendance: attendanceRes.rows,
       assignments: assignmentsList,
-      checkins: checkinsRes.rows,
+      checkins: allCheckins,
       warnings: warningsRes.rows
     });
   } catch (err: any) {

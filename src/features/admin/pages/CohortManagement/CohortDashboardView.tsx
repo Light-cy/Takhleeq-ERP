@@ -73,7 +73,14 @@ export const CohortDashboardView: React.FC<CohortDashboardViewProps> = ({
 
   const cohortApplicants = safeApplicants.filter(a => matchesCohort(a.cohort_id));
   const cohortSessions = safeSessions.filter(s => matchesCohort(s.cohort_id));
-  const cohortWarnings = safeWarnings.filter(w => matchesCohort(w.cohort_id));
+  const cohortWarnings = safeWarnings.filter(w => {
+    if (matchesCohort(w.cohort_id)) return true;
+    if (w.applicant_id) {
+      const applicant = safeApplicants.find(a => a.id === w.applicant_id);
+      if (applicant && matchesCohort(applicant.cohort_id)) return true;
+    }
+    return false;
+  });
   const cohortAssignments = safeAssignments.filter(a => matchesCohort(a.cohort_id));
 
   // Pipeline funnel calculations from database

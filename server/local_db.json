@@ -335,7 +335,22 @@
     }
   ],
   "team_checkins": [],
-  "performance_warnings": [],
+  "performance_warnings": [
+    {
+      "id": 1,
+      "cohort_id": 1,
+      "applicant_id": 1,
+      "startup_profile_id": 1,
+      "issued_by": "Program Manager",
+      "reason": "Attendance issue",
+      "severity": "YELLOW",
+      "category": "Attendance & Compliance",
+      "status": "ACTIVE",
+      "resolution_notes": null,
+      "created_at": "2026-09-05T09:59:48.843Z",
+      "updated_at": "2026-09-05T09:59:48.844Z"
+    }
+  ],
   "assignments": [],
   "assignment_submissions": [],
   "session_feedback": [],

@@ -166,7 +166,7 @@ export async function issueStartupWarning(id: number, payload: {
 }): Promise<any> {
   const res = await fetch(`/api/startup-profiles/${id}/warnings`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify(payload)
   });
   const json = await parseResponse(res, 'Failed to issue performance warning');
@@ -179,7 +179,7 @@ export async function resolveStartupWarning(warningId: number, payload: {
 }): Promise<any> {
   const res = await fetch(`/api/startup-profiles/warnings/${warningId}/resolve`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify(payload)
   });
   const json = await parseResponse(res, 'Failed to resolve warning');

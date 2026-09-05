@@ -1020,9 +1020,9 @@ export const getStartupFullDetails = async (req: Request, res: Response) => {
     // Warnings
     const warningsRes = await query(`
       SELECT * FROM performance_warnings 
-      WHERE applicant_id = $1 
+      WHERE applicant_id = $1 OR startup_profile_id = $2
       ORDER BY created_at DESC, id DESC;
-    `, [profile.applicant_id]);
+    `, [profile.applicant_id || -1, profileId]);
 
     return res.json({
       success: true,
@@ -1091,10 +1091,10 @@ export const issueStartupWarning = async (req: Request, res: Response) => {
 
     // Insert warning
     const insertRes = await query(`
-      INSERT INTO performance_warnings (cohort_id, applicant_id, issued_by, reason, severity, status, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO performance_warnings (cohort_id, applicant_id, startup_profile_id, issued_by, reason, severity, category, status, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       RETURNING *;
-    `, [profile.cohort_id || null, profile.applicant_id, issuedBy, reason.trim(), severity]);
+    `, [profile.cohort_id || null, profile.applicant_id || null, profileId, issuedBy, reason.trim(), severity, category || 'Attendance & Performance Compliance']);
 
     const newWarning = insertRes.rows[0];
 
