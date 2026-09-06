@@ -3,7 +3,7 @@ import {
   ArrowLeft, Building2, User, Mail, Phone, CreditCard, Calendar, 
   ShieldAlert, CheckCircle2, XCircle, Clock, ChevronRight, MoreVertical, 
   Send, MessageSquare, AlertTriangle, FileText, Layers, History, Check,
-  UserCheck, AlertOctagon, CornerDownRight, ExternalLink, Key, Copy, Loader2
+  UserCheck, AlertOctagon, CornerDownRight, ExternalLink, Key, Copy, Loader2, Award
 } from 'lucide-react';
 import { COHORT_STAGES, normalizeApplicantStatus, getStageByStatus, CohortStage } from '../../../../constants/cohortStages';
 
@@ -311,6 +311,8 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
   const nextStageDef = getNextLinearStage(applicant.status);
   const isTerminalOrAlternate = currentStageDef.type === 'terminal' || currentStageDef.type === 'alternate' || currentStageDef.key === 'ENROLLED';
   const isPermanentlyKicked = applicant.program_status === 'KICKED_OUT' || applicant.status === 'KICKED_OUT';
+  const isGraduated = applicant.program_status === 'GRADUATED';
+  const isLockedTerminal = isPermanentlyKicked || isGraduated;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16 text-left" id="application-full-details-view">
@@ -407,7 +409,7 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
                 <button
                   key={st}
                   type="button"
-                  disabled={updatingProgramStatus || (isPermanentlyKicked && st !== 'KICKED_OUT') || (applicant.program_status || 'NOT_ENROLLED') === st}
+                  disabled={updatingProgramStatus || (isLockedTerminal && (applicant.program_status || 'NOT_ENROLLED') !== st) || (applicant.program_status || 'NOT_ENROLLED') === st}
                   onClick={() => handleUpdateProgramStatus(st)}
                   className={`px-2 py-1 rounded-md font-mono transition-all ${
                     (applicant.program_status || 'NOT_ENROLLED') === st
@@ -416,22 +418,27 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
                         : st === 'GRADUATED' ? 'bg-indigo-600 text-white font-black shadow-xs cursor-default'
                         : st === 'KICKED_OUT' ? 'bg-rose-600 text-white font-black shadow-xs cursor-default'
                         : 'bg-gray-700 text-white font-black shadow-xs cursor-default'
-                      : isPermanentlyKicked
+                      : isLockedTerminal
                       ? 'text-gray-400 opacity-40 cursor-not-allowed'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200 cursor-pointer'
                   }`}
-                  title={isPermanentlyKicked && st !== 'KICKED_OUT' ? 'Startup is permanently terminated' : undefined}
+                  title={isLockedTerminal && (applicant.program_status || 'NOT_ENROLLED') !== st ? 'Startup is locked in terminal status' : undefined}
                 >
                   {st.replace('_', ' ')}
                 </button>
               ))}
             </div>
-            {isPermanentlyKicked && (
+            {isPermanentlyKicked ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold font-mono">
                 <ShieldAlert className="h-3 w-3 text-rose-600 shrink-0" />
-                Permanently Locked
+                Permanently Locked (Terminated)
               </span>
-            )}
+            ) : isGraduated ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold font-mono">
+                <Award className="h-3 w-3 text-indigo-600 shrink-0" />
+                Permanently Locked (Graduated)
+              </span>
+            ) : null}
           </div>
 
           <div className="flex items-center gap-2">
@@ -592,6 +599,11 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
                 <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2.5 text-rose-900 text-xs font-bold">
                   <ShieldAlert className="h-4 w-4 text-rose-600 shrink-0" />
                   <span>Startup Permanently Terminated. Stage advancement locked.</span>
+                </div>
+              ) : isGraduated ? (
+                <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center gap-2.5 text-indigo-900 text-xs font-bold">
+                  <Award className="h-4 w-4 text-indigo-600 shrink-0" />
+                  <span>Incubator Alumni (Graduated). Stage advancement and program modifications are locked.</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 relative" ref={menuRef}>
@@ -772,14 +784,49 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
                 Stage History Timeline
               </h2>
               <span className="text-[10px] font-bold text-gray-400 font-mono">
-                {stageHistory.length} Transition{stageHistory.length !== 1 ? 's' : ''}
+                {stageHistory.length === 0 ? 'Baseline (0 Transitions)' : `${stageHistory.length} Transition${stageHistory.length !== 1 ? 's' : ''}`}
               </span>
             </div>
 
             {historyLoading ? (
               <p className="text-xs text-gray-400 italic">Loading stage history...</p>
             ) : stageHistory.length === 0 ? (
-              <p className="text-xs text-gray-400 italic">No previous stage transition records logged yet.</p>
+              <div className="space-y-4 relative pl-4 border-l-2 border-emerald-200">
+                <div className="relative group text-xs space-y-2">
+                  {/* Dot icon */}
+                  <div className="absolute -left-[21px] top-1.5 h-3 w-3 rounded-full bg-emerald-500 ring-4 ring-emerald-50" />
+
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 font-extrabold text-[10px] uppercase tracking-wider border border-blue-200">
+                        Initial Baseline
+                      </span>
+                      <span className="text-primary font-black text-xs">
+                        Intake Stage: {currentStageDef.label}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-gray-400">
+                      {applicant.created_at ? new Date(applicant.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Intake Registration'}
+                    </span>
+                  </div>
+
+                  <div className="text-[11px] text-gray-500 font-medium">
+                    Logged by: <strong className="text-gray-800">System (Intake Admissions Portal)</strong>
+                  </div>
+
+                  <div className="p-3.5 bg-blue-50/60 border border-blue-200/80 rounded-xl space-y-1 mt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-blue-700 font-mono">Intake Milestone Note</span>
+                      <span className="text-[9px] font-mono font-bold text-blue-800 bg-blue-100/80 border border-blue-200 px-1.5 py-0.5 rounded">
+                        Active Baseline
+                      </span>
+                    </div>
+                    <p className="text-gray-800 font-medium leading-relaxed text-[11px]">
+                      Startup application was received under <strong className="font-bold text-gray-900">{applicant.startup_name}</strong> by <strong className="font-bold text-gray-900">{applicant.name}</strong>. Currently operating at initial baseline stage <strong className="text-primary font-bold">{currentStageDef.label}</strong>. No manual stage transitions have occurred yet.
+                    </p>
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="space-y-4 relative pl-4 border-l-2 border-gray-150">
                 {stageHistory.map((item, idx) => {

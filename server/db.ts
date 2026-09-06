@@ -506,27 +506,44 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
 
   // 3. Applicants Interceptors
   if (q.includes('from applicants') && !q.includes('insert into applicants') && !q.includes('update applicants')) {
+    const syncAppProgramStatus = (a: any) => {
+      if (!a) return a;
+      if (db.startup_profiles && Array.isArray(db.startup_profiles)) {
+        const sp = db.startup_profiles.find((p: any) => 
+          p.applicant_id === a.id || 
+          (p.startup_name && a.startup_name && String(p.startup_name).toLowerCase().trim() === String(a.startup_name).toLowerCase().trim())
+        );
+        if (sp && sp.program_status && ['ACTIVE', 'PAUSED', 'GRADUATED', 'KICKED_OUT'].includes(String(sp.program_status).toUpperCase())) {
+          a.program_status = String(sp.program_status).toUpperCase();
+        }
+      }
+      if (!a.program_status || a.program_status === '{}') {
+        a.program_status = (['CONFIRMED', 'ENROLLED'].includes(a.status) || a.cohort_id) ? 'ACTIVE' : 'NOT_ENROLLED';
+      }
+      return a;
+    };
+
     if (q.includes('tracking_token')) {
       const tok = String(params[0] || '').toUpperCase().trim();
-      return { rows: (db.applicants || []).filter((a: any) => String(a.tracking_token).toUpperCase().trim() === tok) };
+      return { rows: (db.applicants || []).filter((a: any) => String(a.tracking_token).toUpperCase().trim() === tok).map(syncAppProgramStatus) };
     }
     if (q.includes('where cohort_id =') || q.includes('where a.cohort_id =') || q.includes('cohort_id = $1')) {
       const cid = parseInt(params[0]);
-      return { rows: (db.applicants || []).filter((a: any) => a.cohort_id === cid) };
+      return { rows: (db.applicants || []).filter((a: any) => a.cohort_id === cid).map(syncAppProgramStatus) };
     }
     if (q.includes('where id =') || q.includes('where a.id =') || /\b(a\.)?id\s*=\s*\$1\b/.test(q)) {
       const aid = parseInt(params[0]);
-      return { rows: (db.applicants || []).filter((a: any) => a.id === aid) };
+      return { rows: (db.applicants || []).filter((a: any) => a.id === aid).map(syncAppProgramStatus) };
     }
     if (q.includes('lower(email) =') || q.includes('email = $1')) {
       const em = String(params[0] || '').toLowerCase().trim();
-      return { rows: (db.applicants || []).filter((a: any) => String(a.email || '').toLowerCase().trim() === em) };
+      return { rows: (db.applicants || []).filter((a: any) => String(a.email || '').toLowerCase().trim() === em).map(syncAppProgramStatus) };
     }
     if (q.includes('replace(cnic')) {
       const c = String(params[0] || '').replace(/-/g, '').trim();
-      return { rows: (db.applicants || []).filter((a: any) => String(a.cnic || '').replace(/-/g, '').trim() === c) };
+      return { rows: (db.applicants || []).filter((a: any) => String(a.cnic || '').replace(/-/g, '').trim() === c).map(syncAppProgramStatus) };
     }
-    return { rows: db.applicants || [] };
+    return { rows: (db.applicants || []).map(syncAppProgramStatus) };
   }
   if (q.includes('insert into applicants')) {
     const id = Math.max(...(db.applicants || []).map((a: any) => a.id), 0) + 1;
@@ -1312,29 +1329,36 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       const sid = parseInt(params[sIndex]);
       if (sid) list = list.filter((f: any) => f.session_id === sid);
     }
-    if (q.includes('applicant_id = $2') || q.includes('applicant_id = $1')) {
-      const aIndex = q.indexOf('applicant_id = $2') !== -1 ? 1 : 0;
-      const aid = parseInt(params[aIndex]);
-      if (aid) list = list.filter((f: any) => f.applicant_id === aid);
+    if (q.includes('applicant_id') || q.includes('user_id')) {
+      // Handle queries like: (applicant_id = $2 OR (user_id = $3 AND user_id IS NOT NULL))
+      // or applicant_id = $1 OR user_id = $2
+      let targetApplicantId: number | null = null;
+      let targetUserId: number | null = null;
+
+      for (let i = 0; i < params.length; i++) {
+        const pNum = `$${i + 1}`;
+        if (q.includes(`applicant_id = ${pNum}`)) {
+          targetApplicantId = parseInt(params[i]) || null;
+        }
+        if (q.includes(`user_id = ${pNum}`)) {
+          targetUserId = parseInt(params[i]) || null;
+        }
+      }
+
+      if (targetApplicantId !== null || targetUserId !== null) {
+        list = list.filter((f: any) => {
+          if (targetApplicantId && f.applicant_id === targetApplicantId) return true;
+          if (targetUserId && f.user_id === targetUserId) return true;
+          return false;
+        });
+      }
     }
     if (q.includes('feedback_type = $')) {
       const fType = params.find((p: any) => typeof p === 'string' && ['SESSION', 'PROGRAM', 'MENTORSHIP', 'FACILITY', 'CURRICULUM', 'OTHER'].includes(p));
       if (fType) list = list.filter((f: any) => f.feedback_type === fType);
     }
-    const processed = list.map((f: any) => {
-      const isAnon = f.is_anonymous === true || f.is_anonymous === 'true';
-      if (isAnon) {
-        return {
-          ...f,
-          founder_name: 'Anonymous Founder',
-          startup_name: 'Anonymous Startup',
-          user_id: null,
-          applicant_id: null
-        };
-      }
-      return f;
-    });
-    processed.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const processed = list.map((f: any) => ({ ...f }));
+    processed.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
     return { rows: processed };
   }
 
@@ -2833,6 +2857,8 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
 
     if (profile) {
       const isAlreadyKicked = profile.program_status === 'KICKED_OUT';
+      const isAlreadyGraduated = profile.program_status === 'GRADUATED';
+      const isAlreadyLocked = isAlreadyKicked || isAlreadyGraduated;
 
       // Parse SET clause (multiline support)
       const setMatch = q.match(/set\s+([\s\S]*?)(?:\s+where|\s*$)/i);
@@ -2872,14 +2898,17 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
             val = raw === 'null' ? null : raw === 'true' ? true : raw === 'false' ? false : !isNaN(Number(raw)) ? Number(raw) : raw;
           }
 
-          // Termination lock
+          // Termination & graduation lock
           if (col === 'program_status') {
             if (isAlreadyKicked && String(val).toUpperCase() !== 'KICKED_OUT') {
               continue; // locked
             }
+            if (isAlreadyGraduated && String(val).toUpperCase() !== 'GRADUATED') {
+              continue; // locked
+            }
             profile.program_status = String(val).toUpperCase();
           } else if (col === 'current_progress_stage') {
-            if (isAlreadyKicked) {
+            if (isAlreadyLocked) {
               continue; // locked
             }
             profile.current_progress_stage = val;
@@ -2896,13 +2925,13 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
 
       profile.updated_at = new Date().toISOString();
 
-      // Synchronize linked applicant in db.applicants
+      // Synchronize linked applicants in db.applicants
       if (db.applicants && Array.isArray(db.applicants)) {
-        const matchingApp = db.applicants.find((a: any) =>
+        const matchingApps = db.applicants.filter((a: any) =>
           a.id === profile.applicant_id ||
-          (a.startup_name && profile.startup_name && a.startup_name.toLowerCase() === profile.startup_name.toLowerCase())
+          (a.startup_name && profile.startup_name && String(a.startup_name).toLowerCase().trim() === String(profile.startup_name).toLowerCase().trim())
         );
-        if (matchingApp) {
+        for (const matchingApp of matchingApps) {
           if (profile.startup_name) matchingApp.startup_name = profile.startup_name;
           if (profile.description) matchingApp.startup_description = profile.description;
           if (profile.program_status) matchingApp.program_status = profile.program_status;
@@ -2913,7 +2942,11 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
 
           // Keep form_data.profile synchronized
           matchingApp.form_data = matchingApp.form_data || {};
+          if (typeof matchingApp.form_data === 'string') {
+            try { matchingApp.form_data = JSON.parse(matchingApp.form_data); } catch (e) { matchingApp.form_data = {}; }
+          }
           matchingApp.form_data.profile = matchingApp.form_data.profile || {};
+          matchingApp.form_data.profile.program_status = profile.program_status;
           if (profile.description) matchingApp.form_data.profile.description = profile.description;
           if (profile.website) matchingApp.form_data.profile.website = profile.website;
           if (profile.revenue_status) matchingApp.form_data.profile.revenue_status = profile.revenue_status;
@@ -2953,33 +2986,49 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   // 48. Startup Stage History
   if (q.includes('from startup_stage_history')) {
     if (!db.startup_stage_history) db.startup_stage_history = [];
+    const sanitizeHistory = (list: any[]) => {
+      return list.map((h: any) => ({
+        ...h,
+        previous_stage: h.previous_stage || null,
+        new_stage: h.new_stage || 'IDEA_STAGE',
+        updated_by_email: h.updated_by_email || 'System (Intake Confirmation)',
+        comments: h.comments || (h.previous_stage ? null : 'Initial baseline stage upon cohort intake confirmation')
+      }));
+    };
+
     if (q.includes('where startup_profile_id = $1')) {
       const spId = parseInt(params[0]);
-      return { rows: db.startup_stage_history.filter((h: any) => h.startup_profile_id === spId) };
+      return { rows: sanitizeHistory(db.startup_stage_history.filter((h: any) => h.startup_profile_id === spId)) };
     }
-    return { rows: db.startup_stage_history };
+    return { rows: sanitizeHistory(db.startup_stage_history) };
   }
   if (q.includes('insert into startup_stage_history')) {
     if (!db.startup_stage_history) db.startup_stage_history = [];
     const id = Math.max(...db.startup_stage_history.map((h: any) => h.id || 0), 0) + 1;
+    let prevStage = params[1] !== undefined ? params[1] : null;
+    let newStage = params[2] !== undefined ? params[2] : (q.includes("'idea_stage'") || q.includes('idea_stage') ? 'IDEA_STAGE' : 'IDEA_STAGE');
     let userId = null;
-    let email = '';
+    let email = 'Staff';
     let comments = null;
     if (params.length >= 6) {
       userId = params[3];
-      email = params[4] || '';
+      email = params[4] || 'Staff';
       comments = params[5] || null;
     } else if (params.length === 5) {
-      email = params[3] || '';
+      email = params[3] || 'Staff';
       comments = params[4] || null;
+    } else if (params.length === 4) {
+      email = params[2] || 'Staff';
+      comments = params[3] || null;
     } else {
-      email = params[3] || '';
+      email = params[3] || (q.includes('system_auto_sync') ? 'System (Intake Confirmation)' : 'Staff');
+      comments = q.includes('Initial startup profile') ? 'Initial startup profile auto-created upon cohort intake confirmation.' : null;
     }
     const newHist = {
       id,
       startup_profile_id: parseInt(params[0]),
-      previous_stage: params[1],
-      new_stage: params[2],
+      previous_stage: prevStage,
+      new_stage: newStage,
       change_date: new Date().toISOString(),
       updated_by_user_id: userId,
       updated_by_email: email,

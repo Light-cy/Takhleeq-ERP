@@ -528,7 +528,16 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
       setNotifications(pf.notifications || []);
 
       // Rated sessions
-      setRatedSessions(pf.rated_sessions || []);
+      const serverRated = Array.isArray(data.rated_sessions) ? data.rated_sessions : [];
+      const sessionRated = (data.sessions || []).filter((s: any) => s.current_user_submitted || s.feedback_locked).map((s: any) => s.id);
+      const feedbackRated = (data.my_feedbacks || []).filter((f: any) => f.session_id).map((f: any) => f.session_id);
+      const profileRated = Array.isArray(pf.rated_sessions) ? pf.rated_sessions : [];
+      const combinedRated = Array.from(new Set([...serverRated, ...sessionRated, ...feedbackRated, ...profileRated]));
+      setRatedSessions(combinedRated);
+
+      if (data.my_feedbacks && Array.isArray(data.my_feedbacks)) {
+        setMyFeedbackList(data.my_feedbacks);
+      }
 
       // Pivot History
       setPivotHistory(pf.pivot_history || []);
@@ -538,6 +547,9 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
 
       // Fetch Cohort Feedback Forms & Surveys
       fetchFeedbackSurveys();
+
+      // Fetch user's feedback logs immediately so sessions and cards show accurate locked state
+      fetchMyFeedbackLogs();
 
     } catch (err: any) {
       console.error(err);
@@ -882,10 +894,17 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   const fetchMyFeedbackLogs = async () => {
     try {
       setLoadingMyFeedback(true);
-      const res = await fetchWithAuth('/api/cohort-feedback');
+      const res = await fetchWithAuth('/api/cohort-feedback?my_feedback=true');
       if (res.ok) {
         const data = await res.json();
-        setMyFeedbackList(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : [];
+        setMyFeedbackList(list);
+        const sessionIdsFromFeedback = list
+          .filter((f: any) => f.session_id)
+          .map((f: any) => f.session_id);
+        if (sessionIdsFromFeedback.length > 0) {
+          setRatedSessions(prev => Array.from(new Set([...prev, ...sessionIdsFromFeedback])));
+        }
       }
     } catch (err) {
       console.error('Failed to load feedback logs:', err);
@@ -897,7 +916,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   // Session Rating Handlers
   const handleOpenFeedbackModal = (sess: any) => {
     setActiveFeedbackSession(sess);
-    const existing = myFeedbackList.find((f: any) => f.session_id === sess.id);
+    const existing = myFeedbackList.find((f: any) => f.session_id === sess.id) || sess.current_user_feedback;
     if (existing) {
       setFeedbackRating(existing.rating || 5);
       setFeedbackTitle(existing.title || `Feedback on ${sess.title}`);
@@ -914,6 +933,15 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   const handleRateSessionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeFeedbackSession) return;
+
+    const existingFeedback = myFeedbackList.find((f: any) => f.session_id === activeFeedbackSession.id) || activeFeedbackSession.current_user_feedback;
+    const isAlreadyLocked = ratedSessions.includes(activeFeedbackSession.id) || !!existingFeedback || !!activeFeedbackSession.current_user_submitted || !!activeFeedbackSession.feedback_locked;
+
+    if (isAlreadyLocked) {
+      triggerToast('🔒 Feedback for this session has already been recorded and locked.', 'success');
+      setActiveFeedbackSession(null);
+      return;
+    }
 
     try {
       const res = await fetchWithAuth(`/api/sessions/${activeFeedbackSession.id}/feedback`, {
@@ -932,6 +960,14 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
 
       const data = await res.json();
       if (!res.ok) {
+        if (data.locked) {
+          const updatedRated = Array.from(new Set([...ratedSessions, activeFeedbackSession.id]));
+          setRatedSessions(updatedRated);
+          setActiveFeedbackSession(null);
+          await fetchMyFeedbackLogs();
+          triggerToast('🔒 Feedback for this session is already locked.', 'success');
+          return;
+        }
         throw new Error(data.error || 'Failed to submit feedback');
       }
 
@@ -947,8 +983,8 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
       await loadDashboardData();
       triggerToast(
         feedbackIsAnonymous 
-          ? '🔒 Anonymous feedback submitted securely!' 
-          : '👤 Session feedback submitted with your profile!'
+          ? '🔒 Anonymous feedback submitted securely and locked!' 
+          : '👤 Session feedback submitted and locked!'
       );
     } catch (err: any) {
       triggerToast(err.message || 'Error submitting feedback.');
@@ -2251,8 +2287,8 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {(sessionFilter === 'all' ? sessions : sessionFilter === 'upcoming' ? upcomingSessionsList : pastSessionsList).map((sess) => {
                   const attRecord = attendance.find(a => a.session_id === sess.id);
-                  const myExistingFeedback = myFeedbackList.find((f: any) => f.session_id === sess.id);
-                  const isRated = ratedSessions.includes(sess.id) || !!myExistingFeedback || !!sess.current_user_submitted;
+                  const myExistingFeedback = myFeedbackList.find((f: any) => f.session_id === sess.id) || (sess as any).current_user_feedback;
+                  const isRated = ratedSessions.includes(sess.id) || !!myExistingFeedback || !!sess.current_user_submitted || !!(sess as any).feedback_locked;
                   
                   // Compute Feedback Window Status
                   const todayStr = new Date().toISOString().slice(0, 10);
@@ -2376,23 +2412,27 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                             <button
                               type="button"
                               onClick={() => handleOpenFeedbackModal(sess)}
-                              className="text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
-                              title="Click to view or update your submitted feedback"
+                              className="text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                              title="Your feedback has been submitted and locked. Click to view."
                             >
                               <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              Feedback Submitted {myExistingFeedback?.rating ? `(★ ${myExistingFeedback.rating})` : ''}
+                              <span>Feedback Locked {myExistingFeedback?.rating ? `(★ ${myExistingFeedback.rating})` : ''}</span>
+                              <Lock className="w-3 h-3 text-emerald-700/70 ml-0.5" />
                             </button>
                           )
                         ) : (
                           /* EXPIRED (7 days elapsed) */
                           isRated ? (
-                            <span 
-                              className="text-[11px] font-bold text-gray-600 bg-gray-100 border border-gray-200 px-2.5 py-1 rounded-lg flex items-center gap-1"
-                              title="Session feedback window has closed (archived)"
+                            <button
+                              type="button"
+                              onClick={() => handleOpenFeedbackModal(sess)}
+                              className="text-[11px] font-bold text-gray-700 bg-gray-100 hover:bg-gray-200/80 border border-gray-200 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                              title="Session feedback window has closed (locked). Click to view your submitted review."
                             >
                               <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              Rated {myExistingFeedback?.rating ? `(★ ${myExistingFeedback.rating})` : ''} · Window Closed
-                            </span>
+                              <span>Rated {myExistingFeedback?.rating ? `(★ ${myExistingFeedback.rating})` : ''} · Locked</span>
+                              <Lock className="w-3 h-3 text-gray-400 ml-0.5" />
+                            </button>
                           ) : (
                             <span 
                               className="text-[11px] font-medium text-gray-400 bg-gray-100/70 border border-gray-200 px-2.5 py-1 rounded-lg flex items-center gap-1"
@@ -2410,129 +2450,187 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
             )}
 
             {/* Session Rating Modal */}
-            {activeFeedbackSession && (
-              <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-white border border-gray-200 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl animate-fade-in">
-                  <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-                    <h3 className="text-base font-bold text-gray-900">Rate Mentorship Session</h3>
-                    <button
-                      onClick={() => setActiveFeedbackSession(null)}
-                      className="text-gray-400 hover:text-gray-600 text-sm font-bold"
-                    >
-                      ✕
-                    </button>
-                  </div>
+            {activeFeedbackSession && (() => {
+              const activeExistingFeedback = myFeedbackList.find((f: any) => f.session_id === activeFeedbackSession.id) || activeFeedbackSession.current_user_feedback;
+              const isSessionLocked = ratedSessions.includes(activeFeedbackSession.id) || !!activeExistingFeedback || !!activeFeedbackSession.current_user_submitted || !!activeFeedbackSession.feedback_locked;
 
-                  <p className="text-xs text-gray-600">
-                    Provide feedback for <strong>{activeFeedbackSession.title}</strong> mentored by {activeFeedbackSession.mentor_name}.
-                  </p>
-
-                  <form onSubmit={handleRateSessionSubmit} className="space-y-4">
-                    <div>
-                      <label className="text-xs font-bold text-gray-700 block mb-1">Star Rating (1 to 5)</label>
+              return (
+                <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+                  <div className="bg-white border border-gray-200 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl animate-fade-in">
+                    <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                       <div className="flex items-center gap-2">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <button
-                            key={star}
-                            type="button"
-                            onClick={() => setFeedbackRating(star)}
-                            className="p-1 cursor-pointer"
-                          >
-                            <Star
-                              className={`w-6 h-6 ${
-                                star <= feedbackRating
-                                  ? 'text-amber-400 fill-amber-400'
-                                  : 'text-gray-300'
-                              }`}
-                            />
-                          </button>
-                        ))}
+                        <h3 className="text-base font-bold text-gray-900">
+                          {isSessionLocked ? 'Mentorship Session Feedback' : 'Rate Mentorship Session'}
+                        </h3>
+                        {isSessionLocked && (
+                          <span className="text-[10px] font-extrabold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Lock className="w-3 h-3 text-emerald-700" /> Locked
+                          </span>
+                        )}
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-gray-700 block mb-1">Feedback Comments (Optional)</label>
-                      <textarea
-                        value={feedbackComment}
-                        onChange={(e) => setFeedbackComment(e.target.value)}
-                        placeholder="What were key insights or areas of improvement?"
-                        rows={3}
-                        className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
-                      />
-                    </div>
-
-                    {/* Submission Privacy Toggle (Anonymous vs Identified) */}
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-gray-800">Submission Privacy</span>
-                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                          feedbackIsAnonymous ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-900'
-                        }`}>
-                          {feedbackIsAnonymous ? '🔒 Anonymous' : '👤 Identified'}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setFeedbackIsAnonymous(false)}
-                          className={`p-2 rounded-lg border text-left flex items-center gap-2 cursor-pointer transition-all ${
-                            !feedbackIsAnonymous
-                              ? 'border-primary bg-primary/5 ring-1 ring-primary text-primary font-bold'
-                              : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'
-                          }`}
-                        >
-                          <UserCheck className="w-3.5 h-3.5 shrink-0" />
-                          <div>
-                            <p className="text-xs">Include My Name</p>
-                            <p className="text-[9px] text-gray-400 font-normal">Show founder profile</p>
-                          </div>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setFeedbackIsAnonymous(true)}
-                          className={`p-2 rounded-lg border text-left flex items-center gap-2 cursor-pointer transition-all ${
-                            feedbackIsAnonymous
-                              ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-500 text-amber-900 font-bold'
-                              : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'
-                          }`}
-                        >
-                          <EyeOff className="w-3.5 h-3.5 shrink-0" />
-                          <div>
-                            <p className="text-xs">100% Anonymous</p>
-                            <p className="text-[9px] text-gray-400 font-normal">Mask identity completely</p>
-                          </div>
-                        </button>
-                      </div>
-
-                      {feedbackIsAnonymous && (
-                        <p className="text-[10px] text-amber-800 bg-amber-100/60 p-1.5 rounded flex items-center gap-1 font-medium">
-                          <ShieldCheck className="w-3 h-3 text-amber-600 shrink-0" />
-                          Your name and startup identity will be masked before staff/mentors see this.
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-2">
                       <button
-                        type="button"
                         onClick={() => setActiveFeedbackSession(null)}
-                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold"
+                        className="text-gray-400 hover:text-gray-600 text-sm font-bold"
                       >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-5 py-2 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold"
-                      >
-                        Submit Feedback
+                        ✕
                       </button>
                     </div>
-                  </form>
+
+                    {isSessionLocked ? (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-2.5 text-xs text-emerald-900">
+                        <Lock className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold">Feedback Submitted & Locked</p>
+                          <p className="text-emerald-700 text-[11px] mt-0.5">Your evaluation has been successfully recorded and locked. It is shared with the incubation team and cannot be re-submitted.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-600">
+                        Provide feedback for <strong>{activeFeedbackSession.title}</strong> mentored by {activeFeedbackSession.mentor_name || 'Incubator Staff'}.
+                      </p>
+                    )}
+
+                    <form onSubmit={handleRateSessionSubmit} className="space-y-4">
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">Star Rating (1 to 5)</label>
+                        <div className="flex items-center gap-2">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              disabled={isSessionLocked}
+                              onClick={() => !isSessionLocked && setFeedbackRating(star)}
+                              className={`p-1 ${isSessionLocked ? 'cursor-default' : 'cursor-pointer'}`}
+                            >
+                              <Star
+                                className={`w-6 h-6 ${
+                                  star <= feedbackRating
+                                    ? 'text-amber-400 fill-amber-400'
+                                    : 'text-gray-300'
+                                }`}
+                              />
+                            </button>
+                          ))}
+                          <span className="text-xs font-bold text-gray-700 ml-2">
+                            {feedbackRating} / 5 Stars
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-gray-700 block mb-1">
+                          {isSessionLocked ? 'Submitted Feedback Comments' : 'Feedback Comments (Optional)'}
+                        </label>
+                        {isSessionLocked ? (
+                          <div className="w-full text-xs p-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 min-h-[60px]">
+                            {feedbackComment || <span className="italic text-gray-400">No additional comments provided.</span>}
+                          </div>
+                        ) : (
+                          <textarea
+                            value={feedbackComment}
+                            onChange={(e) => setFeedbackComment(e.target.value)}
+                            placeholder="What were key insights or areas of improvement?"
+                            rows={3}
+                            className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
+                          />
+                        )}
+                      </div>
+
+                      {/* Submission Privacy Status */}
+                      <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-gray-800">Submission Privacy</span>
+                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                            feedbackIsAnonymous ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-900'
+                          }`}>
+                            {feedbackIsAnonymous ? '🔒 Anonymous' : '👤 Identified'}
+                          </span>
+                        </div>
+
+                        {isSessionLocked ? (
+                          <p className="text-[11px] text-gray-600">
+                            {feedbackIsAnonymous
+                              ? 'This feedback was submitted anonymously without founder identification.'
+                              : 'This feedback was submitted with your founder and startup profile attached.'}
+                          </p>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setFeedbackIsAnonymous(false)}
+                                className={`p-2 rounded-lg border text-left flex items-center gap-2 cursor-pointer transition-all ${
+                                  !feedbackIsAnonymous
+                                    ? 'border-primary bg-primary/5 ring-1 ring-primary text-primary font-bold'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'
+                                }`}
+                              >
+                                <UserCheck className="w-3.5 h-3.5 shrink-0" />
+                                <div>
+                                  <p className="text-xs">Include My Name</p>
+                                  <p className="text-[9px] text-gray-400 font-normal">Show founder profile</p>
+                                </div>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setFeedbackIsAnonymous(true)}
+                                className={`p-2 rounded-lg border text-left flex items-center gap-2 cursor-pointer transition-all ${
+                                  feedbackIsAnonymous
+                                    ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-500 text-amber-900 font-bold'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'
+                                }`}
+                              >
+                                <EyeOff className="w-3.5 h-3.5 shrink-0" />
+                                <div>
+                                  <p className="text-xs">100% Anonymous</p>
+                                  <p className="text-[9px] text-gray-400 font-normal">Mask identity completely</p>
+                                </div>
+                              </button>
+                            </div>
+
+                            {feedbackIsAnonymous && (
+                              <p className="text-[10px] text-amber-800 bg-amber-100/60 p-1.5 rounded flex items-center gap-1 font-medium">
+                                <ShieldCheck className="w-3 h-3 text-amber-600 shrink-0" />
+                                Your name and startup identity will be masked before staff/mentors see this.
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2">
+                        {isSessionLocked ? (
+                          <button
+                            type="button"
+                            onClick={() => setActiveFeedbackSession(null)}
+                            className="px-5 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-xl text-xs font-bold"
+                          >
+                            Close
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setActiveFeedbackSession(null)}
+                              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              className="px-5 py-2 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold"
+                            >
+                              Submit Feedback
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </form>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
           </div>
         )}

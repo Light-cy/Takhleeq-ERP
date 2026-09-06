@@ -249,13 +249,38 @@ export const getApplicants = async (req: AuthenticatedRequest, res: Response) =>
   try {
     // Select all applicants
     const result = await query('SELECT * FROM applicants ORDER BY id DESC');
+
+    // Also fetch startup profiles map to guarantee 100% synchronized program_status
+    const startupProfilesMap = new Map<number, any>();
+    const startupProfilesNameMap = new Map<string, any>();
+    try {
+      const spRes = await query('SELECT id, applicant_id, startup_name, program_status, cohort_id, current_progress_stage FROM startup_profiles');
+      if (spRes && spRes.rows) {
+        for (const sp of spRes.rows) {
+          if (sp.applicant_id) startupProfilesMap.set(Number(sp.applicant_id), sp);
+          if (sp.startup_name) startupProfilesNameMap.set(String(sp.startup_name).toLowerCase().trim(), sp);
+        }
+      }
+    } catch (spErr) {
+      console.warn('Could not fetch startup_profiles map for getApplicants sync:', spErr);
+    }
     
-    // Parse json fields
+    // Parse json fields and resolve authoritative program_status
     const parsed = result.rows.map(row => {
+      const linkedProfile = startupProfilesMap.get(Number(row.id)) || (row.startup_name ? startupProfilesNameMap.get(String(row.startup_name).toLowerCase().trim()) : null);
+      
+      let resolvedProgramStatus = row.program_status;
+      if (linkedProfile && linkedProfile.program_status && ['ACTIVE', 'PAUSED', 'GRADUATED', 'KICKED_OUT'].includes(String(linkedProfile.program_status).toUpperCase())) {
+        resolvedProgramStatus = String(linkedProfile.program_status).toUpperCase();
+      } else if (!resolvedProgramStatus || resolvedProgramStatus === '{}') {
+        resolvedProgramStatus = (['CONFIRMED', 'ENROLLED'].includes(row.status) || row.cohort_id) ? 'ACTIVE' : 'NOT_ENROLLED';
+      }
+
       const panel_scores = row.panel_scores && typeof row.panel_scores === 'string' ? JSON.parse(row.panel_scores) : row.panel_scores;
       const form_data = row.form_data && typeof row.form_data === 'string' ? JSON.parse(row.form_data) : row.form_data;
       return {
         ...row,
+        program_status: resolvedProgramStatus,
         panel_scores,
         form_data
       };
@@ -276,6 +301,18 @@ export const getApplicantById = async (req: AuthenticatedRequest, res: Response)
       return res.status(404).json({ error: 'Applicant not found.' });
     }
     const row = result.rows[0];
+
+    // If linked to startup profile, ensure program_status matches
+    try {
+      const spRes = await query('SELECT program_status FROM startup_profiles WHERE applicant_id = $1 OR LOWER(startup_name) = LOWER($2) LIMIT 1', [row.id, row.startup_name]);
+      if (spRes && spRes.rows && spRes.rows.length > 0) {
+        const sp = spRes.rows[0];
+        if (sp.program_status && ['ACTIVE', 'PAUSED', 'GRADUATED', 'KICKED_OUT'].includes(String(sp.program_status).toUpperCase())) {
+          row.program_status = String(sp.program_status).toUpperCase();
+        }
+      }
+    } catch (spErr) {}
+
     const panel_scores = row.panel_scores && typeof row.panel_scores === 'string' ? JSON.parse(row.panel_scores) : row.panel_scores;
     const form_data = row.form_data && typeof row.form_data === 'string' ? JSON.parse(row.form_data) : row.form_data;
     
@@ -2138,11 +2175,20 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
     let sessions = [];
 
     // 2. Fetch Cohort and Sessions if enrolled
+    let myFeedbacks: any[] = [];
     if (cohortId) {
       const cohortRes = await query(`SELECT * FROM cohorts WHERE id = $1`, [cohortId]);
       if (cohortRes.rows.length > 0) {
         cohort = cohortRes.rows[0];
       }
+
+      // Fetch all session feedbacks submitted by this founder/applicant
+      const feedbackRes = await query(
+        `SELECT * FROM cohort_feedback WHERE cohort_id = $1 AND (applicant_id = $2 OR (user_id = $3 AND user_id IS NOT NULL))`,
+        [cohortId, applicant.id, req.currentUser?.id || 0]
+      );
+      myFeedbacks = feedbackRes.rows || [];
+      const todayStr = getTodayDateStringServer();
 
       const sessionsRes = await query(
         `SELECT * FROM cohort_sessions WHERE cohort_id = $1 ORDER BY date ASC, start_time ASC`,
@@ -2167,9 +2213,42 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
               };
             })
           );
+
+          // Find if founder already submitted feedback for this session
+          const userFeedback = myFeedbacks.find((f: any) => f.session_id === sess.id);
+          const currentUserSubmitted = !!userFeedback;
+
+          // Calculate feedback window status
+          const sessDate = sess.date || '';
+          let feedbackStatus: 'UPCOMING' | 'ACTIVE' | 'EXPIRED' = 'UPCOMING';
+          let daysRemaining = 0;
+
+          if (sessDate) {
+            if (todayStr < sessDate) {
+              feedbackStatus = 'UPCOMING';
+              daysRemaining = 0;
+            } else {
+              const dToday = new Date(todayStr);
+              const dSess = new Date(sessDate);
+              const diffDays = Math.floor((dToday.getTime() - dSess.getTime()) / (1000 * 3600 * 24));
+              if (diffDays <= 7) {
+                feedbackStatus = 'ACTIVE';
+                daysRemaining = Math.max(0, 7 - diffDays);
+              } else {
+                feedbackStatus = 'EXPIRED';
+                daysRemaining = 0;
+              }
+            }
+          }
+
           return {
             ...sess,
-            assignments: sessionAssignments
+            assignments: sessionAssignments,
+            current_user_submitted: currentUserSubmitted,
+            current_user_feedback: userFeedback || null,
+            feedback_status: feedbackStatus,
+            days_remaining: daysRemaining,
+            feedback_locked: currentUserSubmitted
           };
         })
       );
@@ -2318,7 +2397,9 @@ export const getMyStartupDetails = async (req: AuthenticatedRequest, res: Respon
       attendance: attendanceRes.rows,
       assignments: assignmentsList,
       checkins: allCheckins,
-      warnings: warningsRes.rows
+      warnings: warningsRes.rows,
+      my_feedbacks: myFeedbacks,
+      rated_sessions: myFeedbacks.filter((f: any) => f.session_id).map((f: any) => f.session_id)
     });
   } catch (err: any) {
     console.error('Failed to retrieve founder self-service data:', err);
@@ -2332,7 +2413,7 @@ export const updateApplicantProfile = async (req: AuthenticatedRequest, res: Res
     phone, website, social_links, logo_description, description, logo_url, contact_info, pivot_history,
     monthly_revenue, annual_recurring_revenue, revenue_status, funding_status, funding_raised, burn_rate, team_size, pitch_deck_url,
     linkedin_url, twitter_url, github_url, instagram_url,
-    assignments, team_roster, shared_notes, notifications
+    assignments, team_roster, shared_notes, notifications, rated_sessions
   } = req.body;
 
   try {
@@ -2384,6 +2465,7 @@ export const updateApplicantProfile = async (req: AuthenticatedRequest, res: Res
         team_roster: team_roster !== undefined ? team_roster : (currentFormData.profile?.team_roster || []),
         shared_notes: shared_notes !== undefined ? shared_notes : (currentFormData.profile?.shared_notes || []),
         notifications: notifications !== undefined ? notifications : (currentFormData.profile?.notifications || []),
+        rated_sessions: rated_sessions !== undefined ? rated_sessions : (currentFormData.profile?.rated_sessions || []),
       }
     };
 
@@ -2618,10 +2700,26 @@ export const submitCohortFeedback = async (req: AuthenticatedRequest, res: Respo
 
 export const getCohortFeedback = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { cohort_id, session_id, feedback_type } = req.query;
+    const { cohort_id, session_id, feedback_type, my_feedback } = req.query;
 
     let sql = `SELECT * FROM cohort_feedback WHERE 1=1`;
     const params: any[] = [];
+
+    const userRole = (req.currentUser?.role || '').toLowerCase();
+    const isAdmin = ['administrator', 'super admin', 'admin', 'incubation manager', 'director'].includes(userRole);
+
+    let currentApplicantId: number | null = null;
+    if (req.currentUser?.email) {
+      const appRes = await query(`SELECT id FROM applicants WHERE LOWER(email) = LOWER($1) LIMIT 1`, [req.currentUser.email.trim()]);
+      if (appRes.rows.length > 0) currentApplicantId = appRes.rows[0].id;
+    }
+
+    if (!isAdmin || my_feedback === 'true') {
+      // Non-admins or founders viewing their logs only see their own submissions
+      params.push(currentApplicantId || 0);
+      params.push(req.currentUser?.id || 0);
+      sql += ` AND (applicant_id = $${params.length - 1} OR (user_id = $${params.length} AND user_id IS NOT NULL))`;
+    }
 
     if (cohort_id) {
       params.push(parseInt(cohort_id as string));
@@ -2643,8 +2741,9 @@ export const getCohortFeedback = async (req: AuthenticatedRequest, res: Response
     const feedRes = await query(sql, params);
 
     const rows = feedRes.rows.map((f: any) => {
+      const isAuthor = (currentApplicantId && f.applicant_id === currentApplicantId) || (req.currentUser?.id && f.user_id === req.currentUser.id);
       const isAnon = f.is_anonymous === true || f.is_anonymous === 'true';
-      if (isAnon) {
+      if (isAnon && !isAuthor) {
         return {
           ...f,
           founder_name: 'Anonymous Founder',
@@ -2898,51 +2997,57 @@ export const submitSessionFeedback = async (req: AuthenticatedRequest, res: Resp
 
     const isAnonBool = is_anonymous === true || is_anonymous === 'true';
 
-    // Check if feedback already exists for this session & user/applicant to update rather than duplicate
+    // Check if feedback already exists for this session & user/applicant to lock feedback
     const existing = await query(
-      `SELECT id FROM cohort_feedback WHERE session_id = $1 AND (applicant_id = $2 OR (user_id = $3 AND user_id IS NOT NULL))`,
+      `SELECT id, rating, title, comment, is_anonymous, status FROM cohort_feedback WHERE session_id = $1 AND (applicant_id = $2 OR (user_id = $3 AND user_id IS NOT NULL))`,
       [sessId, applicantId || 0, userId || 0]
     );
 
-    let feedbackRecord;
     if (existing.rows && existing.rows.length > 0) {
-      const existingId = existing.rows[0].id;
-      const updateRes = await query(
-        `UPDATE cohort_feedback 
-         SET rating = $1, title = $2, comment = $3, is_anonymous = $4, founder_name = $5, startup_name = $6, status = 'SUBMITTED'
-         WHERE id = $7
-         RETURNING *`,
-        [
-          parseInt(rating),
-          title ? title.trim() : null,
-          comment ? comment.trim() : null,
-          isAnonBool,
-          isAnonBool ? 'Anonymous Founder' : founderName,
-          isAnonBool ? 'Anonymous Startup' : startupName,
-          existingId
-        ]
-      );
-      feedbackRecord = updateRes.rows[0];
-    } else {
-      const insertRes = await query(
-        `INSERT INTO cohort_feedback 
-         (cohort_id, session_id, user_id, applicant_id, founder_name, startup_name, feedback_type, rating, title, comment, is_anonymous, status)
-         VALUES ($1, $2, $3, $4, $5, $6, 'SESSION', $7, $8, $9, $10, 'SUBMITTED')
-         RETURNING *`,
-        [
-          session.cohort_id,
-          sessId,
-          userId,
-          applicantId,
-          isAnonBool ? 'Anonymous Founder' : founderName,
-          isAnonBool ? 'Anonymous Startup' : startupName,
-          parseInt(rating),
-          title ? title.trim() : null,
-          comment ? comment.trim() : null,
-          isAnonBool
-        ]
-      );
-      feedbackRecord = insertRes.rows[0];
+      return res.status(400).json({
+        error: 'Your feedback for this mentorship session has already been submitted and is locked.',
+        locked: true,
+        feedback: existing.rows[0]
+      });
+    }
+
+    const insertRes = await query(
+      `INSERT INTO cohort_feedback 
+       (cohort_id, session_id, user_id, applicant_id, founder_name, startup_name, feedback_type, rating, title, comment, is_anonymous, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'SESSION', $7, $8, $9, $10, 'SUBMITTED')
+       RETURNING *`,
+      [
+        session.cohort_id,
+        sessId,
+        userId,
+        applicantId,
+        isAnonBool ? 'Anonymous Founder' : founderName,
+        isAnonBool ? 'Anonymous Startup' : startupName,
+        parseInt(rating),
+        title ? title.trim() : null,
+        comment ? comment.trim() : null,
+        isAnonBool
+      ]
+    );
+    const feedbackRecord = insertRes.rows[0];
+
+    // Ensure applicant profile formData has rated_sessions updated
+    if (applicantId) {
+      try {
+        const appRes = await query('SELECT form_data FROM applicants WHERE id = $1', [applicantId]);
+        if (appRes.rows.length > 0) {
+          const rawFd = appRes.rows[0].form_data;
+          const fd = rawFd ? (typeof rawFd === 'string' ? JSON.parse(rawFd) : rawFd) : {};
+          fd.profile = fd.profile || {};
+          const prevRated = Array.isArray(fd.profile.rated_sessions) ? fd.profile.rated_sessions : [];
+          if (!prevRated.includes(sessId)) {
+            fd.profile.rated_sessions = [...prevRated, sessId];
+            await query('UPDATE applicants SET form_data = $1 WHERE id = $2', [JSON.stringify(fd), applicantId]);
+          }
+        }
+      } catch (syncErr) {
+        console.error('Failed to sync rated_sessions in applicant profile form_data:', syncErr);
+      }
     }
 
     res.json({
@@ -3615,6 +3720,15 @@ export const reviewStartupPivot = async (req: AuthenticatedRequest, res: Respons
       return res.status(400).json({ error: `This pivot request has already been reviewed (Status: ${pivot.status}).` });
     }
 
+    const targetStartupId = pivot.startup_profile_id || pivot.startup_id;
+    if (targetStartupId) {
+      const spCheck = await query(`SELECT program_status FROM startup_profiles WHERE id = $1 OR applicant_id = $1 LIMIT 1;`, [targetStartupId]);
+      const spStatus = String(spCheck.rows[0]?.program_status || '').toUpperCase();
+      if (spStatus === 'KICKED_OUT' || spStatus === 'GRADUATED') {
+        return res.status(400).json({ error: `Cannot review pivot: Startup is in '${spStatus}' status.` });
+      }
+    }
+
     const newStatus = isApprove ? 'APPROVED' : 'REJECTED';
     const reviewedAt = new Date().toISOString();
     const reviewerId = admin?.id || 1;
@@ -3630,8 +3744,6 @@ export const reviewStartupPivot = async (req: AuthenticatedRequest, res: Respons
       WHERE id = $5
       RETURNING *;
     `, [newStatus, reviewerId, reviewedAt, admin_remarks ? admin_remarks.trim() : null, pivotId]);
-
-    const targetStartupId = pivot.startup_profile_id || pivot.startup_id;
 
     // If APPROVED, update the startup's actual profile (description and industry)
     let updatedProfile = null;

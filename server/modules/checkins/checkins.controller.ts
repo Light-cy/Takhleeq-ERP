@@ -41,6 +41,14 @@ export const createCheckin = async (req: Request, res: Response) => {
     }
 
     const startupProfile = spRes.rows[0];
+    const spStatus = String(startupProfile.program_status || '').toUpperCase();
+    if (spStatus === 'KICKED_OUT') {
+      return res.status(400).json({ success: false, error: 'Cannot create check-in: Startup has been permanently kicked out / terminated.' });
+    }
+    if (spStatus === 'GRADUATED') {
+      return res.status(400).json({ success: false, error: 'Cannot create check-in: Startup has graduated from the incubation program.' });
+    }
+
     if (!startupProfile.cohort_id) {
       return res.status(400).json({ success: false, error: 'Startup must be assigned to an active cohort before creating a 1-on-1 check-in.' });
     }
@@ -325,6 +333,17 @@ export const updateCheckin = async (req: Request, res: Response) => {
     }
 
     const existing = existingRes.rows[0];
+
+    // Check if startup is locked
+    const spCheck = await query(`SELECT program_status FROM startup_profiles WHERE id = $1;`, [existing.startup_profile_id]);
+    const spStatus = String(spCheck.rows[0]?.program_status || '').toUpperCase();
+    if (spStatus === 'KICKED_OUT') {
+      return res.status(400).json({ success: false, error: 'Cannot modify check-in: Startup has been permanently kicked out / terminated.' });
+    }
+    if (spStatus === 'GRADUATED') {
+      return res.status(400).json({ success: false, error: 'Cannot modify check-in: Startup has graduated from the incubation program.' });
+    }
+
     const { notes, attendance_status, scheduled_at } = req.body;
 
     const newNotes = notes !== undefined ? notes : existing.notes;

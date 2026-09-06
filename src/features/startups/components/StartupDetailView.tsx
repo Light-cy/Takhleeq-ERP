@@ -4,7 +4,8 @@ import {
   CheckCircle2, AlertTriangle, TrendingUp, Calendar, DollarSign, History, 
   FileText, Sparkles, RefreshCw, Save, ShieldX, Ban, PlayCircle, Award,
   AlertCircle, CheckCircle, Send, RotateCcw, Plus, X, Users, Edit3,
-  ClipboardList, ShieldCheck, GitBranch, Loader2
+  ClipboardList, ShieldCheck, GitBranch, Loader2, ArrowRight, ChevronRight, Layers, Check,
+  Compass
 } from 'lucide-react';
 import { Industry } from '../../../types/startup.types';
 import { STARTUP_PROGRESS_STAGES, getStartupStageInfo } from '../../../constants/startupStages';
@@ -61,6 +62,10 @@ export const StartupDetailView: React.FC<Props> = ({
   const [warningResolutionNotes, setWarningResolutionNotes] = useState('');
   const [resolvingWarning, setResolvingWarning] = useState(false);
 
+  // Stage History Tab Quick Progression State
+  const [stageTargetSelect, setStageTargetSelect] = useState<string>('');
+  const [stageNotesInput, setStageNotesInput] = useState<string>('');
+
   useEffect(() => {
     loadFullDetails();
   }, [startupId]);
@@ -72,6 +77,7 @@ export const StartupDetailView: React.FC<Props> = ({
       const res = await fetchStartupFullDetails(startupId);
       setData(res);
       if (res.profile) {
+        setStageTargetSelect(res.profile.current_progress_stage || 'IDEA_STAGE');
         setFormData({
           startup_name: res.profile.startup_name || '',
           description: res.profile.description || '',
@@ -100,16 +106,15 @@ export const StartupDetailView: React.FC<Props> = ({
   };
 
   const handleAdminSave = async (customPayload?: any, actionLabel?: string) => {
-    // Permanent lock check
-    if (data?.profile?.program_status === 'KICKED_OUT') {
-      if (customPayload?.program_status && customPayload.program_status !== 'KICKED_OUT') {
-        setErrorMsg('Yeh startup incubator se permanently kick out ho chuka hai. Iska status change ya reactivate nahi kiya ja sakta.');
-        return;
-      }
-      if (customPayload?.current_progress_stage && customPayload.current_progress_stage !== data.profile.current_progress_stage) {
-        setErrorMsg('Kicked out startup ka progress stage modify nahi kiya ja sakta.');
-        return;
-      }
+    // Permanent lock check for terminal statuses
+    const currentStatus = data?.profile?.program_status;
+    if (currentStatus === 'KICKED_OUT') {
+      setErrorMsg('Yeh startup incubator se permanently kick out ho chuka hai. Iske liye koi bhi modification ya action allowed nahi hai.');
+      return;
+    }
+    if (currentStatus === 'GRADUATED') {
+      setErrorMsg('Yeh startup program graduate kar chuka hai (Alumni). Iske liye koi bhi modification ya action allowed nahi hai.');
+      return;
     }
 
     setSaving(true);
@@ -240,6 +245,9 @@ export const StartupDetailView: React.FC<Props> = ({
   const { profile, attendance, financials, stage_history, pivots, audit_logs, warnings = [] } = data;
   const activeWarnings = warnings.filter((w: any) => w.status === 'ACTIVE');
   const currentStageInfo = getStartupStageInfo(profile.current_progress_stage);
+  const isKickedOut = profile.program_status === 'KICKED_OUT';
+  const isGraduated = profile.program_status === 'GRADUATED';
+  const isArchivedLocked = isKickedOut || isGraduated;
 
   return (
     <div className="space-y-6 text-left">
@@ -368,12 +376,54 @@ export const StartupDetailView: React.FC<Props> = ({
               className="px-4 py-2.5 bg-white text-gray-900 hover:bg-gray-100 font-black text-xs rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
             >
               <Lock className="h-4 w-4 text-primary" />
-              Admin Actions & Password
+              {isArchivedLocked ? 'View Locked Details' : 'Admin Actions & Password'}
             </button>
           </div>
 
         </div>
       </div>
+
+      {/* PERMANENT LOCKDOWN BANNER FOR KICKED_OUT OR GRADUATED STARTUPS */}
+      {isArchivedLocked && (
+        <div className={`p-5 rounded-3xl border-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-in fade-in slide-in-from-top-2 ${
+          isKickedOut 
+            ? 'bg-rose-50/95 border-rose-300 text-rose-950' 
+            : 'bg-indigo-50/95 border-indigo-300 text-indigo-950'
+        }`}>
+          <div className="flex items-center gap-3.5">
+            <div className={`h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 shadow-inner ${
+              isKickedOut ? 'bg-rose-200 text-rose-700' : 'bg-indigo-200 text-indigo-700'
+            }`}>
+              {isKickedOut ? <ShieldX className="h-6 w-6" /> : <Award className="h-6 w-6" />}
+            </div>
+            <div>
+              <h4 className="text-sm font-black uppercase tracking-wide flex items-center gap-2">
+                <span>{isKickedOut ? 'Permanently Terminated / Kicked Out' : 'Incubation Completed / Graduated Alumni'}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono uppercase font-black ${
+                  isKickedOut ? 'bg-rose-200 text-rose-800' : 'bg-indigo-200 text-indigo-800'
+                }`}>
+                  {isKickedOut ? 'Terminal State' : 'Alumni Record'}
+                </span>
+              </h4>
+              <p className={`text-xs font-medium mt-0.5 max-w-3xl leading-relaxed ${
+                isKickedOut ? 'text-rose-700' : 'text-indigo-700'
+              }`}>
+                {isKickedOut 
+                  ? 'Yeh startup incubator se permanently kick out ho chuka hai. Admin ke liye tamam operational actions (profile edit, check-ins scheduling, warnings issuance, pivots approval, stage changes) mukammal tor par locked hain.'
+                  : 'Yeh startup incubation program successfully graduate kar chuka hai. Iska historical record audit aur reference ke liye locked read-only mode mein mavjood hai.'}
+              </p>
+            </div>
+          </div>
+          <div className={`px-4 py-2 rounded-xl text-xs font-black shrink-0 border flex items-center gap-1.5 shadow-2xs ${
+            isKickedOut 
+              ? 'bg-rose-100 border-rose-300 text-rose-800' 
+              : 'bg-indigo-100 border-indigo-300 text-indigo-800'
+          }`}>
+            <Lock className="h-3.5 w-3.5" />
+            <span>{isKickedOut ? '🔒 Terminal Lockdown' : '🎓 Read-Only Alumni'}</span>
+          </div>
+        </div>
+      )}
 
       {/* ADMIN QUICK ACTION BAR */}
       <div className="bg-white border-2 border-primary/20 p-5 rounded-3xl shadow-xs space-y-4">
@@ -382,8 +432,10 @@ export const StartupDetailView: React.FC<Props> = ({
             <Sparkles className="h-5 w-5 text-primary" />
             <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Instant Admin Control Panel</h3>
           </div>
-          <span className="text-[10px] font-bold font-mono bg-primary/10 text-primary px-2.5 py-1 rounded-full">
-            Auto-Dispatches Email to Founder on Any Change
+          <span className={`text-[10px] font-bold font-mono px-2.5 py-1 rounded-full ${
+            isArchivedLocked ? 'bg-gray-100 text-gray-500' : 'bg-primary/10 text-primary'
+          }`}>
+            {isArchivedLocked ? 'Actions Disabled in Locked Status' : 'Auto-Dispatches Email to Founder on Any Change'}
           </span>
         </div>
 
@@ -397,8 +449,10 @@ export const StartupDetailView: React.FC<Props> = ({
                   <span>Account & Program Status</span>
                   {saving && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
                 </label>
-                {profile.program_status === 'KICKED_OUT' && (
-                  <span className="text-[9px] font-black uppercase text-rose-700 bg-rose-100 border border-rose-200 px-1.5 py-0.5 rounded font-mono">
+                {isArchivedLocked && (
+                  <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded font-mono border ${
+                    isKickedOut ? 'text-rose-700 bg-rose-100 border-rose-200' : 'text-indigo-700 bg-indigo-100 border-indigo-200'
+                  }`}>
                     Locked
                   </span>
                 )}
@@ -407,15 +461,15 @@ export const StartupDetailView: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => handleAdminSave({ program_status: 'ACTIVE' }, 'ACTIVE')}
-                  disabled={saving || profile.program_status === 'KICKED_OUT' || profile.program_status === 'ACTIVE'}
+                  disabled={saving || isArchivedLocked || profile.program_status === 'ACTIVE'}
                   className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
                     profile.program_status === 'ACTIVE'
                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-500/20 cursor-default'
-                      : profile.program_status === 'KICKED_OUT'
+                      : isArchivedLocked
                       ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
                       : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/70 hover:text-emerald-700 cursor-pointer'
                   } disabled:opacity-50`}
-                  title={profile.program_status === 'KICKED_OUT' ? 'Startup is permanently terminated' : undefined}
+                  title={isArchivedLocked ? 'Status changes are locked' : undefined}
                 >
                   {saving && savingAction === 'ACTIVE' ? (
                     <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-emerald-600" />
@@ -429,15 +483,15 @@ export const StartupDetailView: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => handleAdminSave({ program_status: 'PAUSED' }, 'PAUSED')}
-                  disabled={saving || profile.program_status === 'KICKED_OUT' || profile.program_status === 'PAUSED'}
+                  disabled={saving || isArchivedLocked || profile.program_status === 'PAUSED'}
                   className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
                     profile.program_status === 'PAUSED'
                       ? 'bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-500/20 cursor-default'
-                      : profile.program_status === 'KICKED_OUT'
+                      : isArchivedLocked
                       ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
                       : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300 hover:bg-amber-50/70 hover:text-amber-800 cursor-pointer'
                   } disabled:opacity-50`}
-                  title={profile.program_status === 'KICKED_OUT' ? 'Startup is permanently terminated' : undefined}
+                  title={isArchivedLocked ? 'Status changes are locked' : undefined}
                 >
                   {saving && savingAction === 'PAUSED' ? (
                     <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-amber-600" />
@@ -451,15 +505,15 @@ export const StartupDetailView: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => handleAdminSave({ program_status: 'GRADUATED' }, 'GRADUATED')}
-                  disabled={saving || profile.program_status === 'KICKED_OUT' || profile.program_status === 'GRADUATED'}
+                  disabled={saving || isArchivedLocked || profile.program_status === 'GRADUATED'}
                   className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
                     profile.program_status === 'GRADUATED'
                       ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-500/20 cursor-default'
-                      : profile.program_status === 'KICKED_OUT'
+                      : isArchivedLocked
                       ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
                       : 'bg-white text-gray-700 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/70 hover:text-indigo-700 cursor-pointer'
                   } disabled:opacity-50`}
-                  title={profile.program_status === 'KICKED_OUT' ? 'Startup is permanently terminated' : undefined}
+                  title={isArchivedLocked ? 'Status changes are locked' : undefined}
                 >
                   {saving && savingAction === 'GRADUATED' ? (
                     <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-indigo-600" />
@@ -473,10 +527,12 @@ export const StartupDetailView: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => handleAdminSave({ program_status: 'KICKED_OUT' }, 'KICKED_OUT')}
-                  disabled={saving || profile.program_status === 'KICKED_OUT'}
+                  disabled={saving || isArchivedLocked}
                   className={`py-2 px-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap border ${
                     profile.program_status === 'KICKED_OUT'
                       ? 'bg-rose-700 text-white border-rose-700 shadow-xs ring-2 ring-rose-500/20 cursor-default'
+                      : isArchivedLocked
+                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50'
                       : 'bg-white text-gray-700 border-gray-200 hover:border-rose-300 hover:bg-rose-50/70 hover:text-rose-700 cursor-pointer'
                   } disabled:opacity-90`}
                 >
@@ -490,11 +546,18 @@ export const StartupDetailView: React.FC<Props> = ({
                 </button>
               </div>
             </div>
-            {profile.program_status === 'KICKED_OUT' ? (
+            {isKickedOut ? (
               <div className="mt-1 p-2 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-1.5">
                 <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-rose-600 mt-0.5" />
                 <span className="text-[10px] text-rose-700 leading-tight font-medium">
                   Permanently Terminated: Kicked out status permanent hai aur dobara change ya active nahi ho sakta.
+                </span>
+              </div>
+            ) : isGraduated ? (
+              <div className="mt-1 p-2 bg-indigo-50 border border-indigo-200 rounded-xl text-indigo-800 text-xs flex items-start gap-1.5">
+                <Award className="h-3.5 w-3.5 shrink-0 text-indigo-600 mt-0.5" />
+                <span className="text-[10px] text-indigo-700 leading-tight font-medium">
+                  Alumni Graduated: Startup graduate ho chuki hai. Status dobara change ya active nahi ho sakta.
                 </span>
               </div>
             ) : (
@@ -509,17 +572,18 @@ export const StartupDetailView: React.FC<Props> = ({
               <div className="flex items-center gap-1.5 min-w-0">
                 <input
                   type="text"
-                  placeholder="New password..."
+                  placeholder={isArchivedLocked ? "Password editing locked" : "New password..."}
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
-                  className="w-full min-w-0 bg-white border border-gray-300 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold focus:outline-none focus:border-primary placeholder:text-gray-400 placeholder:font-sans placeholder:text-[11px]"
+                  disabled={isArchivedLocked || saving}
+                  className="w-full min-w-0 bg-white border border-gray-300 rounded-xl px-2.5 py-1.5 text-xs font-mono font-bold focus:outline-none focus:border-primary placeholder:text-gray-400 placeholder:font-sans placeholder:text-[11px] disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                 />
                 <button
                   onClick={() => handleAdminSave({ founder_password: newPassword })}
-                  disabled={saving || !newPassword.trim()}
+                  disabled={saving || isArchivedLocked || !newPassword.trim()}
                   className="shrink-0 px-2.5 py-1.5 bg-primary text-white hover:bg-primary-dark font-bold text-[11px] rounded-xl transition-all disabled:opacity-40 cursor-pointer whitespace-nowrap"
                 >
-                  Save & Email
+                  {isArchivedLocked ? 'Locked' : 'Save & Email'}
                 </button>
               </div>
             </div>
@@ -539,7 +603,7 @@ export const StartupDetailView: React.FC<Props> = ({
                   setFormData({ ...formData, current_progress_stage: val });
                   handleAdminSave({ current_progress_stage: val });
                 }}
-                disabled={saving || profile.program_status === 'KICKED_OUT'}
+                disabled={saving || isArchivedLocked}
                 className="w-full bg-white border border-gray-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:border-primary truncate disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
               >
                 {STARTUP_PROGRESS_STAGES.map(stg => (
@@ -551,24 +615,38 @@ export const StartupDetailView: React.FC<Props> = ({
           </div>
 
           {/* Quick Issue Warning Action */}
-          <div className="bg-amber-500/10 p-4 rounded-2xl border border-amber-300/60 space-y-2 flex flex-col justify-between">
+          <div className={`${isArchivedLocked ? 'bg-gray-100 border-gray-200' : 'bg-amber-500/10 border-amber-300/60'} p-4 rounded-2xl border space-y-2 flex flex-col justify-between`}>
             <div>
-              <label className="text-xs font-black text-amber-900 uppercase tracking-wide block mb-2 flex items-center justify-between">
+              <label className={`text-xs font-black uppercase tracking-wide block mb-2 flex items-center justify-between ${
+                isArchivedLocked ? 'text-gray-500' : 'text-amber-900'
+              }`}>
                 <span>Performance Notice</span>
                 {activeWarnings.length > 0 && <span className="text-[10px] bg-rose-600 text-white px-1.5 py-0.5 rounded-full font-bold">{activeWarnings.length} Active</span>}
               </label>
-              <button
-                onClick={() => {
-                  setActiveTab('warnings');
-                  setShowWarningForm(true);
-                }}
-                className="w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs whitespace-nowrap"
-              >
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                <span>Issue Warning & Email</span>
-              </button>
+              {isArchivedLocked ? (
+                <button
+                  disabled
+                  className="w-full py-1.5 px-3 bg-gray-200 text-gray-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-not-allowed whitespace-nowrap"
+                >
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  <span>Warnings Locked ({isKickedOut ? 'Kicked Out' : 'Graduated'})</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setActiveTab('warnings');
+                    setShowWarningForm(true);
+                  }}
+                  className="w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs whitespace-nowrap"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span>Issue Warning & Email</span>
+                </button>
+              )}
             </div>
-            <p className="text-[10px] text-amber-800 font-medium mt-1">Flag attendance, performance or policies.</p>
+            <p className={`text-[10px] font-medium mt-1 ${isArchivedLocked ? 'text-gray-400' : 'text-amber-800'}`}>
+              {isArchivedLocked ? 'Warnings disabled for archived startups.' : 'Flag attendance, performance or policies.'}
+            </p>
           </div>
 
         </div>
@@ -737,6 +815,14 @@ export const StartupDetailView: React.FC<Props> = ({
           cohortId={profile.cohort_id}
           cohortName={profile.cohort_name}
           onNavigate={onNavigate}
+          isReadOnly={isArchivedLocked}
+          lockReason={
+            isKickedOut
+              ? 'Yeh startup permanently kick out ho chuka hai. Check-ins schedule ya update karna locked hai.'
+              : isGraduated
+              ? 'Yeh startup incubation program graduate kar chuka hai (Alumni). Check-ins schedule ya update karna locked hai.'
+              : undefined
+          }
         />
       )}
 
@@ -915,17 +1001,45 @@ export const StartupDetailView: React.FC<Props> = ({
                 Admin can update startup information, password, stage, and revenue figures here. All edits send an email to the founder.
               </p>
             </div>
-            <button
-              onClick={() => handleAdminSave()}
-              disabled={saving}
-              className="px-5 py-2.5 bg-primary text-white hover:bg-primary-dark rounded-2xl font-black text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
-            >
-              <Save className="h-4 w-4" />
-              {saving ? 'Saving & Dispatching Email...' : 'Save All Changes & Notify Founder'}
-            </button>
+            {isArchivedLocked ? (
+              <button
+                disabled
+                className="px-5 py-2.5 bg-gray-200 text-gray-400 rounded-2xl font-black text-xs flex items-center gap-2 cursor-not-allowed shadow-none"
+              >
+                <Lock className="h-4 w-4" />
+                <span>Profile Locked ({isKickedOut ? 'Kicked Out' : 'Graduated'})</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => handleAdminSave()}
+                disabled={saving}
+                className="px-5 py-2.5 bg-primary text-white hover:bg-primary-dark rounded-2xl font-black text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" />
+                {saving ? 'Saving & Dispatching Email...' : 'Save All Changes & Notify Founder'}
+              </button>
+            )}
           </div>
 
-          <div className="space-y-6">
+          {isArchivedLocked && (
+            <div className={`p-4 rounded-2xl border flex items-center gap-3 ${
+              isKickedOut ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-indigo-50 border-indigo-200 text-indigo-900'
+            }`}>
+              <Lock className="h-5 w-5 shrink-0 text-current" />
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide">
+                  Profile Modification Disabled ({isKickedOut ? 'Permanently Kicked Out' : 'Graduated Alumni'})
+                </p>
+                <p className="text-[11px] font-medium mt-0.5">
+                  {isKickedOut 
+                    ? 'Yeh startup incubator se permanently kick out ho chuka hai. Tamam fields read-only mode mein lock hain.'
+                    : 'Yeh startup program successfully graduate kar chuka hai. Tamam fields audit aur record ke liye lock hain.'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <fieldset disabled={isArchivedLocked || saving} className="space-y-6 disabled:opacity-75">
             
             {/* Admin Notes / Email Message */}
             <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 space-y-2">
@@ -1102,17 +1216,27 @@ export const StartupDetailView: React.FC<Props> = ({
             </div>
 
             <div className="pt-4 border-t border-gray-100 flex justify-end">
-              <button
-                onClick={() => handleAdminSave()}
-                disabled={saving}
-                className="px-6 py-3 bg-primary text-white hover:bg-primary-dark rounded-2xl font-black text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
-              >
-                <Save className="h-4 w-4" />
-                {saving ? 'Saving Changes...' : 'Save Profile & Email Founder'}
-              </button>
+              {isArchivedLocked ? (
+                <button
+                  disabled
+                  className="px-6 py-3 bg-gray-200 text-gray-400 rounded-2xl font-black text-xs flex items-center gap-2 cursor-not-allowed shadow-none"
+                >
+                  <Lock className="h-4 w-4" />
+                  <span>Profile Locked ({isKickedOut ? 'Kicked Out' : 'Graduated'})</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleAdminSave()}
+                  disabled={saving}
+                  className="px-6 py-3 bg-primary text-white hover:bg-primary-dark rounded-2xl font-black text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+                  {saving ? 'Saving Changes...' : 'Save Profile & Email Founder'}
+                </button>
+              )}
             </div>
 
-          </div>
+          </fieldset>
         </div>
       )}
 
@@ -1239,17 +1363,27 @@ export const StartupDetailView: React.FC<Props> = ({
                 Issue official performance or attendance warnings to this startup founder. An automated official email will be sent immediately upon issuance or resolution.
               </p>
             </div>
-            <button
-              onClick={() => setShowWarningForm(!showWarningForm)}
-              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-black text-xs flex items-center gap-2 transition-all shadow-md shrink-0 cursor-pointer"
-            >
-              {showWarningForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-              {showWarningForm ? 'Cancel Form' : 'Raise New Warning & Email Founder'}
-            </button>
+            {isArchivedLocked ? (
+              <button
+                disabled
+                className="px-5 py-2.5 bg-gray-200 text-gray-400 rounded-2xl font-black text-xs flex items-center gap-2 cursor-not-allowed shadow-none shrink-0"
+              >
+                <Lock className="h-4 w-4" />
+                <span>Warnings Locked ({isKickedOut ? 'Kicked Out' : 'Graduated'})</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowWarningForm(!showWarningForm)}
+                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-black text-xs flex items-center gap-2 transition-all shadow-md shrink-0 cursor-pointer"
+              >
+                {showWarningForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                {showWarningForm ? 'Cancel Form' : 'Raise New Warning & Email Founder'}
+              </button>
+            )}
           </div>
 
           {/* Issue Warning Form Card */}
-          {showWarningForm && (
+          {showWarningForm && !isArchivedLocked && (
             <form onSubmit={handleIssueWarningSubmit} className="bg-amber-500/5 border-2 border-amber-500/30 rounded-3xl p-6 shadow-md space-y-4 animate-in fade-in slide-in-from-top-2">
               <div className="flex items-center justify-between border-b border-amber-200 pb-3">
                 <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider flex items-center gap-2">
@@ -1425,17 +1559,24 @@ export const StartupDetailView: React.FC<Props> = ({
                       </div>
                     ) : (
                       <div className="flex items-center justify-end">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setWarningResolvingId(w.id);
-                            setWarningResolutionNotes('');
-                          }}
-                          className="px-3.5 py-1.5 bg-white border border-gray-300 hover:bg-emerald-50 hover:border-emerald-300 text-emerald-800 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                        >
-                          <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
-                          Resolve / Clear Warning
-                        </button>
+                        {isArchivedLocked ? (
+                          <span className="text-[11px] font-bold text-gray-400 italic flex items-center gap-1.5">
+                            <Lock className="h-3 w-3" />
+                            <span>Warning resolution locked ({isKickedOut ? 'Kicked Out' : 'Graduated'})</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWarningResolvingId(w.id);
+                              setWarningResolutionNotes('');
+                            }}
+                            className="px-3.5 py-1.5 bg-white border border-gray-300 hover:bg-emerald-50 hover:border-emerald-300 text-emerald-800 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                          >
+                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                            Resolve / Clear Warning
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1487,29 +1628,283 @@ export const StartupDetailView: React.FC<Props> = ({
 
       {/* TAB 5: STAGE HISTORY */}
       {activeTab === 'stage' && (
-        <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
-          <div className="border-b border-gray-100 pb-3">
-            <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Historical Progress Stage Timeline</h3>
-            <p className="text-xs text-gray-500">Every transition approved by Takhleeq staff is logged with timestamp and remarks.</p>
+        <div className="space-y-6">
+          {/* Header Card */}
+          <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  <h3 className="text-base font-black text-gray-900 uppercase tracking-wider">Historical Progress Stage Timeline</h3>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Track startup milestone transitions, initial enrollment baseline, and staff-approved stage advancements.
+                </p>
+              </div>
+
+              {/* Current Stage Badge */}
+              <div className="flex items-center gap-2.5 bg-gray-50 border border-gray-200 rounded-2xl px-4 py-2 self-start sm:self-auto">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Current Stage:</span>
+                <span className="text-xs font-black text-primary bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20">
+                  {currentStageInfo.label}
+                </span>
+              </div>
+            </div>
+
+            {/* Stage Roadmap Progress Bar */}
+            <div className="pt-2">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider block mb-3 font-mono">
+                Incubation Stage Roadmap (Step {currentStageInfo.stepNumber} of {STARTUP_PROGRESS_STAGES.length})
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                {STARTUP_PROGRESS_STAGES.map((stg) => {
+                  const isCurrent = stg.key === profile.current_progress_stage;
+                  const isPast = stg.stepNumber < currentStageInfo.stepNumber;
+                  return (
+                    <div
+                      key={stg.key}
+                      className={`p-3 rounded-2xl border transition-all text-left ${
+                        isCurrent
+                          ? 'bg-primary text-white border-primary shadow-xs ring-2 ring-primary/20'
+                          : isPast
+                          ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                          : 'bg-gray-50 text-gray-400 border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-[10px] font-mono font-bold ${isCurrent ? 'text-white/80' : isPast ? 'text-emerald-600' : 'text-gray-400'}`}>
+                          Step {stg.stepNumber}
+                        </span>
+                        {isPast && <Check className="h-3.5 w-3.5 text-emerald-600" />}
+                        {isCurrent && <span className="h-2 w-2 rounded-full bg-white animate-pulse" />}
+                      </div>
+                      <p className={`text-xs font-black leading-snug line-clamp-2 ${isCurrent ? 'text-white' : isPast ? 'text-gray-900' : 'text-gray-500'}`}>
+                        {stg.name}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Baseline or Progression Notification Banner */}
+            {(() => {
+              const transitionsCount = stage_history.filter((s: any) => s.previous_stage && s.new_stage && s.previous_stage !== s.new_stage).length;
+              if (transitionsCount === 0) {
+                return (
+                  <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-2xl flex items-center gap-3 text-xs text-blue-900">
+                    <Sparkles className="h-4 w-4 shrink-0 text-blue-600" />
+                    <div>
+                      <span className="font-extrabold block">At Baseline Intake Stage</span>
+                      <span className="text-blue-700 text-[11px]">
+                        This startup is currently at its initial enrollment stage ({currentStageInfo.name}). No stage advancement transitions have been logged yet.
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-center gap-3 text-xs text-emerald-900">
+                  <TrendingUp className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <div>
+                    <span className="font-extrabold block">Active Progression Trajectory</span>
+                    <span className="text-emerald-700 text-[11px]">
+                      This startup has logged {transitionsCount} milestone promotion{transitionsCount > 1 ? 's' : ''} on its incubation journey.
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Advance Stage Form for Staff */}
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-gray-800 uppercase tracking-wide flex items-center gap-1.5">
+                  <Layers className="h-4 w-4 text-primary" /> Advance / Change Progress Stage
+                </span>
+                <span className="text-[10px] text-gray-400 font-mono">Staff Action</span>
+              </div>
+
+              {isArchivedLocked ? (
+                <div className="p-3 bg-gray-100 rounded-xl border border-gray-200 text-xs text-gray-600 flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-gray-400 shrink-0" />
+                  <span>
+                    Stage progression is locked for {isKickedOut ? 'permanently terminated' : 'graduated'} startups. Stage transitions cannot be modified.
+                  </span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                  <div className="sm:col-span-4 space-y-1">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">Target Stage</label>
+                    <select
+                      value={stageTargetSelect || profile.current_progress_stage || 'IDEA_STAGE'}
+                      onChange={(e) => setStageTargetSelect(e.target.value)}
+                      disabled={saving || isArchivedLocked}
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 focus:outline-none focus:border-primary disabled:bg-gray-100 disabled:text-gray-400"
+                    >
+                      {STARTUP_PROGRESS_STAGES.map((stg) => (
+                        <option key={stg.key} value={stg.key}>{stg.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-5 space-y-1">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">Remarks / Justification (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Validated initial customer traction..."
+                      value={stageNotesInput}
+                      onChange={(e) => setStageNotesInput(e.target.value)}
+                      disabled={saving || isArchivedLocked}
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2 text-xs font-medium text-gray-800 focus:outline-none focus:border-primary placeholder:text-gray-400"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!stageTargetSelect) return;
+                        await handleAdminSave({
+                          current_progress_stage: stageTargetSelect,
+                          admin_notes: stageNotesInput || 'Admin stage progression'
+                        });
+                        setStageNotesInput('');
+                      }}
+                      disabled={saving || isArchivedLocked || stageTargetSelect === profile.current_progress_stage}
+                      className="w-full py-2 px-3 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-black transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                    >
+                      {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                      <span>Update Stage</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="space-y-3">
-            {stage_history.length === 0 ? (
-              <p className="text-xs text-gray-400 py-6 text-center">No progress stage transitions logged yet.</p>
-            ) : (
-              stage_history.map((stg: any) => (
-                <div key={stg.id} className="p-4 bg-gray-50 border border-gray-200 rounded-2xl space-y-1 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-black text-gray-900">
-                      {stg.previous_stage || 'Initial'} &rarr; <span className="text-primary">{stg.new_stage}</span>
+          {/* Timeline Entries List */}
+          <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
+            {(() => {
+              const transitions = stage_history.filter((s: any) => s.previous_stage && s.new_stage && s.previous_stage !== s.new_stage);
+              const transitionsCount = transitions.length;
+              const hasExplicitEntries = stage_history.length > 0;
+
+              return (
+                <>
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <h4 className="text-sm font-black text-gray-900 uppercase tracking-wider flex items-center gap-2">
+                      <History className="h-4 w-4 text-primary" />
+                      Logged Stage Milestones
+                    </h4>
+                    <span className="text-xs font-mono font-bold text-gray-400">
+                      {transitionsCount === 0 ? 'Baseline (0 Transitions)' : `${transitionsCount} Transition${transitionsCount > 1 ? 's' : ''}`}
                     </span>
-                    <span className="font-mono text-gray-400 text-[10px]">{stg.change_date ? new Date(stg.change_date).toLocaleString() : ''}</span>
                   </div>
-                  <p className="text-gray-600">Updated by: <span className="font-bold text-gray-800">{stg.updated_by_email}</span></p>
-                  {stg.comments && <p className="text-gray-500 italic mt-1">"{stg.comments}"</p>}
-                </div>
-              ))
-            )}
+
+                  <div className="space-y-3">
+                    {!hasExplicitEntries ? (
+                      <div className="p-6 bg-gradient-to-r from-blue-50/50 to-indigo-50/30 border border-blue-200/70 rounded-2xl space-y-3">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-extrabold text-[10px] uppercase tracking-wider border border-blue-200">
+                              Initial Baseline
+                            </span>
+                            <span className="font-extrabold text-gray-900 text-sm">
+                              Enrolled at {currentStageInfo.name}
+                            </span>
+                          </div>
+                          <span className="font-mono text-gray-400 text-[11px]">
+                            {profile.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Intake Inception'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-gray-500 pt-0.5 border-t border-blue-100">
+                          <span>
+                            Logged by: <strong className="text-gray-800">System (Cohort Intake Confirmation)</strong>
+                          </span>
+                          <span className="font-mono text-blue-700 font-bold text-[10px]">
+                            No stage changes yet
+                          </span>
+                        </div>
+
+                        <div className="p-3 bg-white/90 border border-blue-200/80 rounded-xl text-gray-700 text-[11px]">
+                          <span className="font-bold text-blue-600 text-[9px] uppercase tracking-wider block mb-0.5 font-mono">
+                            Milestone Note
+                          </span>
+                          <p className="text-gray-600 font-medium leading-relaxed">
+                            Startup was officially inducted into the incubator program at baseline stage <strong className="text-gray-900 font-bold">{currentStageInfo.name}</strong>. Future stage advancements will be logged here with timestamps and staff notes.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      stage_history.map((stg: any, idx: number) => {
+                        const isBaseline = !stg.previous_stage || stg.previous_stage === 'Initial' || !stg.new_stage || stg.previous_stage === stg.new_stage;
+                        const prevInfo = stg.previous_stage ? getStartupStageInfo(stg.previous_stage) : null;
+                        const newInfo = getStartupStageInfo(stg.new_stage || profile.current_progress_stage || 'IDEA_STAGE');
+
+                        return (
+                          <div key={stg.id || idx} className="p-4 bg-gray-50/90 border border-gray-200 rounded-2xl space-y-2.5 text-xs transition-all hover:border-gray-300 hover:bg-gray-50">
+                            <div className="flex items-center justify-between gap-3 flex-wrap">
+                              {isBaseline ? (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-extrabold text-[10px] uppercase tracking-wider border border-blue-200">
+                                    Initial Baseline
+                                  </span>
+                                  <span className="font-extrabold text-gray-900 text-sm">
+                                    Enrolled at {newInfo.name}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 flex-wrap font-black">
+                                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-[10px] uppercase tracking-wider border border-emerald-200">
+                                    Stage Progression
+                                  </span>
+                                  <span className="text-gray-600 font-extrabold">
+                                    {prevInfo ? prevInfo.name : 'Previous Stage'}
+                                  </span>
+                                  <ArrowRight className="h-3.5 w-3.5 text-gray-400" />
+                                  <span className="text-primary font-black text-sm">
+                                    {newInfo.name}
+                                  </span>
+                                </div>
+                              )}
+
+                              <span className="font-mono text-gray-400 text-[11px]">
+                                {stg.change_date ? new Date(stg.change_date).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'Initial registration'}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] text-gray-500 pt-0.5 border-t border-gray-200/60">
+                              <span>
+                                Logged by: <strong className="text-gray-800">{stg.updated_by_email || (isBaseline ? 'System (Intake Confirmation)' : 'Staff')}</strong>
+                              </span>
+                              {isBaseline && (
+                                <span className="font-mono text-blue-700 font-bold text-[10px]">
+                                  Baseline Inception
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Comments / Remarks block */}
+                            {(stg.comments || isBaseline) && (
+                              <div className="p-2.5 bg-white border border-gray-200/80 rounded-xl text-gray-700 text-[11px]">
+                                <span className="font-bold text-gray-400 text-[9px] uppercase tracking-wider block mb-0.5 font-mono">
+                                  {isBaseline ? 'Milestone Note' : 'Admin Remarks'}
+                                </span>
+                                <p className="italic text-gray-600">
+                                  "{stg.comments || 'Initial baseline stage assigned upon cohort intake confirmation.'}"
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -1582,7 +1977,14 @@ export const StartupDetailView: React.FC<Props> = ({
                     </div>
 
                     {/* Review Form / Buttons */}
-                    {reviewingPivotId === p.id ? (
+                    {isArchivedLocked ? (
+                      <div className="flex items-center justify-end pt-1">
+                        <span className="text-[11px] font-bold text-gray-400 italic flex items-center gap-1.5">
+                          <Lock className="h-3 w-3" />
+                          <span>Pivot review locked ({isKickedOut ? 'Kicked Out' : 'Graduated'})</span>
+                        </span>
+                      </div>
+                    ) : reviewingPivotId === p.id ? (
                       <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 animate-in fade-in text-xs">
                         <label className="font-bold text-gray-700 uppercase text-[10px] block">
                           Review Remarks / Feedback to Founder (Optional):

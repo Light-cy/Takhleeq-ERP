@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Calendar, Clock, CheckCircle2, AlertCircle, FileText, CheckSquare, ChevronRight, RefreshCw, User } from 'lucide-react';
+import { Plus, Calendar, Clock, CheckCircle2, AlertCircle, FileText, CheckSquare, ChevronRight, RefreshCw, User, Lock } from 'lucide-react';
 import { Checkin } from '../../../types/checkin.types';
 import { fetchStartupCheckins } from '../api/checkinsApi';
 import { NewCheckinModal } from './NewCheckinModal';
@@ -11,6 +11,8 @@ interface StartupCheckinsTabProps {
   cohortName?: string;
   onNavigate?: (path: string) => void;
   onOpenCheckinDetail?: (checkinId: number) => void;
+  isReadOnly?: boolean;
+  lockReason?: string;
 }
 
 export const StartupCheckinsTab: React.FC<StartupCheckinsTabProps> = ({
@@ -19,7 +21,9 @@ export const StartupCheckinsTab: React.FC<StartupCheckinsTabProps> = ({
   cohortId,
   cohortName,
   onNavigate,
-  onOpenCheckinDetail
+  onOpenCheckinDetail,
+  isReadOnly = false,
+  lockReason
 }) => {
   const [checkins, setCheckins] = useState<Checkin[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,14 +87,29 @@ export const StartupCheckinsTab: React.FC<StartupCheckinsTabProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-primary hover:bg-[#5A0F0F] text-white px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-3xs transition-all shrink-0"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Schedule / Log Check-in</span>
-        </button>
+        {isReadOnly ? (
+          <div className="px-4 py-2.5 bg-gray-100 border border-gray-200 text-gray-500 rounded-2xl text-xs font-bold flex items-center gap-1.5 cursor-not-allowed shrink-0">
+            <Lock className="h-4 w-4 text-gray-400" />
+            <span>Check-ins Locked</span>
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-primary hover:bg-[#5A0F0F] text-white px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-3xs transition-all shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Schedule / Log Check-in</span>
+          </button>
+        )}
       </div>
+
+      {/* Lock Notice Banner */}
+      {isReadOnly && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3 text-xs text-amber-900 font-bold">
+          <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+          <span>{lockReason || 'Yeh startup locked status mein hai. Iske liye check-ins schedule ya update karna disabled hai.'}</span>
+        </div>
+      )}
 
       {errorMsg && (
         <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-bold text-rose-800">
@@ -104,15 +123,19 @@ export const StartupCheckinsTab: React.FC<StartupCheckinsTabProps> = ({
           <Calendar className="h-10 w-10 text-gray-300 mx-auto" />
           <h4 className="text-xs font-black text-gray-700 uppercase tracking-wide">No 1-on-1 Check-ins Recorded</h4>
           <p className="text-xs text-gray-400 max-w-md mx-auto">
-            Log a meeting that already happened or schedule a future advisory check-in for this startup.
+            {isReadOnly 
+              ? 'Is startup ke liye koi check-in record mavjood nahi hai, aur locked status ki wajah se naye check-ins create nahi kiye ja sakte.'
+              : 'Log a meeting that already happened or schedule a future advisory check-in for this startup.'}
           </p>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="mt-2 inline-flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer shadow-2xs"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Create First Check-in</span>
-          </button>
+          {!isReadOnly && (
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="mt-2 inline-flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer shadow-2xs"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Create First Check-in</span>
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -416,6 +416,12 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
     // Fetch cohort assignments
     fetchCohortAssignments(cohortId);
 
+    // Refresh applicants whenever switching tabs or changing selected cohort
+    fetchWithAuth('/api/applicants')
+      .then(res => safeParseResponse(res, []))
+      .then(data => Array.isArray(data) && setApplicants(data))
+      .catch(() => {});
+
   }, [selectedCohort?.id, activeSubTab]);
 
   const fetchCohortAssignments = async (cohortIdOverride?: number, silent = false) => {
@@ -1639,6 +1645,10 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
               applicantId={selectedApplicant.id}
               onBack={() => {
                 setSelectedApplicant(null);
+                fetchWithAuth('/api/applicants')
+                  .then(res => safeParseResponse(res, []))
+                  .then(data => Array.isArray(data) && setApplicants(data))
+                  .catch(() => {});
                 if (onNavigate) {
                   onNavigate('/staff/dashboard');
                 } else if (typeof window !== 'undefined' && window.history.pushState) {
@@ -1726,7 +1736,10 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                             </td>
                             <td className="py-3.5 px-4">
                               {(() => {
-                                const ps = typeof app.program_status === 'string' && app.program_status !== '{}' ? app.program_status : (app.status === 'CONFIRMED' || app.cohort_id ? 'ACTIVE' : 'NOT_ENROLLED');
+                                const rawPs = typeof app.program_status === 'string' && app.program_status !== '{}' ? app.program_status.toUpperCase().trim() : '';
+                                const ps = (rawPs === 'ACTIVE' || rawPs === 'GRADUATED' || rawPs === 'PAUSED' || rawPs === 'KICKED_OUT')
+                                  ? rawPs
+                                  : (app.status === 'CONFIRMED' || app.status === 'ENROLLED' || app.cohort_id ? 'ACTIVE' : 'NOT_ENROLLED');
                                 const badgeStyle = 
                                   ps === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
                                   ps === 'GRADUATED' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :

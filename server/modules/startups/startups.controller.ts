@@ -112,10 +112,16 @@ export const syncAcceptedStartupsInternal = async () => {
               previous_stage,
               new_stage,
               change_date,
+              updated_by_user_id,
               updated_by_email,
               comments
-            ) VALUES ($1, NULL, 'IDEA_STAGE', CURRENT_TIMESTAMP, 'system_auto_sync', 'Initial startup profile auto-created upon cohort intake confirmation.');
-          `, [profile.id]);
+            ) VALUES ($1, NULL, $2, CURRENT_TIMESTAMP, NULL, $3, $4);
+          `, [
+            profile.id,
+            'IDEA_STAGE',
+            'System (Intake Confirmation)',
+            'Initial startup profile auto-created upon cohort intake confirmation.'
+          ]);
 
           // Write audit log
           await query(`
@@ -413,11 +419,17 @@ export const updateStartupProfile = async (req: Request, res: Response) => {
     const currentProfile = profileRes.rows[0];
     const body = req.body || {};
 
-    // PERMANENT LOCK ENFORCEMENT: Kicked out startups cannot be reactivated
-    if (String(currentProfile.program_status).toUpperCase() === 'KICKED_OUT' && body.program_status && String(body.program_status).toUpperCase() !== 'KICKED_OUT') {
+    const currentStatus = String(currentProfile.program_status || '').toUpperCase();
+    if (currentStatus === 'KICKED_OUT') {
       return res.status(400).json({
         success: false,
-        error: 'Permanent Termination: Yeh startup incubator se permanently kick out / terminate ho chuka hai. Iska status change ya reactivate nahi kiya ja sakta.'
+        error: 'Permanent Termination: Yeh startup incubator se permanently kick out / terminate ho chuka hai. Iska profile data modify nahi kiya ja sakta.'
+      });
+    }
+    if (currentStatus === 'GRADUATED') {
+      return res.status(400).json({
+        success: false,
+        error: 'Graduated Alumni: Yeh startup program graduate kar chuka hai. Iska profile data modify nahi kiya ja sakta.'
       });
     }
 
@@ -687,6 +699,13 @@ export const createPivot = async (req: Request, res: Response) => {
     }
 
     const profile = profileRes.rows[0];
+    const pStatus = String(profile.program_status || '').toUpperCase();
+    if (pStatus === 'KICKED_OUT' || pStatus === 'GRADUATED') {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot record pivot: Startup is currently in '${pStatus}' status.`
+      });
+    }
     const previousIdea = profile.description;
     const previousIndustryId = profile.industry_id;
 
@@ -1086,6 +1105,20 @@ export const issueStartupWarning = async (req: Request, res: Response) => {
     }
 
     const profile = profileRes.rows[0];
+    const pStatus = String(profile.program_status || '').toUpperCase();
+    if (pStatus === 'KICKED_OUT') {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot issue warning: Startup is permanently terminated / kicked out.'
+      });
+    }
+    if (pStatus === 'GRADUATED') {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot issue warning: Startup has graduated from the incubation program.'
+      });
+    }
+
     const staffUser = (req as any).user;
     const issuedBy = staffUser?.name || staffUser?.email || 'Program Manager';
 
@@ -1174,6 +1207,16 @@ export const resolveStartupWarning = async (req: Request, res: Response) => {
 
     const warning = warnRes.rows[0];
 
+    // Check if startup is locked
+    const spCheckRes = await query(`SELECT program_status FROM startup_profiles WHERE id = $1;`, [warning.startup_profile_id]);
+    const spCheckStatus = String(spCheckRes.rows[0]?.program_status || '').toUpperCase();
+    if (spCheckStatus === 'KICKED_OUT' || spCheckStatus === 'GRADUATED') {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot resolve warning: Startup is currently in '${spCheckStatus}' status.`
+      });
+    }
+
     const updateRes = await query(`
       UPDATE performance_warnings
       SET status = $1, resolution_notes = $2, updated_at = CURRENT_TIMESTAMP
@@ -1240,6 +1283,20 @@ export const adminUpdateStartupProfile = async (req: Request, res: Response) => 
     const profile = profileRes.rows[0];
     const body = req.body || {};
 
+    const oldProgramStatus = String(profile.program_status || 'ACTIVE').toUpperCase();
+
+    // PERMANENT LOCK ENFORCEMENT: Kicked out and Graduated startups cannot be modified
+    if (oldProgramStatus === 'KICKED_OUT') {
+      return res.status(400).json({
+        error: 'Permanent Termination: Yeh startup incubator se permanently kick out / terminate ho chuka hai. Iska profile, credentials ya status modify nahi kiya ja sakta.'
+      });
+    }
+    if (oldProgramStatus === 'GRADUATED') {
+      return res.status(400).json({
+        error: 'Graduated Alumni: Yeh startup incubation program graduate kar chuka hai. Iska profile, credentials ya status modify nahi kiya ja sakta.'
+      });
+    }
+
     let passwordChanged = false;
     let programStatusChanged = false;
     let stageChanged = false;
@@ -1258,28 +1315,15 @@ export const adminUpdateStartupProfile = async (req: Request, res: Response) => 
       `, [profileId, adminUserId, adminEmail]);
     }
 
-    // 2. Program Status Update (ACTIVE, PAUSED / Temporarily Blocked, KICKED_OUT / Terminated)
-    const oldProgramStatus = profile.program_status || 'ACTIVE';
-
-    // PERMANENT LOCK ENFORCEMENT: Kicked out startups cannot be reactivated or modified
-    if (String(oldProgramStatus).toUpperCase() === 'KICKED_OUT') {
-      if (body.program_status && String(body.program_status).toUpperCase() !== 'KICKED_OUT') {
-        return res.status(400).json({
-          error: 'Permanent Termination: Yeh startup incubator se permanently kick out / terminate ho chuka hai. Iska status change ya reactivate nahi kiya ja sakta.'
-        });
-      }
-      if (body.current_progress_stage && String(body.current_progress_stage).toUpperCase() !== String(profile.current_progress_stage).toUpperCase()) {
-        return res.status(400).json({
-          error: 'Permanent Termination: Kicked out startup ka progress stage modify nahi kiya ja sakta.'
-        });
-      }
-    }
-
-    if (body.program_status && String(body.program_status).toUpperCase() !== String(oldProgramStatus).toUpperCase()) {
+    // 2. Program Status Update (ACTIVE, PAUSED / Temporarily Blocked, KICKED_OUT / Terminated, GRADUATED)
+    if (body.program_status && String(body.program_status).toUpperCase() !== oldProgramStatus) {
       const newStatus = String(body.program_status).toUpperCase();
       await query(`UPDATE startup_profiles SET program_status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2;`, [newStatus, profileId]);
       if (profile.applicant_id) {
         await query(`UPDATE applicants SET program_status = $1 WHERE id = $2;`, [newStatus, profile.applicant_id]);
+      }
+      if (profile.startup_name) {
+        await query(`UPDATE applicants SET program_status = $1 WHERE LOWER(startup_name) = LOWER($2);`, [newStatus, profile.startup_name]);
       }
 
       // Synchronize linked user accounts active status

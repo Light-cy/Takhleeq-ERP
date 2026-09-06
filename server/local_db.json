@@ -277,7 +277,7 @@
       "startup_name": "EdTech Innovators",
       "startup_description": "Modern interactive learning platform",
       "status": "ENROLLED",
-      "program_status": "ACTIVE",
+      "program_status": "PAUSED",
       "panel_scores": null,
       "parent_applicant_id": null,
       "form_data": {
@@ -301,13 +301,20 @@
         "field_q24_department": "new",
         "field_q25_degree": "new",
         "field_q26_working": "No",
-        "field_q27_work_details": "new"
+        "field_q27_work_details": "new",
+        "profile": {
+          "description": "Modern interactive learning platform",
+          "revenue_status": "PRE_REVENUE",
+          "monthly_revenue": "PKR 25,000",
+          "funding_status": "BOOTSTRAPPED",
+          "team_size": "3"
+        }
       },
-      "orientation_conducted": false,
+      "orientation_conducted": true,
       "cohort_id": 1,
       "created_at": "2026-08-09T14:09:03.956Z",
       "founder_password": "Tk#304544",
-      "stage": "IDEA_STAGE"
+      "stage": "MARKET_VALIDATION"
     }
   ],
   "cohort_sessions": [],
@@ -345,10 +352,10 @@
       "reason": "Attendance issue",
       "severity": "YELLOW",
       "category": "Attendance & Compliance",
-      "status": "ACTIVE",
-      "resolution_notes": null,
+      "status": "RESOLVED",
+      "resolution_notes": "ok",
       "created_at": "2026-09-05T09:59:48.843Z",
-      "updated_at": "2026-09-05T09:59:48.844Z"
+      "updated_at": "2026-09-06T16:47:49.186Z"
     }
   ],
   "assignments": [],
@@ -1421,6 +1428,18 @@
       "previous_value": null,
       "new_value": null,
       "timestamp": "2026-09-05T07:29:11.161Z"
+    },
+    {
+      "id": 72,
+      "action": "Orientation attendance updated for 'EdTech Innovators': Marked as CONDUCTED.",
+      "entity_type": "applicant_orientation",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": {
+        "orientation_conducted": true
+      },
+      "timestamp": "2026-09-06T16:51:46.572Z"
     }
   ],
   "rooms": [
@@ -1948,34 +1967,57 @@
       "description": "Modern interactive learning platform",
       "cohort_id": 1,
       "enrollment_date": "2026-08-09T16:23:18.835Z",
-      "current_progress_stage": "IDEA_STAGE",
-      "program_status": "ACTIVE",
+      "current_progress_stage": "MARKET_VALIDATION",
+      "program_status": "PAUSED",
       "team_size": 3,
       "revenue_status": "PRE_REVENUE",
       "funding_status": "BOOTSTRAPPED",
       "created_at": "2026-08-09T16:23:18.836Z",
-      "updated_at": "2026-09-05T08:49:36.517Z",
-      "monthly_revenue": "PKR 25,000"
+      "updated_at": "2026-09-06T16:54:14.719Z",
+      "monthly_revenue": "PKR 25,000",
+      "founder_phone": "1111-1111111"
     }
   ],
   "startup_stage_history": [
     {
       "id": 1,
       "startup_profile_id": 1,
+      "previous_stage": null,
+      "new_stage": "IDEA_STAGE",
       "change_date": "2026-08-09T16:23:18.837Z",
-      "comments": null
+      "updated_by_user_id": null,
+      "updated_by_email": "System (Intake Confirmation)",
+      "comments": "Initial baseline stage upon cohort intake confirmation"
     },
     {
       "id": 2,
       "startup_profile_id": 2,
+      "previous_stage": null,
+      "new_stage": "IDEA_STAGE",
       "change_date": "2026-08-09T16:23:18.841Z",
-      "comments": null
+      "updated_by_user_id": null,
+      "updated_by_email": "System (Intake Confirmation)",
+      "comments": "Initial baseline stage upon cohort intake confirmation"
     },
     {
       "id": 3,
       "startup_profile_id": 3,
+      "previous_stage": null,
+      "new_stage": "IDEA_STAGE",
       "change_date": "2026-08-09T16:23:18.847Z",
-      "comments": null
+      "updated_by_user_id": null,
+      "updated_by_email": "System (Intake Confirmation)",
+      "comments": "Initial baseline stage upon cohort intake confirmation"
+    },
+    {
+      "id": 4,
+      "startup_profile_id": 1,
+      "previous_stage": "IDEA_STAGE",
+      "new_stage": "MARKET_VALIDATION",
+      "change_date": "2026-09-06T16:51:06.847Z",
+      "updated_by_user_id": null,
+      "updated_by_email": "admin@takhleeq.pk",
+      "comments": "Admin stage progression"
     }
   ],
   "startup_pivots": [],
@@ -2103,6 +2145,26 @@
       "old_value": null,
       "new_value": "PKR 25,000",
       "created_at": "2026-09-05T08:49:36.518Z"
+    },
+    {
+      "id": 14,
+      "startup_profile_id": 1,
+      "changed_by_user_id": null,
+      "changed_by_email": "admin@takhleeq.pk",
+      "field_name": "current_progress_stage",
+      "old_value": "IDEA_STAGE",
+      "new_value": "MARKET_VALIDATION",
+      "created_at": "2026-09-06T16:51:06.849Z"
+    },
+    {
+      "id": 15,
+      "startup_profile_id": 1,
+      "changed_by_user_id": null,
+      "changed_by_email": "admin@takhleeq.pk",
+      "field_name": "program_status",
+      "old_value": "ACTIVE",
+      "new_value": "PAUSED",
+      "created_at": "2026-09-06T16:54:14.717Z"
     }
   ],
   "checkins": [
@@ -2117,6 +2179,18 @@
       "created_by_email": "qaseebahmed@gmail.com",
       "created_at": "2026-08-10T10:05:29.950Z",
       "updated_at": "2026-08-10T10:05:29.950Z"
+    },
+    {
+      "id": 2,
+      "startup_profile_id": 1,
+      "cohort_id": 1,
+      "scheduled_at": "2026-09-06T16:44:00.000Z",
+      "notes": null,
+      "attendance_status": "attended",
+      "created_by_user_id": 1,
+      "created_by_email": "qaseebahmed@gmail.com",
+      "created_at": "2026-09-06T16:45:08.719Z",
+      "updated_at": "2026-09-06T16:45:08.719Z"
     }
   ],
   "checkin_checklist_items": [
@@ -2143,6 +2217,30 @@
       "description": "Schedule follow-up mentor advisory session",
       "is_completed": false,
       "created_at": "2026-08-10T11:34:24.122Z"
+    },
+    {
+      "id": 4,
+      "checkin_id": 2,
+      "originating_checkin_id": 1,
+      "description": "Review monthly target KPIs & milestones",
+      "is_completed": false,
+      "created_at": "2026-09-06T16:45:08.721Z"
+    },
+    {
+      "id": 5,
+      "checkin_id": 2,
+      "originating_checkin_id": 1,
+      "description": "Update pitch deck financial projection model",
+      "is_completed": false,
+      "created_at": "2026-09-06T16:45:08.722Z"
+    },
+    {
+      "id": 6,
+      "checkin_id": 2,
+      "originating_checkin_id": 1,
+      "description": "Schedule follow-up mentor advisory session",
+      "is_completed": false,
+      "created_at": "2026-09-06T16:45:08.724Z"
     }
   ],
   "cohort_feedback": []
