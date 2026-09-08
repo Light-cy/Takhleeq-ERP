@@ -169,8 +169,8 @@ export const submitApplicant = async (req: AuthenticatedRequest, res: Response) 
     try {
       await query(
         `INSERT INTO applicant_stage_history (applicant_id, previous_stage, new_stage, updated_by_email, comments, include_in_email)
-         VALUES ($1, NULL, 'APPLIED', $2, 'Application Form Submitted', TRUE)`,
-        [newApplicant.id, email.toLowerCase().trim()]
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [newApplicant.id, null, 'APPLIED', email.toLowerCase().trim(), 'Application Form Submitted', true]
       );
     } catch (ashErr) {
       console.error('Failed to log initial stage history:', ashErr);
@@ -273,7 +273,7 @@ export const getApplicants = async (req: AuthenticatedRequest, res: Response) =>
       if (linkedProfile && linkedProfile.program_status && ['ACTIVE', 'PAUSED', 'GRADUATED', 'KICKED_OUT'].includes(String(linkedProfile.program_status).toUpperCase())) {
         resolvedProgramStatus = String(linkedProfile.program_status).toUpperCase();
       } else if (!resolvedProgramStatus || resolvedProgramStatus === '{}') {
-        resolvedProgramStatus = (['CONFIRMED', 'ENROLLED'].includes(row.status) || row.cohort_id) ? 'ACTIVE' : 'NOT_ENROLLED';
+        resolvedProgramStatus = ['CONFIRMED', 'ENROLLED'].includes(row.status) ? 'ACTIVE' : 'NOT_ENROLLED';
       }
 
       const panel_scores = row.panel_scores && typeof row.panel_scores === 'string' ? JSON.parse(row.panel_scores) : row.panel_scores;
@@ -659,11 +659,34 @@ export const manageApplicantCredentials = async (req: AuthenticatedRequest, res:
 export const getApplicantStageHistory = async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   try {
+    const applicantRes = await query(`SELECT created_at, email FROM applicants WHERE id = $1 LIMIT 1`, [parseInt(id)]);
+    const applicantCreatedAt = applicantRes.rows && applicantRes.rows[0]?.created_at
+      ? new Date(applicantRes.rows[0].created_at).getTime()
+      : 0;
+
     const result = await query(
       `SELECT * FROM applicant_stage_history WHERE applicant_id = $1 ORDER BY change_date DESC`,
       [parseInt(id)]
     );
-    res.json(result.rows || []);
+
+    // Filter out stale ghost records that predate this applicant's creation date (e.g. from a deleted applicant reusing ID)
+    const validRows = (result.rows || []).filter((r: any) => {
+      if (!applicantCreatedAt) return true;
+      const changeTime = new Date(r.change_date).getTime();
+      return changeTime >= applicantCreatedAt - 30000;
+    }).map((r: any) => {
+      // Ensure previous_stage is never an email address (fixes legacy corrupted records)
+      if (r.previous_stage && r.previous_stage.includes('@')) {
+        return {
+          ...r,
+          updated_by_email: r.updated_by_email || r.previous_stage,
+          previous_stage: null
+        };
+      }
+      return r;
+    });
+
+    res.json(validRows);
   } catch (err: any) {
     console.error('Failed to fetch applicant stage history:', err);
     res.status(500).json({ error: 'Failed to fetch applicant stage history.' });

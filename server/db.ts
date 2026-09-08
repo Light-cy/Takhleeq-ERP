@@ -201,20 +201,13 @@ function initializeLocalDB() {
         }
       }
 
-      // 2. Remove MANAGE_BANS / LIFT_BAN from custom roles and replace with ISSUE_BAN
+      // 2. Remove MANAGE_BANS / LIFT_BAN from custom roles
       db.roles.forEach((r: any) => {
         if (r.name !== 'Administrator' && r.permissions && Array.isArray(r.permissions)) {
           const originalLength = r.permissions.length;
           // Filter out prohibited permissions
           r.permissions = r.permissions.filter((p: string) => p !== 'MANAGE_BANS' && p !== 'LIFT_BAN');
-          
-          // If they are allowed to issue bans (were originally a manager or coordinator), add ISSUE_BAN
-          if (['Booking Manager', 'Facility Coordinator'].includes(r.name)) {
-            if (!r.permissions.includes('ISSUE_BAN')) {
-              r.permissions.push('ISSUE_BAN');
-            }
-          }
-          if (r.permissions.length !== originalLength || (['Booking Manager', 'Facility Coordinator'].includes(r.name) && !r.permissions.includes('ISSUE_BAN'))) {
+          if (r.permissions.length !== originalLength) {
             updated = true;
           }
         }
@@ -354,18 +347,15 @@ function initializeLocalDB() {
     ],
     roles: [
       { id: 1, name: 'Administrator', description: 'Full access and policy management capabilities', permissions: ["cohort:dashboard_view", "cohort:settings_manage", "cohort:form_manage", "cohort:applicant_review", "cohort:startups_manage", "cohort:session_manage", "cohort:assignment_manage", "cohort:feedback_view", "cohort:feedback_forms_manage", "cohort:attendance_write", "cohort:checkin_log", "cohort:warning_write", "cohort:profile_write", "cohort:feedback_submit", "cohort:assignment_upload", "SUBMIT_BOOKING", "CANCEL_OWN_BOOKING", "VIEW_PENDING_QUEUE", "APPROVE_REJECT_BOOKINGS", "BOOKING_OVERRIDE", "MANAGE_ROOMS", "MANAGE_BOOKING_TYPES", "VIEW_BOOKING_ANALYTICS", "MANAGE_ROLES", "MANAGE_USERS", "ISSUE_BAN", "VIEW_ANALYTICS_DASHBOARD", "VIEW_AUDIT_LOGS", "EXPORT_AUDIT_LOGS"], ban_duration_ceiling: 'permanent', created_by: null, created_at: new Date().toISOString() },
-      { id: 2, name: 'Booking Manager', description: 'Approve, reject bookings, and issue bans up to 90 days', permissions: ["VIEW_PENDING_QUEUE", "APPROVE_REJECT_BOOKINGS", "ISSUE_BAN"], ban_duration_ceiling: '90', created_by: null, created_at: new Date().toISOString() },
-      { id: 3, name: 'Facility Coordinator', description: 'View queue, apply manual time/room overrides, issue bans up to 7 days', permissions: ["VIEW_PENDING_QUEUE", "BOOKING_OVERRIDE", "ISSUE_BAN"], ban_duration_ceiling: '7', created_by: null, created_at: new Date().toISOString() },
-      { id: 4, name: 'UCP Member', description: 'Regular student or staff member with standard public booking access', permissions: [], ban_duration_ceiling: null, created_by: null, created_at: new Date().toISOString() },
-      { id: 5, name: 'Room Management', description: 'Manage incubator spaces, view and update space operating attributes, and delete spaces', permissions: ["MANAGE_ROOMS"], ban_duration_ceiling: '0', created_by: null, created_at: new Date().toISOString() }
+      { id: 4, name: 'UCP Member', description: 'Regular student or staff member with standard public booking access', permissions: [], ban_duration_ceiling: null, created_by: null, created_at: new Date().toISOString() }
     ],
     user_roles: [
       { user_id: 1, role_id: 1 },
-      { user_id: 2, role_id: 2 },
-      { user_id: 3, role_id: 3 },
+      { user_id: 2, role_id: 4 },
+      { user_id: 3, role_id: 4 },
       { user_id: 4, role_id: 4 },
-      { user_id: 5, role_id: 3 },
-      { user_id: 6, role_id: 2 },
+      { user_id: 5, role_id: 4 },
+      { user_id: 6, role_id: 4 },
       { user_id: 7, role_id: 4 }
     ],
     rooms: [
@@ -518,7 +508,7 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
         }
       }
       if (!a.program_status || a.program_status === '{}') {
-        a.program_status = (['CONFIRMED', 'ENROLLED'].includes(a.status) || a.cohort_id) ? 'ACTIVE' : 'NOT_ENROLLED';
+        a.program_status = ['CONFIRMED', 'ENROLLED'].includes(a.status) ? 'ACTIVE' : 'NOT_ENROLLED';
       }
       return a;
     };
@@ -677,8 +667,10 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       // Synchronize linked startup_profile
       if (db.startup_profiles && Array.isArray(db.startup_profiles)) {
         let matchingProfile = db.startup_profiles.find((p: any) => p.applicant_id === app.id || (p.startup_name && app.startup_name && p.startup_name.toLowerCase() === app.startup_name.toLowerCase()));
-        if (!matchingProfile && (app.status === 'ACCEPTED' || app.program_status === 'ACTIVE' || app.cohort_id)) {
-          // Provision startup profile if not already present
+        const isEligibleStartup = ['ACCEPTED', 'CONFIRMED', 'ENROLLED'].includes(app.status) || ['ACTIVE', 'PAUSED', 'GRADUATED'].includes(app.program_status);
+
+        if (!matchingProfile && isEligibleStartup) {
+          // Provision startup profile only when formally accepted or enrolled
           const newId = (db.startup_profiles.reduce((max: number, p: any) => Math.max(max, p.id || 0), 0) || 0) + 1;
           matchingProfile = {
             id: newId,
@@ -694,7 +686,7 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
           db.startup_profiles.push(matchingProfile);
         }
 
-        if (matchingProfile) {
+        if (matchingProfile && isEligibleStartup) {
           if (app.startup_name) matchingProfile.startup_name = app.startup_name;
           if (app.startup_description) matchingProfile.description = app.startup_description;
           if (app.program_status) matchingProfile.program_status = app.program_status;
@@ -2294,6 +2286,40 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
     return { rows: [{ user_id, role_id }] };
   }
 
+  // 32b. DELETE FROM user_roles WHERE user_id = $1
+  if (q.includes('delete from user_roles where user_id = $1')) {
+    const user_id = parseInt(params[0]);
+    db.user_roles = (db.user_roles || []).filter((ur: any) => ur.user_id !== user_id);
+    saveLocalDB(db);
+    return { rows: [] };
+  }
+
+  // 32c. DELETE FROM users WHERE id = $1
+  if (q.includes('delete from users where id = $1')) {
+    const user_id = parseInt(params[0]);
+    const idx = (db.users || []).findIndex((u: any) => u.id === user_id);
+    let deleted = null;
+    if (idx !== -1) {
+      deleted = db.users.splice(idx, 1)[0];
+      db.user_roles = (db.user_roles || []).filter((ur: any) => ur.user_id !== user_id);
+      saveLocalDB(db);
+    }
+    return { rows: deleted ? [deleted] : [] };
+  }
+
+  // 32d. DELETE FROM users WHERE lower(email) = lower($1)
+  if (q.includes('delete from users where lower(email) = lower($1)')) {
+    const email = String(params[0]).toLowerCase();
+    const idx = (db.users || []).findIndex((u: any) => (u.email || '').toLowerCase() === email);
+    let deleted = null;
+    if (idx !== -1) {
+      deleted = db.users.splice(idx, 1)[0];
+      db.user_roles = (db.user_roles || []).filter((ur: any) => ur.user_id !== deleted.id);
+      saveLocalDB(db);
+    }
+    return { rows: deleted ? [deleted] : [] };
+  }
+
   // 33. UPDATE users SET password = $1... WHERE id = $2 OR UPDATE users SET last_login ...
   if (q.includes('update users set password = $1')) {
     const pwd = params[0];
@@ -2658,16 +2684,34 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
   if (q.includes('insert into applicant_stage_history')) {
     if (!db.applicant_stage_history) db.applicant_stage_history = [];
     const id = Math.max(...db.applicant_stage_history.map((h: any) => h.id || 0), 0) + 1;
-    const newRecord = {
-      id,
-      applicant_id: parseInt(params[0]),
-      previous_stage: params[1],
-      new_stage: params[2],
-      updated_by_email: params[3],
-      comments: params[4] || null,
-      include_in_email: params[5] !== undefined ? Boolean(params[5]) : true,
-      change_date: new Date().toISOString()
-    };
+
+    let newRecord: any;
+    if (params.length === 2) {
+      newRecord = {
+        id,
+        applicant_id: parseInt(params[0]),
+        previous_stage: null,
+        new_stage: 'APPLIED',
+        updated_by_email: params[1],
+        comments: 'Application Form Submitted',
+        include_in_email: true,
+        change_date: new Date().toISOString()
+      };
+    } else {
+      const prevStageVal = typeof params[1] === 'string' && params[1].includes('@') ? null : (params[1] || null);
+      const emailVal = params[3] || (typeof params[1] === 'string' && params[1].includes('@') ? params[1] : 'Admissions Staff');
+      newRecord = {
+        id,
+        applicant_id: parseInt(params[0]),
+        previous_stage: prevStageVal,
+        new_stage: params[2] || 'APPLIED',
+        updated_by_email: emailVal,
+        comments: params[4] || null,
+        include_in_email: params[5] !== undefined ? Boolean(params[5]) : true,
+        change_date: new Date().toISOString()
+      };
+    }
+
     db.applicant_stage_history.push(newRecord);
     saveLocalDB(db);
     return { rows: [newRecord] };
@@ -2981,6 +3025,20 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       saveLocalDB(db);
     }
     return { rows: profile ? [profile] : [] };
+  }
+
+  // 47b. Delete from Startup Profiles
+  if (q.includes('delete from startup_profiles')) {
+    if (!db.startup_profiles) db.startup_profiles = [];
+    if (q.includes('where id = $1') || q.includes('where (sp.)?id = $1')) {
+      const idVal = parseInt(params[0], 10);
+      db.startup_profiles = db.startup_profiles.filter((p: any) => p.id !== idVal);
+    } else if (q.includes('where applicant_id = $1')) {
+      const appIdVal = parseInt(params[0], 10);
+      db.startup_profiles = db.startup_profiles.filter((p: any) => p.applicant_id !== appIdVal);
+    }
+    saveLocalDB(db);
+    return { rows: [] };
   }
 
   // 48. Startup Stage History
@@ -3328,18 +3386,6 @@ async function ensureDBReady() {
         console.warn("Could not synchronize facility spaces in PostgreSQL:", syncRoomsErr.message);
       }
 
-      // Synchronize Room Management role
-      try {
-        console.log("Synchronizing default roles (Room Management)...");
-        await pool.query(`
-          INSERT INTO roles (name, description, permissions, ban_duration_ceiling)
-          VALUES ('Room Management', 'Manage incubator spaces, view and update space operating attributes, and delete spaces', '["MANAGE_ROOMS"]'::jsonb, '0')
-          ON CONFLICT (name) DO NOTHING;
-        `);
-      } catch (syncRoleErr: any) {
-        console.warn("Could not synchronize Room Management role in PostgreSQL:", syncRoleErr.message);
-      }
-
       // Synchronize default Administrator role with new permission nodes
       try {
         console.log("Synchronizing default Administrator role with new permission nodes...");
@@ -3352,23 +3398,13 @@ async function ensureDBReady() {
         console.warn("Could not synchronize Administrator role in PostgreSQL:", syncAdminErr.message);
       }
 
-      // We do not unconditionally update or reset custom permissions/ceilings of default roles (Booking Manager and Facility Coordinator) on startup anymore.
-      // This allows modifications made via the Admin UI/Governance Center to persist permanently across server restarts and redeployments.
-
-      // Synchronize all simulated users and roles in PostgreSQL
+      // Synchronize standard user profiles and roles in PostgreSQL
       try {
         console.log("Synchronizing standard user profiles and roles in PostgreSQL...");
         // 1. Ensure UCP Member role exists
         await pool.query(`
           INSERT INTO roles (id, name, description, permissions, ban_duration_ceiling)
           VALUES (4, 'UCP Member', 'Regular student or staff member with standard public booking access', '[]'::jsonb, NULL)
-          ON CONFLICT (name) DO NOTHING;
-        `);
-
-        // Ensure Cohort Founder role exists
-        await pool.query(`
-          INSERT INTO roles (id, name, description, permissions, ban_duration_ceiling)
-          VALUES (5, 'Cohort Founder', 'Enrolled startup founder with access to Cohort Self-Service dashboard', '["cohort:profile_write", "cohort:feedback_submit", "cohort:assignment_upload"]'::jsonb, NULL)
           ON CONFLICT (name) DO NOTHING;
         `);
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   GraduationCap, 
@@ -122,16 +122,22 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
     return 'cohort_applications';
   });
 
+  const prevActiveTabRef = useRef(activeTab);
   useEffect(() => {
     if (activeTab) {
+      const isChanged = prevActiveTabRef.current !== activeTab;
+      prevActiveTabRef.current = activeTab;
       setActiveSubTab(activeTab);
       // Clear sub-page overlays/detail views so user immediately sees the clicked section
-      setSelectedApplicant(null);
-      setSelectedStartupForModal(null);
-      setSelectedSession(null);
-      setSessionDetailModalSession(null);
+      // Only clear if activeTab actually changed and we are NOT on an application details view
+      if (isChanged && !currentPath?.startsWith('/admissions/applications/')) {
+        setSelectedApplicant(null);
+        setSelectedStartupForModal(null);
+        setSelectedSession(null);
+        setSessionDetailModalSession(null);
+      }
     }
-  }, [activeTab]);
+  }, [activeTab, currentPath]);
 
   // Loading & Error states
   const [loading, setLoading] = useState(true);
@@ -789,23 +795,26 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       const parts = currentPath.split('/');
       const idStr = parts[parts.length - 1];
       const appId = parseInt(idStr);
-      if (!isNaN(appId) && (!selectedApplicant || selectedApplicant.id !== appId)) {
-        fetchWithAuth(`/api/applicants/${appId}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data && data.id) {
-              setSelectedApplicant(data);
-              if (data.parent) setApplicantParent(data.parent);
-            }
-          })
-          .catch(err => console.error(err));
+      if (!isNaN(appId)) {
+        setActiveSubTab('cohort_applications');
+        if (!selectedApplicant || selectedApplicant.id !== appId) {
+          fetchWithAuth(`/api/applicants/${appId}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.id) {
+                setSelectedApplicant(data);
+                if (data.parent) setApplicantParent(data.parent);
+              }
+            })
+            .catch(err => console.error(err));
+        }
       }
     }
-  }, [currentPath]);
+  }, [currentPath, selectedApplicant?.id]);
 
   const handleSelectApplicant = async (app: Applicant) => {
     setSelectedApplicant(app);
-    setApplicantParent(null);
+    setApplicantParent((app as any).parent || null);
 
     if (onNavigate) {
       onNavigate(`/admissions/applications/${app.id}`);
@@ -813,11 +822,11 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
       window.history.pushState({}, '', `/admissions/applications/${app.id}`);
     }
 
-    if (app.parent_applicant_id) {
+    if (app.parent_applicant_id && !(app as any).parent) {
       try {
         const res = await fetchWithAuth(`/api/applicants/${app.id}`);
         const data = await res.json();
-        if (data.parent) {
+        if (data && data.parent) {
           setApplicantParent(data.parent);
         }
       } catch (err) {
@@ -1643,6 +1652,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
           {selectedApplicant ? (
             <ApplicationDetailsPage
               applicantId={selectedApplicant.id}
+              initialApplicant={selectedApplicant}
               onBack={() => {
                 setSelectedApplicant(null);
                 fetchWithAuth('/api/applicants')
@@ -1650,7 +1660,7 @@ export const CohortManagementPage: React.FC<CohortManagementPageProps> = ({
                   .then(data => Array.isArray(data) && setApplicants(data))
                   .catch(() => {});
                 if (onNavigate) {
-                  onNavigate('/staff/dashboard');
+                  onNavigate('/staff/dashboard', 'cohort_applications');
                 } else if (typeof window !== 'undefined' && window.history.pushState) {
                   window.history.pushState({}, '', '/staff/dashboard');
                 }

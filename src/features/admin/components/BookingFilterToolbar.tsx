@@ -41,6 +41,29 @@ export function BookingFilterToolbar({
   searchTerm,
   handleExportData
 }: BookingFilterToolbarProps) {
+  const [dynamicTypes, setDynamicTypes] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    fetch('/api/booking-types')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          const names = data
+            .filter((d: any) => d.isActive !== false && d.is_active !== false)
+            .map((d: any) => d.name);
+          setDynamicTypes(names);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Combine dynamic types with any types already present in bookings
+  const availableTypes = React.useMemo(() => {
+    const set = new Set<string>();
+    dynamicTypes.forEach(t => { if (t) set.add(t); });
+    bookings.forEach(b => { if (b.bookingType) set.add(b.bookingType); });
+    return Array.from(set).sort();
+  }, [dynamicTypes, bookings]);
   return (
     <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-3xs space-y-4 text-left">
       <div className="flex items-center justify-between gap-1.5">
@@ -113,10 +136,9 @@ export function BookingFilterToolbar({
             className="w-full p-2.5 border border-gray-150 rounded-xl text-xs bg-gray-50/50 text-gray-700 font-medium cursor-pointer focus:ring-1 focus:ring-primary focus:bg-white"
           >
             <option value="">All Types</option>
-            <option value="Student Society">Student Society</option>
-            <option value="Cohort Startup">Cohort Startup</option>
-            <option value="Department">Department</option>
-            <option value="Meeting / Event">Meeting / Event</option>
+            {availableTypes.map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
           </select>
         </div>
 

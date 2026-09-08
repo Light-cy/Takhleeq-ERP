@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserCheck, Lock } from 'lucide-react';
+import { UserCheck, Lock, Trash2, AlertTriangle } from 'lucide-react';
 import { User, CustomRole } from '../../../types';
 
 interface GovUsersTabProps {
@@ -8,6 +8,7 @@ interface GovUsersTabProps {
   currentUser: User;
   onRefresh: () => void;
   onCreateUser: (userData: any) => Promise<void>;
+  onDeleteUser?: (email: string) => Promise<void>;
   onAssignRole: (email: string, role: string) => Promise<void>;
   setErrorMsg: (msg: string | null) => void;
   setSuccessMsg: (msg: string | null) => void;
@@ -21,6 +22,7 @@ export function GovUsersTab({
   currentUser,
   onRefresh,
   onCreateUser,
+  onDeleteUser,
   onAssignRole,
   setErrorMsg,
   setSuccessMsg,
@@ -31,6 +33,7 @@ export function GovUsersTab({
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState('UCP Member');
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
 
   const clearMessages = () => {
     setErrorMsg(null);
@@ -88,6 +91,27 @@ export function GovUsersTab({
       onRefresh();
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to assign role.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleDeleteUserSubmit = async () => {
+    if (!deletingUser || !onDeleteUser) return;
+    if (deletingUser.role === 'Administrator' || deletingUser.role?.toLowerCase() === 'admin') {
+      setErrorMsg('System Safety Rule: Accounts with the Administrator role cannot be deleted.');
+      setDeletingUser(null);
+      return;
+    }
+    clearMessages();
+    setProcessing(true);
+    try {
+      await onDeleteUser(deletingUser.email);
+      setSuccessMsg(`User account '${deletingUser.email}' removed from system successfully.`);
+      setDeletingUser(null);
+      onRefresh();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to delete user account.');
     } finally {
       setProcessing(false);
     }
@@ -170,6 +194,7 @@ export function GovUsersTab({
                 <th className="py-2.5 px-3">Simulated Identity</th>
                 <th className="py-2.5 px-3">Identity Email</th>
                 <th className="py-2.5 px-3">Assigned Role Mapping</th>
+                <th className="py-2.5 px-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -196,12 +221,92 @@ export function GovUsersTab({
                       })}
                     </select>
                   </td>
+                  <td className="py-3 px-3 text-right">
+                    {user.role === 'Administrator' || user.role?.toLowerCase() === 'admin' ? (
+                      <span
+                        title="Administrator accounts cannot be deleted"
+                        className="inline-flex items-center justify-center p-1.5 text-gray-300 cursor-not-allowed"
+                      >
+                        <Lock className="h-4 w-4" />
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDeletingUser(user)}
+                        disabled={processing || user.email.toLowerCase() === currentUser.email.toLowerCase()}
+                        title={
+                          user.email.toLowerCase() === currentUser.email.toLowerCase()
+                            ? 'Cannot delete your own account'
+                            : `Delete ${user.name}`
+                        }
+                        className="inline-flex items-center justify-center p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Delete User Confirmation Modal */}
+      {deletingUser && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="delete-user-modal">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-150 space-y-4 text-left">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-red-50 text-red-600 rounded-xl">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-gray-900">Delete User Account</h3>
+                <p className="text-xs text-gray-500">This action will permanently remove this user profile.</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-200 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Full Name:</span>
+                <span className="font-bold text-gray-900">{deletingUser.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Email Address:</span>
+                <span className="font-mono text-gray-800">{deletingUser.email}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Current Role:</span>
+                <span className="font-semibold text-primary">{deletingUser.role}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-600">
+              Are you sure you want to delete <strong className="text-gray-900">{deletingUser.name}</strong> from the system? The user will lose access to all role permissions immediately.
+            </p>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeletingUser(null)}
+                disabled={processing}
+                className="px-4 py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteUserSubmit}
+                disabled={processing}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {processing ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

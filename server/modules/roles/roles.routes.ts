@@ -4,8 +4,8 @@ import { AuthenticatedRequest, requireAuth, requirePermission, requireAnyPermiss
 
 const router = Router();
 
-// Manage custom roles
-router.get('/roles', requireAuth, requireAnyPermission(['MANAGE_ROLES', 'MANAGE_USERS', 'ISSUE_BAN', 'APPROVE_REJECT_BOOKINGS', 'BOOKING_OVERRIDE']), async (req: AuthenticatedRequest, res: Response) => {
+// Manage custom roles - All authenticated staff/users can inspect roles list for permission definitions
+router.get('/roles', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const rolesRes = await query(`SELECT * FROM roles ORDER BY id ASC`);
     const roles = rolesRes.rows.map(mapRole);

@@ -291,11 +291,9 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
       }
       
       let roleName = 'UCP Member';
-      if (applicantRow || cleanEmail.includes('founder') || cleanEmail === 'zohaib@startup.pk' || cleanEmail.endsWith('@takhleeq.com')) {
-        roleName = 'Cohort Founder';
-      } else if (cleanEmail.includes('director')) roleName = 'Administrator';
-      else if (cleanEmail.includes('manager') || cleanEmail.includes('maheen')) roleName = 'Booking Manager';
-      else if (cleanEmail.includes('coordinator') || cleanEmail.includes('faisal')) roleName = 'Facility Coordinator';
+      if (cleanEmail.includes('director') || cleanEmail.includes('admin')) {
+        roleName = 'Administrator';
+      }
 
       const initialPassword = applicantRow?.founder_password || providedPassword || null;
 
@@ -307,8 +305,11 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
       );
       const userId = insertRes.rows[0].id;
 
-      // Find role ID and assign
-      const roleRes = await query(`SELECT id FROM roles WHERE name = $1`, [roleName]);
+      // Find role ID and assign with fallback to UCP Member
+      let roleRes = await query(`SELECT id FROM roles WHERE name = $1`, [roleName]);
+      if (roleRes.rows.length === 0) {
+        roleRes = await query(`SELECT id FROM roles WHERE name = 'UCP Member'`);
+      }
       const roleId = roleRes.rows[0]?.id;
       if (roleId) {
         await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [userId, roleId]);
@@ -351,6 +352,12 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
       if (validDbPassword && validDbPassword.trim() === providedPassword) matches = true;
       if (validApplicantPassword && validApplicantPassword.trim() === providedPassword) matches = true;
 
+      // If user has no password set in DB (e.g. newly created account by admin), allow login and set provided password
+      if (!validDbPassword && !validApplicantPassword) {
+        matches = true;
+        await query('UPDATE users SET password = $1 WHERE id = $2', [providedPassword, userRow.id]);
+      }
+
       // If applicant exists, auto-sync and allow password verification
       if (!matches && applicantRow && providedPassword) {
         matches = true;
@@ -370,7 +377,8 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
     }
 
     // Synchronize user password and role if needed
-    if (applicantRow && userRow.role_name !== 'Cohort Founder' && userRow.role_name !== 'Administrator') {
+    // ONLY assign Cohort Founder if the user does NOT already have an administrative/staff or custom role
+    if (applicantRow && (!userRow.role_name || userRow.role_name === 'UCP Member')) {
       const roleRes = await query(`SELECT id FROM roles WHERE name = 'Cohort Founder'`);
       const roleId = roleRes.rows[0]?.id;
       if (roleId) {
@@ -386,9 +394,7 @@ export const handleSimulatedAuth = async (req: AuthenticatedRequest, res: Respon
       perms = Array.isArray(userRow.permissions) ? userRow.permissions : JSON.parse(userRow.permissions);
     }
 
-    const effectiveRole = (applicantRow || userRow.role_name === 'Cohort Founder') 
-      ? 'Cohort Founder' 
-      : (userRow.role_name || 'UCP Member');
+    const effectiveRole = userRow.role_name || (applicantRow ? 'Cohort Founder' : 'UCP Member');
 
     res.json({
       token,
@@ -515,7 +521,7 @@ export const assignUserRole = async (req: AuthenticatedRequest, res: Response) =
 
 export const createUser = async (req: AuthenticatedRequest, res: Response) => {
   const admin = req.currentUser;
-  const { email, name, role } = req.body;
+  const { email, name, role, password } = req.body;
 
   if (!email || !name || !role) {
     return res.status(400).json({ error: 'Missing required parameters: email, name, role' });
@@ -542,10 +548,10 @@ export const createUser = async (req: AuthenticatedRequest, res: Response) => {
 
     // Insert User
     const userInsert = await query(
-      `INSERT INTO users (email, full_name, is_active)
-       VALUES ($1, $2, TRUE)
+      `INSERT INTO users (email, full_name, is_active, password)
+       VALUES ($1, $2, TRUE, $3)
        RETURNING id`,
-      [email.toLowerCase(), name]
+      [email.toLowerCase(), name, password || null]
     );
     const userId = userInsert.rows[0].id;
 
@@ -563,5 +569,64 @@ export const createUser = async (req: AuthenticatedRequest, res: Response) => {
   } catch (err) {
     console.error('Failed to create user account:', err);
     res.status(500).json({ error: 'Internal Server Error while creating user account.' });
+  }
+};
+
+export const deleteUser = async (req: AuthenticatedRequest, res: Response) => {
+  const admin = req.currentUser;
+  const targetEmail = (req.params.email || '').trim().toLowerCase();
+
+  if (!targetEmail) {
+    return res.status(400).json({ error: 'Missing target user email.' });
+  }
+
+  try {
+    // 1. Fetch target user
+    const userRes = await query(
+      `SELECT u.id, u.email, u.full_name, u.is_active, r.name as role_name
+       FROM users u
+       LEFT JOIN user_roles ur ON u.id = ur.user_id
+       LEFT JOIN roles r ON ur.role_id = r.id
+       WHERE LOWER(u.email) = LOWER($1)`,
+      [targetEmail]
+    );
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ error: `User with email '${targetEmail}' not found.` });
+    }
+
+    const targetUser = userRes.rows[0];
+
+    // 2. Safety Rule: Cannot delete own account
+    if (admin && admin.email.toLowerCase() === targetUser.email.toLowerCase()) {
+      return res.status(400).json({ error: 'System Safety Rule: You cannot delete your own account.' });
+    }
+
+    // 3. Safety Rule: Administrator accounts cannot be deleted
+    if (targetUser.role_name === 'Administrator' || targetUser.role_name?.toLowerCase() === 'admin') {
+      return res.status(400).json({ error: 'System Safety Rule: Accounts with the Administrator role cannot be deleted.' });
+    }
+
+    // 4. Delete user role mapping & user record
+    await query(`DELETE FROM user_roles WHERE user_id = $1`, [targetUser.id]);
+    await query(`DELETE FROM users WHERE id = $1`, [targetUser.id]);
+
+    // 5. Audit Log
+    await logAudit(
+      `Deleted User Account: ${targetUser.full_name} (${targetUser.email})`,
+      'user',
+      String(targetUser.id),
+      admin?.email || 'System',
+      targetUser,
+      null
+    );
+
+    return res.json({
+      success: true,
+      message: `User account '${targetUser.email}' has been successfully deleted.`
+    });
+  } catch (err: any) {
+    console.error('Failed to delete user account:', err);
+    res.status(500).json({ error: err.message || 'Internal Server Error while deleting user account.' });
   }
 };

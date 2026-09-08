@@ -93,6 +93,19 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
 
   // Dynamically compute permitted booking types based on selected room
   const availableBookingTypes = React.useMemo(() => {
+    if (bookingTypes.length === 0) {
+      // If bookingTypes haven't loaded yet, return empty or room allowed list as fallback
+      if (selectedRoomObj?.allowedBookingTypes && selectedRoomObj.allowedBookingTypes.length > 0) {
+        return selectedRoomObj.allowedBookingTypes.map((a, idx) => ({
+          id: 9900 + idx,
+          name: a,
+          isActive: true
+        }));
+      }
+      return [];
+    }
+
+    // When room has no specific restriction or empty list, all active bookingTypes are allowed
     if (!selectedRoomObj || !selectedRoomObj.allowedBookingTypes || selectedRoomObj.allowedBookingTypes.length === 0) {
       return bookingTypes;
     }
@@ -104,17 +117,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
       allowedList.some(a => a.trim().toLowerCase() === bt.name.trim().toLowerCase())
     );
 
-    // Also include any allowed strings from room configuration if not already in bookingTypes
-    const existingLower = new Set(matched.map(m => m.name.trim().toLowerCase()));
-    const extras: BookingType[] = allowedList
-      .filter(a => !existingLower.has(a.trim().toLowerCase()))
-      .map((a, idx) => ({
-        id: 9900 + idx,
-        name: a,
-        isActive: true
-      }));
-
-    return [...matched, ...extras];
+    return matched.length > 0 ? matched : bookingTypes;
   }, [selectedRoomObj, bookingTypes]);
 
   // When room selection or available booking types change, ensure selected bookingType is valid for the room

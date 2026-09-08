@@ -49,12 +49,13 @@ export const createIndustry = async (req: Request, res: Response) => {
 // 2. AUTO-SYNC ACCEPTED APPLICANTS TO STARTUP PROFILES
 export const syncAcceptedStartupsInternal = async () => {
   try {
-    // Find all applicants (not rejected) so new startups show in active startups directory
+    // Only applicants that have formally passed review (ACCEPTED, CONFIRMED, ENROLLED)
+    // or who have an active/graduated incubator program status belong in startup_profiles
     const acceptedRes = await query(`
       SELECT a.*, c.name as cohort_name 
       FROM applicants a
       LEFT JOIN cohorts c ON a.cohort_id = c.id
-      WHERE (a.status != 'REJECTED' OR a.program_status IN ('ACTIVE', 'PAUSED', 'GRADUATED'))
+      WHERE (a.status IN ('ACCEPTED', 'CONFIRMED', 'ENROLLED') OR a.program_status IN ('ACTIVE', 'PAUSED', 'GRADUATED'))
         AND a.parent_applicant_id IS NULL;
     `);
 
@@ -73,71 +74,92 @@ export const syncAcceptedStartupsInternal = async () => {
         const indRes = await query(`SELECT id FROM industries LIMIT 1;`);
         const defaultIndId = indRes.rows && indRes.rows[0] ? indRes.rows[0].id : null;
 
-        const appProgramStatus = typeof app.program_status === 'string' && app.program_status !== '{}'
+        const appProgramStatus = typeof app.program_status === 'string' && app.program_status !== '{}' && app.program_status !== 'NOT_ENROLLED'
           ? app.program_status
           : (['CONFIRMED', 'ENROLLED'].includes(app.status) ? 'ACTIVE' : 'NOT_ENROLLED');
 
-        const insertRes = await query(`
-          INSERT INTO startup_profiles (
-            applicant_id,
-            startup_name,
-            industry_id,
-            description,
-            cohort_id,
-            enrollment_date,
-            current_progress_stage,
-            program_status,
-            team_size,
-            revenue_status,
-            funding_status,
-            created_at,
-            updated_at
-          ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, 'IDEA_STAGE', $6, 1, 'PRE_REVENUE', 'BOOTSTRAPPED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          RETURNING *;
-        `, [
-          app.id,
-          app.startup_name || 'Untitled Startup',
-          defaultIndId,
-          app.startup_description || 'No description provided.',
-          app.cohort_id || null,
-          appProgramStatus
-        ]);
-
-        const profile = insertRes.rows[0];
-        if (profile) {
-          // Insert initial stage history row
-          await query(`
-            INSERT INTO startup_stage_history (
-              startup_profile_id,
-              previous_stage,
-              new_stage,
-              change_date,
-              updated_by_user_id,
-              updated_by_email,
-              comments
-            ) VALUES ($1, NULL, $2, CURRENT_TIMESTAMP, NULL, $3, $4);
+        if (['ACTIVE', 'PAUSED', 'GRADUATED'].includes(appProgramStatus) || ['ACCEPTED', 'CONFIRMED', 'ENROLLED'].includes(app.status)) {
+          const insertRes = await query(`
+            INSERT INTO startup_profiles (
+              applicant_id,
+              startup_name,
+              industry_id,
+              description,
+              cohort_id,
+              enrollment_date,
+              current_progress_stage,
+              program_status,
+              team_size,
+              revenue_status,
+              funding_status,
+              created_at,
+              updated_at
+            ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, 'IDEA_STAGE', $6, 1, 'PRE_REVENUE', 'BOOTSTRAPPED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            RETURNING *;
           `, [
-            profile.id,
-            'IDEA_STAGE',
-            'System (Intake Confirmation)',
-            'Initial startup profile auto-created upon cohort intake confirmation.'
+            app.id,
+            app.startup_name || 'Untitled Startup',
+            defaultIndId,
+            app.startup_description || 'No description provided.',
+            app.cohort_id || null,
+            appProgramStatus === 'NOT_ENROLLED' ? 'ACTIVE' : appProgramStatus
           ]);
 
-          // Write audit log
-          await query(`
-            INSERT INTO startup_audit_logs (
-              startup_profile_id,
-              changed_by_email,
-              field_name,
-              old_value,
-              new_value
-            ) VALUES ($1, 'system_auto_sync', 'PROFILE_CREATED', NULL, 'Auto-provisioned startup profile for applicant ' || $2);
-          `, [profile.id, app.name]);
+          const profile = insertRes.rows[0];
+          if (profile) {
+            // Insert initial stage history row
+            await query(`
+              INSERT INTO startup_stage_history (
+                startup_profile_id,
+                previous_stage,
+                new_stage,
+                change_date,
+                updated_by_user_id,
+                updated_by_email,
+                comments
+              ) VALUES ($1, NULL, $2, CURRENT_TIMESTAMP, NULL, $3, $4);
+            `, [
+              profile.id,
+              'IDEA_STAGE',
+              'System (Intake Confirmation)',
+              'Initial startup profile auto-created upon cohort intake confirmation.'
+            ]);
 
-          syncedCount++;
+            // Write audit log
+            await query(`
+              INSERT INTO startup_audit_logs (
+                startup_profile_id,
+                changed_by_email,
+                field_name,
+                old_value,
+                new_value
+              ) VALUES ($1, 'system_auto_sync', 'PROFILE_CREATED', NULL, 'Auto-provisioned startup profile for applicant ' || $2);
+            `, [profile.id, app.name]);
+
+            syncedCount++;
+          }
         }
       }
     }
+
+    // Clean up any premature/stale startup_profiles for applicants that are strictly in review
+    // (i.e. applicant exists, but not ACCEPTED/CONFIRMED/ENROLLED, and not ACTIVE/PAUSED/GRADUATED)
+    const allProfilesRes = await query(`
+      SELECT sp.id, sp.applicant_id, a.status as applicant_status, a.program_status as applicant_program_status
+      FROM startup_profiles sp
+      LEFT JOIN applicants a ON sp.applicant_id = a.id;
+    `);
+
+    for (const p of (allProfilesRes.rows || [])) {
+      if (p.applicant_id) {
+        const isEligible = ['ACCEPTED', 'CONFIRMED', 'ENROLLED'].includes(p.applicant_status) ||
+          ['ACTIVE', 'PAUSED', 'GRADUATED'].includes(p.applicant_program_status);
+        if (!isEligible) {
+          await query(`DELETE FROM startup_profiles WHERE id = $1;`, [p.id]);
+        }
+      }
+    }
+
     return syncedCount;
   } catch (err) {
     console.error('syncAcceptedStartupsInternal error:', err);

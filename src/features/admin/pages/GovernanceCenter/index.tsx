@@ -27,6 +27,7 @@ interface GovernanceCenterPageProps {
   onDeleteRole: (roleName: string) => Promise<void>;
   onAssignRole: (email: string, role: string) => Promise<void>;
   onCreateUser: (userData: any) => Promise<void>;
+  onDeleteUser: (email: string) => Promise<void>;
   onIssueBan: (banData: any) => Promise<void>;
   onLiftBan: (banId: string, reason: string) => Promise<void>;
 }
@@ -44,6 +45,7 @@ export function GovernanceCenterPage({
   onDeleteRole,
   onAssignRole,
   onCreateUser,
+  onDeleteUser,
   onIssueBan,
   onLiftBan
 }: GovernanceCenterPageProps) {
@@ -239,6 +241,7 @@ export function GovernanceCenterPage({
           currentUser={currentUser}
           onRefresh={onRefresh}
           onCreateUser={onCreateUser}
+          onDeleteUser={onDeleteUser}
           onAssignRole={onAssignRole}
           setErrorMsg={setErrorMsg}
           setSuccessMsg={setSuccessMsg}

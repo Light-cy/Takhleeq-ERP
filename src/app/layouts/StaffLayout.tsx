@@ -29,6 +29,11 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User as ERPUser } from '../../types';
+import { 
+  isStaffTabAllowed, 
+  getFirstAllowedStaffTab, 
+  getStaffTabSection 
+} from '../../utils/staffNavigation';
 
 interface StaffLayoutProps {
   activeTab: string;
@@ -60,13 +65,67 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
-  // Collapsible dropdown states
-  const [bookingOpen, setBookingOpen] = useState<boolean>(true);
-  const [cohortOpen, setCohortOpen] = useState<boolean>(true);
+  // Permission access flags for top-level accordion groupings
+  const hasBookingAccess = 
+    hasPermission('VIEW_PENDING_QUEUE') ||
+    hasPermission('BOOKING_OVERRIDE') ||
+    hasPermission('MANAGE_ROOMS') ||
+    hasPermission('MANAGE_BOOKING_TYPES') ||
+    hasPermission('VIEW_BOOKING_ANALYTICS') ||
+    hasPermission('VIEW_ANALYTICS_DASHBOARD');
+
+  const hasCohortAccess =
+    hasPermission('cohort:dashboard_view') ||
+    hasPermission('VIEW_COHORT_DASHBOARD') ||
+    hasPermission('cohort:settings_manage') ||
+    hasPermission('MANAGE_COHORT_SETTINGS') ||
+    hasPermission('cohort:form_manage') ||
+    hasPermission('MANAGE_APPLICATION_FORM') ||
+    hasPermission('cohort:applicant_review') ||
+    hasPermission('REVIEW_COHORT_APPLICATIONS') ||
+    hasPermission('cohort:startups_manage') ||
+    hasPermission('MANAGE_COHORT_STARTUPS') ||
+    hasPermission('cohort:session_manage') ||
+    hasPermission('MANAGE_COHORT_SESSIONS') ||
+    hasPermission('cohort:assignment_manage') ||
+    hasPermission('MANAGE_COHORT_ASSIGNMENTS') ||
+    hasPermission('cohort:feedback_view') ||
+    hasPermission('VIEW_FOUNDER_FEEDBACK') ||
+    hasPermission('cohort:checkin_log') ||
+    hasPermission('cohort:feedback_forms_manage') ||
+    hasPermission('MANAGE_FEEDBACK_FORMS');
+
+  // Collapsible dropdown states - intelligently expand the user's accessible section
+  const [bookingOpen, setBookingOpen] = useState<boolean>(() => hasBookingAccess);
+  const [cohortOpen, setCohortOpen] = useState<boolean>(() => hasCohortAccess || !hasBookingAccess);
   const [appMgmtOpen, setAppMgmtOpen] = useState<boolean>(true);
 
-  // Centralized tab selection that also normalizes current route to dashboard
+  // Auto-switch away from unauthorized tabs to the user's first allowed module
+  React.useEffect(() => {
+    if (!isStaffTabAllowed(activeTab, hasPermission)) {
+      const allowed = getFirstAllowedStaffTab(hasPermission);
+      if (allowed && allowed !== activeTab) {
+        setActiveTab(allowed);
+      }
+    }
+  }, [activeTab, activeUser]);
+
+  // Auto-expand section if activeTab is in it
+  React.useEffect(() => {
+    const sec = getStaffTabSection(activeTab);
+    if (sec === 'booking') {
+      setBookingOpen(true);
+    } else if (sec === 'cohort') {
+      setCohortOpen(true);
+      if (activeTab === 'cohort_form_config' || activeTab === 'cohort_applications' || activeTab === 'builder' || activeTab === 'cohort_intake') {
+        setAppMgmtOpen(true);
+      }
+    }
+  }, [activeTab]);
+
+  // Centralized tab selection with permission check
   const handleTabClick = (tabName: string) => {
+    if (!isStaffTabAllowed(tabName, hasPermission)) return;
     setActiveTab(tabName);
     if (onNavigate) {
       onNavigate('/staff/dashboard', tabName);

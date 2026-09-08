@@ -5,9 +5,9 @@
       "microsoft_id": "abbd6c927fe2a7fa",
       "email": "qaseebahmed@gmail.com",
       "full_name": "Qaseeb Ahmed",
-      "password": "Tk#304544",
+      "password": "tech",
       "is_active": true,
-      "last_login": "2026-09-05T07:29:11.156Z",
+      "last_login": "2026-09-07T07:58:43.809Z",
       "created_at": "2026-08-09T13:44:11.773Z"
     },
     {
@@ -15,8 +15,8 @@
       "microsoft_id": "2cbac3e25eba7eb4",
       "email": "l8ght789@gmail.com",
       "full_name": "manager",
-      "password": null,
-      "is_active": true,
+      "password": "Tk#832162",
+      "is_active": false,
       "last_login": "2026-08-10T10:46:56.851Z",
       "created_at": "2026-08-09T14:00:26.762Z"
     },
@@ -119,6 +119,36 @@
       "is_active": true,
       "last_login": "2026-09-05T02:06:29.676Z",
       "created_at": "2026-09-05T02:06:29.676Z"
+    },
+    {
+      "id": 13,
+      "microsoft_id": null,
+      "email": "s@gmail.com",
+      "full_name": "s",
+      "password": "Tk#730535",
+      "is_active": true,
+      "last_login": "2026-09-06T21:33:25.127Z",
+      "created_at": "2026-09-06T21:33:25.127Z"
+    },
+    {
+      "id": 14,
+      "microsoft_id": null,
+      "email": "director@takhleeq.io",
+      "full_name": "Director",
+      "password": null,
+      "is_active": true,
+      "last_login": "2026-09-07T09:03:45.457Z",
+      "created_at": "2026-09-07T09:03:45.457Z"
+    },
+    {
+      "id": 15,
+      "microsoft_id": null,
+      "email": "admin2@takhleeq.io",
+      "full_name": "Second Admin",
+      "password": null,
+      "is_active": true,
+      "last_login": "2026-09-07T09:04:00.995Z",
+      "created_at": "2026-09-07T09:04:00.995Z"
     }
   ],
   "roles": [
@@ -162,32 +192,6 @@
       "created_at": "2026-07-23T11:58:47.363Z"
     },
     {
-      "id": 2,
-      "name": "Booking Manager",
-      "description": "Approve, reject bookings, and issue bans up to 90 days",
-      "permissions": [
-        "VIEW_PENDING_QUEUE",
-        "APPROVE_REJECT_BOOKINGS",
-        "ISSUE_BAN"
-      ],
-      "ban_duration_ceiling": "90",
-      "created_by": null,
-      "created_at": "2026-07-23T11:58:47.363Z"
-    },
-    {
-      "id": 3,
-      "name": "Facility Coordinator",
-      "description": "View queue, apply manual time/room overrides, issue bans up to 7 days",
-      "permissions": [
-        "VIEW_PENDING_QUEUE",
-        "BOOKING_OVERRIDE",
-        "ISSUE_BAN"
-      ],
-      "ban_duration_ceiling": "7",
-      "created_by": null,
-      "created_at": "2026-07-23T11:58:47.363Z"
-    },
-    {
       "id": 4,
       "name": "UCP Member",
       "description": "Regular student or staff member with standard public booking access",
@@ -198,14 +202,14 @@
     },
     {
       "id": 5,
-      "name": "Room Management",
-      "description": "Manage incubator spaces, view and update space operating attributes, and delete spaces",
+      "name": "Facility Officer",
+      "description": "Manages facilities and rooms",
       "permissions": [
         "MANAGE_ROOMS"
       ],
-      "ban_duration_ceiling": "0",
-      "created_by": null,
-      "created_at": "2026-07-23T11:58:47.363Z"
+      "ban_duration_ceiling": null,
+      "created_by": 14,
+      "created_at": "2026-09-07T09:03:45.475Z"
     }
   ],
   "user_roles": [
@@ -215,7 +219,7 @@
     },
     {
       "user_id": 2,
-      "role_id": 2
+      "role_id": 4
     },
     {
       "user_id": 4,
@@ -231,7 +235,7 @@
     },
     {
       "user_id": 9,
-      "role_id": 2
+      "role_id": 4
     },
     {
       "user_id": 10,
@@ -248,6 +252,14 @@
     {
       "user_id": 12,
       "role_id": 4
+    },
+    {
+      "user_id": 14,
+      "role_id": 1
+    },
+    {
+      "user_id": 15,
+      "role_id": 1
     }
   ],
   "cohorts": [
@@ -277,7 +289,7 @@
       "startup_name": "EdTech Innovators",
       "startup_description": "Modern interactive learning platform",
       "status": "ENROLLED",
-      "program_status": "PAUSED",
+      "program_status": "GRADUATED",
       "panel_scores": null,
       "parent_applicant_id": null,
       "form_data": {
@@ -313,8 +325,90 @@
       "orientation_conducted": true,
       "cohort_id": 1,
       "created_at": "2026-08-09T14:09:03.956Z",
-      "founder_password": "Tk#304544",
+      "founder_password": "tech",
       "stage": "MARKET_VALIDATION"
+    },
+    {
+      "id": 2,
+      "tracking_token": "TK-STR-4099",
+      "name": "test",
+      "email": "l8ght789@gmail.com",
+      "phone": "1111-1111111",
+      "cnic": "11111-1111111-1",
+      "startup_name": "test",
+      "startup_description": "test",
+      "status": "SUBMITTED",
+      "program_status": "KICKED_OUT",
+      "panel_scores": null,
+      "parent_applicant_id": null,
+      "form_data": {
+        "field_q2_venture_type": "Product-based",
+        "field_q4_services": "test",
+        "field_q5_business_model": "test",
+        "field_q6_discovery": "Dean/hod/faculty email or word",
+        "field_q7_stage": "Idea stage",
+        "field_q8_team_size": "Solo",
+        "field_q10_father_name": "test",
+        "field_q11_gender": "Male",
+        "field_q14_roll_number": "test",
+        "field_q16_location": "test",
+        "field_q17_postal_address": "test",
+        "field_q18_team_role": "test",
+        "field_q19_skillset": "test",
+        "field_q20_linkedin": "test",
+        "field_q21_past_projects": "test",
+        "field_q22_status": "Current Student/Faculty/Staff",
+        "field_q23_batch_year": "test",
+        "field_q24_department": "test",
+        "field_q25_degree": "test",
+        "field_q26_working": "Yes",
+        "field_q27_work_details": "test"
+      },
+      "orientation_conducted": false,
+      "cohort_id": null,
+      "created_at": "2026-09-06T20:44:50.601Z",
+      "founder_password": "Tk#832162"
+    },
+    {
+      "id": 3,
+      "tracking_token": "TK-STR-6532",
+      "name": "s",
+      "email": "s@gmail.com",
+      "phone": "2222-2222222",
+      "cnic": "22222-2222222-2",
+      "startup_name": "a",
+      "startup_description": "s",
+      "status": "SUBMITTED",
+      "program_status": "NOT_ENROLLED",
+      "panel_scores": null,
+      "parent_applicant_id": null,
+      "form_data": {
+        "field_q2_venture_type": "Product-based",
+        "field_q4_services": "2",
+        "field_q5_business_model": "a",
+        "field_q6_discovery": "Takhleeq Socials",
+        "field_q7_stage": "Idea stage",
+        "field_q8_team_size": "Solo",
+        "field_q10_father_name": "a",
+        "field_q11_gender": "Male",
+        "field_q14_roll_number": "a",
+        "field_q16_location": "a",
+        "field_q17_postal_address": "a",
+        "field_q18_team_role": "a",
+        "field_q19_skillset": "a",
+        "field_q20_linkedin": "a",
+        "field_q21_past_projects": "a",
+        "field_q22_status": "Current Student/Faculty/Staff",
+        "field_q23_batch_year": "a",
+        "field_q24_department": "a",
+        "field_q25_degree": "a",
+        "field_q26_working": "No",
+        "field_q27_work_details": "a"
+      },
+      "orientation_conducted": false,
+      "cohort_id": null,
+      "created_at": "2026-09-06T21:19:29.386Z",
+      "founder_password": "Tk#730535"
     }
   ],
   "cohort_sessions": [],
@@ -1440,6 +1534,283 @@
         "orientation_conducted": true
       },
       "timestamp": "2026-09-06T16:51:46.572Z"
+    },
+    {
+      "id": 73,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-09-06T17:29:00.360Z"
+    },
+    {
+      "id": 74,
+      "action": "New startup application submitted: 'test' by founder test. Token: TK-STR-4099",
+      "entity_type": "applicant",
+      "entity_id": "2",
+      "actor_email": "l8ght789@gmail.com",
+      "previous_value": null,
+      "new_value": {
+        "tracking_token": "TK-STR-4099",
+        "startup_name": "test",
+        "parent_linked": false
+      },
+      "timestamp": "2026-09-06T20:44:50.604Z"
+    },
+    {
+      "id": 75,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-09-06T20:47:14.207Z"
+    },
+    {
+      "id": 76,
+      "action": "Program status updated for startup 'test': Changed program_status from 'NOT_ENROLLED' to 'KICKED_OUT'.",
+      "entity_type": "program_status",
+      "entity_id": "2",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "previousProgramStatus": "NOT_ENROLLED"
+      },
+      "new_value": {
+        "newProgramStatus": "KICKED_OUT"
+      },
+      "timestamp": "2026-09-06T20:59:24.538Z"
+    },
+    {
+      "id": 77,
+      "action": "New startup application submitted: 'a' by founder s. Token: TK-STR-6532",
+      "entity_type": "applicant",
+      "entity_id": "3",
+      "actor_email": "s@gmail.com",
+      "previous_value": null,
+      "new_value": {
+        "tracking_token": "TK-STR-6532",
+        "startup_name": "a",
+        "parent_linked": false
+      },
+      "timestamp": "2026-09-06T21:19:29.390Z"
+    },
+    {
+      "id": 78,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-09-06T21:20:06.855Z"
+    },
+    {
+      "id": 79,
+      "action": "Status updated for startup 'a': Changed status from 'SUBMITTED' to 'UNDER_REVIEW' (program_status: 'NOT_ENROLLED').",
+      "entity_type": "applicant_status",
+      "entity_id": "3",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "previousStatus": "SUBMITTED",
+        "previousProgramStatus": "NOT_ENROLLED",
+        "previousCohort": null
+      },
+      "new_value": {
+        "newStatus": "UNDER_REVIEW",
+        "newProgramStatus": "NOT_ENROLLED",
+        "cohort_id": null,
+        "remarks": "Application shortlisted for desk review",
+        "include_in_email": true
+      },
+      "timestamp": "2026-09-06T21:40:11.642Z"
+    },
+    {
+      "id": 80,
+      "action": "Created Custom Role: Incubation Evaluator",
+      "entity_type": "role",
+      "entity_id": "5",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": {
+        "name": "Incubation Evaluator",
+        "description": "Scores candidate pitches and evaluates submissions",
+        "permissions": [
+          "cohort:applicant_review"
+        ],
+        "banDurationCeiling": 0
+      },
+      "timestamp": "2026-09-07T04:43:31.643Z"
+    },
+    {
+      "id": 81,
+      "action": "Deleted Custom Role: Incubation Evaluator",
+      "entity_type": "role",
+      "entity_id": "5",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "name": "Incubation Evaluator",
+        "description": "Scores candidate pitches and evaluates submissions",
+        "permissions": [
+          "cohort:applicant_review"
+        ],
+        "banDurationCeiling": 0
+      },
+      "new_value": null,
+      "timestamp": "2026-09-07T04:43:31.670Z"
+    },
+    {
+      "id": 82,
+      "action": "Created User Account: Temporary Test User (temptest@ucp.edu.pk) with role UCP Member",
+      "entity_type": "user",
+      "entity_id": "14",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": {
+        "email": "temptest@ucp.edu.pk",
+        "name": "Temporary Test User",
+        "role": "UCP Member",
+        "status": "Active"
+      },
+      "timestamp": "2026-09-07T07:12:42.136Z"
+    },
+    {
+      "id": 83,
+      "action": "Deleted User Account: Temporary Test User (temptest@ucp.edu.pk)",
+      "entity_type": "user",
+      "entity_id": "14",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "id": 14,
+        "microsoft_id": null,
+        "email": "temptest@ucp.edu.pk",
+        "full_name": "Temporary Test User",
+        "password": null,
+        "is_active": true,
+        "last_login": "2026-09-07T07:12:42.133Z",
+        "created_at": "2026-09-07T07:12:42.133Z",
+        "role_name": "UCP Member",
+        "permissions": []
+      },
+      "new_value": null,
+      "timestamp": "2026-09-07T07:12:42.160Z"
+    },
+    {
+      "id": 84,
+      "action": "User signed in via Microsoft SSO: Qaseeb Ahmad (qaseebahmed@gmail.com)",
+      "entity_type": "user",
+      "entity_id": "1",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-09-07T07:58:43.815Z"
+    },
+    {
+      "id": 85,
+      "action": "Created User Account: Testing Member (membertest@ucp.edu.pk) with role UCP Member",
+      "entity_type": "user",
+      "entity_id": "14",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": null,
+      "new_value": {
+        "email": "membertest@ucp.edu.pk",
+        "name": "Testing Member",
+        "role": "UCP Member",
+        "status": "Active"
+      },
+      "timestamp": "2026-09-07T08:01:59.837Z"
+    },
+    {
+      "id": 86,
+      "action": "Deleted User Account: Testing Member (membertest@ucp.edu.pk)",
+      "entity_type": "user",
+      "entity_id": "14",
+      "actor_email": "qaseebahmed@gmail.com",
+      "previous_value": {
+        "id": 14,
+        "microsoft_id": null,
+        "email": "membertest@ucp.edu.pk",
+        "full_name": "Testing Member",
+        "password": null,
+        "is_active": true,
+        "last_login": "2026-09-07T08:01:59.834Z",
+        "created_at": "2026-09-07T08:01:59.834Z",
+        "role_name": "UCP Member",
+        "permissions": []
+      },
+      "new_value": null,
+      "timestamp": "2026-09-07T08:01:59.855Z"
+    },
+    {
+      "id": 87,
+      "action": "Created Custom Role: Facility Officer",
+      "entity_type": "role",
+      "entity_id": "5",
+      "actor_email": "director@takhleeq.io",
+      "previous_value": null,
+      "new_value": {
+        "name": "Facility Officer",
+        "description": "Manages facilities and rooms",
+        "permissions": [
+          "MANAGE_ROOMS"
+        ]
+      },
+      "timestamp": "2026-09-07T09:03:45.476Z"
+    },
+    {
+      "id": 88,
+      "action": "Created User Account: Farhan Room Guy (farhan.rooms@ucp.edu.pk) with role Facility Officer",
+      "entity_type": "user",
+      "entity_id": "15",
+      "actor_email": "director@takhleeq.io",
+      "previous_value": null,
+      "new_value": {
+        "email": "farhan.rooms@ucp.edu.pk",
+        "name": "Farhan Room Guy",
+        "role": "Facility Officer",
+        "status": "Active"
+      },
+      "timestamp": "2026-09-07T09:03:45.501Z"
+    },
+    {
+      "id": 89,
+      "action": "Deleted User Account: Farhan Room Guy (farhan.rooms@ucp.edu.pk)",
+      "entity_type": "user",
+      "entity_id": "15",
+      "actor_email": "director@takhleeq.io",
+      "previous_value": {
+        "id": 15,
+        "microsoft_id": null,
+        "email": "farhan.rooms@ucp.edu.pk",
+        "full_name": "Farhan Room Guy",
+        "password": "password123",
+        "is_active": true,
+        "last_login": "2026-09-07T09:03:45.497Z",
+        "created_at": "2026-09-07T09:03:45.497Z",
+        "role_name": "Facility Officer",
+        "permissions": [
+          "MANAGE_ROOMS"
+        ]
+      },
+      "new_value": null,
+      "timestamp": "2026-09-07T09:03:52.080Z"
+    },
+    {
+      "id": 90,
+      "action": "Created User Account: Second Admin (admin2@takhleeq.io) with role Administrator",
+      "entity_type": "user",
+      "entity_id": "15",
+      "actor_email": "director@takhleeq.io",
+      "previous_value": null,
+      "new_value": {
+        "email": "admin2@takhleeq.io",
+        "name": "Second Admin",
+        "role": "Administrator",
+        "status": "Active"
+      },
+      "timestamp": "2026-09-07T09:04:00.999Z"
     }
   ],
   "rooms": [
@@ -1804,10 +2175,12 @@
     {
       "id": 1,
       "applicant_id": 1,
-      "previous_stage": "qaseebahmed@gmail.com",
-      "comments": null,
+      "previous_stage": null,
+      "comments": "Application Form Submitted",
       "include_in_email": true,
-      "change_date": "2026-08-09T14:09:03.957Z"
+      "change_date": "2026-08-09T14:09:03.957Z",
+      "new_stage": "APPLIED",
+      "updated_by_email": "qaseebahmed@gmail.com"
     },
     {
       "id": 2,
@@ -1890,40 +2263,24 @@
       "change_date": "2026-08-09T14:15:56.351Z"
     },
     {
-      "id": 10,
+      "id": 14,
       "applicant_id": 2,
-      "previous_stage": "ayesha@techstartup.pk",
-      "comments": null,
+      "previous_stage": null,
+      "comments": "Application Form Submitted",
       "include_in_email": true,
-      "change_date": "2026-08-09T14:23:02.427Z"
+      "change_date": "2026-09-06T20:44:50.603Z",
+      "new_stage": "APPLIED",
+      "updated_by_email": "l8ght789@gmail.com"
     },
     {
-      "id": 11,
+      "id": 15,
       "applicant_id": 3,
-      "previous_stage": "tariq@healthtech.pk",
-      "comments": null,
+      "previous_stage": null,
+      "comments": "Application Form Submitted",
       "include_in_email": true,
-      "change_date": "2026-08-09T14:27:36.985Z"
-    },
-    {
-      "id": 12,
-      "applicant_id": 2,
-      "previous_stage": "SUBMITTED",
-      "new_stage": "REJECTED",
-      "updated_by_email": "qaseebahmed@gmail.com",
-      "comments": null,
-      "include_in_email": true,
-      "change_date": "2026-08-09T14:31:48.075Z"
-    },
-    {
-      "id": 13,
-      "applicant_id": 3,
-      "previous_stage": "SUBMITTED",
-      "new_stage": "REJECTED",
-      "updated_by_email": "qaseebahmed@gmail.com",
-      "comments": null,
-      "include_in_email": true,
-      "change_date": "2026-08-09T14:32:02.362Z"
+      "change_date": "2026-09-06T21:19:29.388Z",
+      "new_stage": "APPLIED",
+      "updated_by_email": "s@gmail.com"
     }
   ],
   "industries": [
@@ -1968,12 +2325,12 @@
       "cohort_id": 1,
       "enrollment_date": "2026-08-09T16:23:18.835Z",
       "current_progress_stage": "MARKET_VALIDATION",
-      "program_status": "PAUSED",
+      "program_status": "GRADUATED",
       "team_size": 3,
       "revenue_status": "PRE_REVENUE",
       "funding_status": "BOOTSTRAPPED",
       "created_at": "2026-08-09T16:23:18.836Z",
-      "updated_at": "2026-09-06T16:54:14.719Z",
+      "updated_at": "2026-09-06T17:46:15.180Z",
       "monthly_revenue": "PKR 25,000",
       "founder_phone": "1111-1111111"
     }
@@ -2018,6 +2375,26 @@
       "updated_by_user_id": null,
       "updated_by_email": "admin@takhleeq.pk",
       "comments": "Admin stage progression"
+    },
+    {
+      "id": 5,
+      "startup_profile_id": 2,
+      "previous_stage": "IDEA_STAGE",
+      "new_stage": "System (Intake Confirmation)",
+      "change_date": "2026-09-06T21:17:47.432Z",
+      "updated_by_user_id": null,
+      "updated_by_email": "System (Intake Confirmation)",
+      "comments": "Initial startup profile auto-created upon cohort intake confirmation."
+    },
+    {
+      "id": 6,
+      "startup_profile_id": 3,
+      "previous_stage": "IDEA_STAGE",
+      "new_stage": "System (Intake Confirmation)",
+      "change_date": "2026-09-06T21:20:08.965Z",
+      "updated_by_user_id": null,
+      "updated_by_email": "System (Intake Confirmation)",
+      "comments": "Initial startup profile auto-created upon cohort intake confirmation."
     }
   ],
   "startup_pivots": [],
@@ -2165,6 +2542,56 @@
       "old_value": "ACTIVE",
       "new_value": "PAUSED",
       "created_at": "2026-09-06T16:54:14.717Z"
+    },
+    {
+      "id": 16,
+      "startup_profile_id": 1,
+      "changed_by_user_id": null,
+      "changed_by_email": "admin@takhleeq.pk",
+      "field_name": "founder_password",
+      "old_value": "***",
+      "new_value": "***",
+      "created_at": "2026-09-06T17:27:29.994Z"
+    },
+    {
+      "id": 17,
+      "startup_profile_id": 1,
+      "changed_by_user_id": null,
+      "changed_by_email": "admin@takhleeq.pk",
+      "field_name": "program_status",
+      "old_value": "PAUSED",
+      "new_value": "ACTIVE",
+      "created_at": "2026-09-06T17:29:28.732Z"
+    },
+    {
+      "id": 18,
+      "startup_profile_id": 1,
+      "changed_by_user_id": null,
+      "changed_by_email": "admin@takhleeq.pk",
+      "field_name": "program_status",
+      "old_value": "ACTIVE",
+      "new_value": "GRADUATED",
+      "created_at": "2026-09-06T17:46:15.178Z"
+    },
+    {
+      "id": 19,
+      "startup_profile_id": 2,
+      "changed_by_user_id": null,
+      "changed_by_email": "test",
+      "field_name": "general",
+      "old_value": null,
+      "new_value": null,
+      "created_at": "2026-09-06T21:17:47.433Z"
+    },
+    {
+      "id": 20,
+      "startup_profile_id": 3,
+      "changed_by_user_id": null,
+      "changed_by_email": "s",
+      "field_name": "general",
+      "old_value": null,
+      "new_value": null,
+      "created_at": "2026-09-06T21:20:08.967Z"
     }
   ],
   "checkins": [
@@ -2173,12 +2600,12 @@
       "startup_profile_id": 1,
       "cohort_id": 1,
       "scheduled_at": "2026-08-10T10:05:00.000Z",
-      "notes": null,
+      "notes": "",
       "attendance_status": "attended",
       "created_by_user_id": 1,
       "created_by_email": "qaseebahmed@gmail.com",
       "created_at": "2026-08-10T10:05:29.950Z",
-      "updated_at": "2026-08-10T10:05:29.950Z"
+      "updated_at": "2026-09-06T17:29:54.681Z"
     },
     {
       "id": 2,
@@ -2199,7 +2626,7 @@
       "checkin_id": 1,
       "originating_checkin_id": 1,
       "description": "Review monthly target KPIs & milestones",
-      "is_completed": false,
+      "is_completed": true,
       "created_at": "2026-08-10T11:34:12.659Z"
     },
     {
@@ -2207,7 +2634,7 @@
       "checkin_id": 1,
       "originating_checkin_id": 1,
       "description": "Update pitch deck financial projection model",
-      "is_completed": false,
+      "is_completed": true,
       "created_at": "2026-08-10T11:34:20.255Z"
     },
     {
@@ -2215,7 +2642,7 @@
       "checkin_id": 1,
       "originating_checkin_id": 1,
       "description": "Schedule follow-up mentor advisory session",
-      "is_completed": false,
+      "is_completed": true,
       "created_at": "2026-08-10T11:34:24.122Z"
     },
     {

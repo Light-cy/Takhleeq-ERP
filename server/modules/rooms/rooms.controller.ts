@@ -38,7 +38,16 @@ export const createRoom = async (req: AuthenticatedRequest, res: Response) => {
     const maxDur = maxBookingDuration ? parseInt(maxBookingDuration) : 180;
     const roomPurpose = purpose || 'General use';
     const roomPolicies = policies ? JSON.stringify(policies) : '[]';
-    const allowedTypesJson = allowedBookingTypes ? JSON.stringify(allowedBookingTypes) : JSON.stringify(['Student societies', 'Startup teams', 'Faculty members', 'Department representatives', 'Cohort members', 'Entrepreneurs in residence', 'Professionals in residence', 'Meeting / Event', 'Cohort Startup', 'Department']);
+    let effectiveAllowedTypes = allowedBookingTypes;
+    if (!effectiveAllowedTypes) {
+      try {
+        const btRes = await query(`SELECT name FROM booking_types WHERE is_active = TRUE ORDER BY id ASC`);
+        effectiveAllowedTypes = btRes.rows.map((r: any) => r.name);
+      } catch {
+        effectiveAllowedTypes = [];
+      }
+    }
+    const allowedTypesJson = JSON.stringify(effectiveAllowedTypes);
 
     const insertRes = await query(
       `INSERT INTO rooms (name, capacity, operating_hours_start, operating_hours_end, min_duration_minutes, max_duration_minutes, purpose, policies, allowed_booking_types, is_active)

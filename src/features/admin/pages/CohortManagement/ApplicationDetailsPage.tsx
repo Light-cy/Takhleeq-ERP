@@ -30,6 +30,7 @@ export function getNextLinearStage(status: string): StageDefinition | null {
 
 export interface ApplicationDetailsPageProps {
   applicantId: number;
+  initialApplicant?: any;
   onBack: () => void;
   currentUser: any;
   fetchWithAuth: (url: string, options?: any) => Promise<any>;
@@ -42,6 +43,7 @@ export interface ApplicationDetailsPageProps {
 
 export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
   applicantId,
+  initialApplicant,
   onBack,
   currentUser,
   fetchWithAuth,
@@ -51,10 +53,10 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
   selectedCohort,
   onNavigate
 }) => {
-  const [applicant, setApplicant] = useState<any>(null);
-  const [parentRecord, setParentRecord] = useState<any>(null);
+  const [applicant, setApplicant] = useState<any>(() => initialApplicant || null);
+  const [parentRecord, setParentRecord] = useState<any>(() => initialApplicant?.parent || null);
   const [stageHistory, setStageHistory] = useState<any[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(() => !initialApplicant);
   const [historyLoading, setHistoryLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
 
@@ -69,9 +71,6 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
   const [isManualSelection, setIsManualSelection] = useState<boolean>(false);
   const [remarks, setRemarks] = useState<string>('');
   const [includeInEmail, setIncludeInEmail] = useState<boolean>(true);
-
-  // Orientation state
-  const [updatingOrientation, setUpdatingOrientation] = useState<boolean>(false);
 
   // Credentials Management state
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -129,34 +128,7 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
     }
   };
 
-  const [updatingProgramStatus, setUpdatingProgramStatus] = useState<boolean>(false);
 
-  const handleUpdateProgramStatus = async (newProgramStatus: string) => {
-    if (!applicant) return;
-    const isAlreadyKicked = applicant.program_status === 'KICKED_OUT' || applicant.status === 'KICKED_OUT';
-    if (isAlreadyKicked && newProgramStatus !== 'KICKED_OUT') {
-      triggerError('Yeh startup incubator se permanently kick out ho chuka hai. Iska status reactivate ya change nahi kiya ja sakta.');
-      return;
-    }
-
-    setUpdatingProgramStatus(true);
-    try {
-      const res = await fetchWithAuth(`/api/applicants/${applicant.id}/program-status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ program_status: newProgramStatus })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to update program status');
-      setApplicant({ ...applicant, program_status: newProgramStatus });
-      triggerSuccess(`Startup program status set to ${newProgramStatus} across all views.`);
-      loadStageHistory();
-    } catch (err: any) {
-      triggerError(err.message || 'Failed to update program status.');
-    } finally {
-      setUpdatingProgramStatus(false);
-    }
-  };
 
   // Close kebab menu on click outside
   useEffect(() => {
@@ -171,7 +143,9 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
 
   // Fetch applicant data and stage history
   const loadData = async () => {
-    setLoading(true);
+    if (!applicant) {
+      setLoading(true);
+    }
     try {
       const res = await fetchWithAuth(`/api/applicants/${applicantId}`);
       if (!res.ok) throw new Error('Failed to fetch application details');
@@ -259,27 +233,7 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
     }
   };
 
-  const handleToggleOrientation = async () => {
-    if (!applicant) return;
-    const nextOrient = !applicant.orientation_conducted;
-    setUpdatingOrientation(true);
-    try {
-      const res = await fetchWithAuth(`/api/applicants/${applicant.id}/orientation`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orientation_conducted: nextOrient })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to update orientation.');
 
-      setApplicant({ ...applicant, orientation_conducted: nextOrient });
-      triggerSuccess(`Orientation status updated to ${nextOrient ? 'Conducted' : 'Pending'}.`);
-    } catch (err: any) {
-      triggerError(err.message);
-    } finally {
-      setUpdatingOrientation(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -310,23 +264,73 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
   const currentStageDef = getStageDef(applicant.status);
   const nextStageDef = getNextLinearStage(applicant.status);
   const isTerminalOrAlternate = currentStageDef.type === 'terminal' || currentStageDef.type === 'alternate' || currentStageDef.key === 'ENROLLED';
-  const isPermanentlyKicked = applicant.program_status === 'KICKED_OUT' || applicant.status === 'KICKED_OUT';
-  const isGraduated = applicant.program_status === 'GRADUATED';
-  const isLockedTerminal = isPermanentlyKicked || isGraduated;
+
+  // Authentic chronological events for the application intake lifecycle
+  const timelineEvents = React.useMemo(() => {
+    const list: Array<{
+      id: string | number;
+      type: 'submission' | 'transition';
+      previous_stage?: string | null;
+      new_stage: string;
+      actor: string;
+      date: string;
+      comments?: string | null;
+      include_in_email?: boolean;
+    }> = [];
+
+    const applicantCreatedTime = applicant.created_at ? new Date(applicant.created_at).getTime() : 0;
+
+    // Filter out any stale ghost history that predates the applicant's creation date
+    const relevantHistory = stageHistory.filter((item) => {
+      if (!applicantCreatedTime) return true;
+      const itemTime = item.change_date ? new Date(item.change_date).getTime() : 0;
+      return itemTime >= applicantCreatedTime - 60000;
+    });
+
+    let hasSubmissionRecorded = false;
+
+    relevantHistory.forEach((item, index) => {
+      const isSub = !item.previous_stage || item.comments === 'Application Form Submitted' || (typeof item.previous_stage === 'string' && item.previous_stage.includes('@'));
+      if (isSub) {
+        if (hasSubmissionRecorded) return; // Prevent duplicate submission markers
+        hasSubmissionRecorded = true;
+      }
+
+      const actorEmail = (typeof item.previous_stage === 'string' && item.previous_stage.includes('@'))
+        ? item.previous_stage
+        : (item.updated_by_email || (isSub ? applicant.email : 'Admissions Staff'));
+
+      list.push({
+        id: item.id || `hist-${index}`,
+        type: isSub ? 'submission' : 'transition',
+        previous_stage: (typeof item.previous_stage === 'string' && item.previous_stage.includes('@')) ? null : item.previous_stage,
+        new_stage: item.new_stage || 'APPLIED',
+        actor: actorEmail,
+        date: item.change_date || applicant.created_at,
+        comments: item.comments,
+        include_in_email: item.include_in_email
+      });
+    });
+
+    if (!hasSubmissionRecorded && applicant.created_at) {
+      list.push({
+        id: 'submission-init',
+        type: 'submission',
+        previous_stage: null,
+        new_stage: 'APPLIED',
+        actor: applicant.email,
+        date: applicant.created_at,
+        comments: 'Application Form Submitted',
+        include_in_email: true
+      });
+    }
+
+    // Sort descending by date (most recent first)
+    return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [stageHistory, applicant.created_at, applicant.email]);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16 text-left" id="application-full-details-view">
-      {/* Floating Status Update Progress Indicator */}
-      {updatingProgramStatus && (
-        <div className="fixed top-5 right-5 z-50 bg-gray-900/95 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-gray-700 text-xs font-bold animate-in fade-in slide-in-from-top-3 backdrop-blur-md">
-          <Loader2 className="h-4 w-4 animate-spin text-rose-400 shrink-0" />
-          <div>
-            <p className="font-extrabold text-[12px] leading-none">Updating Program Status...</p>
-            <p className="text-[10px] text-gray-300 font-normal mt-0.5">Please wait, updating system records and syncing startup profile</p>
-          </div>
-        </div>
-      )}
-
       {/* Navigation Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-4">
         <div className="flex items-center gap-2.5 flex-wrap">
@@ -364,19 +368,6 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
               <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-rose-50 border border-rose-100 px-2.5 py-0.5 rounded-md font-mono">
                 {applicant.tracking_token}
               </span>
-              <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md border font-mono ${
-                applicant.program_status === 'ACTIVE' 
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
-                applicant.program_status === 'PAUSED'
-                  ? 'bg-amber-50 text-amber-800 border-amber-200' :
-                applicant.program_status === 'GRADUATED'
-                  ? 'bg-indigo-50 text-indigo-800 border-indigo-200' :
-                applicant.program_status === 'KICKED_OUT'
-                  ? 'bg-rose-50 text-rose-800 border-rose-200' :
-                  'bg-gray-100 text-gray-700 border-gray-200'
-              }`}>
-                Program Status: {applicant.program_status || 'NOT_ENROLLED'}
-              </span>
             </div>
             <h1 className="text-xl font-black text-gray-900 tracking-tight">{applicant.startup_name}</h1>
             <p className="text-xs text-gray-500 font-medium">Submitted on {new Date(applicant.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
@@ -394,67 +385,6 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
                 {currentStageDef.label}
               </span>
             </div>
-          </div>
-        </div>
-
-        {/* Program Status Quick Switch & Orientation Bar */}
-        <div className="pt-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-gray-500 font-bold text-[11px] uppercase font-mono flex items-center gap-1.5">
-              <span>Program Status:</span>
-              {updatingProgramStatus && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
-            </span>
-            <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50 text-[10px] font-bold">
-              {(['NOT_ENROLLED', 'ACTIVE', 'PAUSED', 'GRADUATED', 'KICKED_OUT'] as const).map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  disabled={updatingProgramStatus || (isLockedTerminal && (applicant.program_status || 'NOT_ENROLLED') !== st) || (applicant.program_status || 'NOT_ENROLLED') === st}
-                  onClick={() => handleUpdateProgramStatus(st)}
-                  className={`px-2 py-1 rounded-md font-mono transition-all ${
-                    (applicant.program_status || 'NOT_ENROLLED') === st
-                      ? st === 'ACTIVE' ? 'bg-emerald-600 text-white font-black shadow-xs cursor-default'
-                        : st === 'PAUSED' ? 'bg-amber-600 text-white font-black shadow-xs cursor-default'
-                        : st === 'GRADUATED' ? 'bg-indigo-600 text-white font-black shadow-xs cursor-default'
-                        : st === 'KICKED_OUT' ? 'bg-rose-600 text-white font-black shadow-xs cursor-default'
-                        : 'bg-gray-700 text-white font-black shadow-xs cursor-default'
-                      : isLockedTerminal
-                      ? 'text-gray-400 opacity-40 cursor-not-allowed'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200 cursor-pointer'
-                  }`}
-                  title={isLockedTerminal && (applicant.program_status || 'NOT_ENROLLED') !== st ? 'Startup is locked in terminal status' : undefined}
-                >
-                  {st.replace('_', ' ')}
-                </button>
-              ))}
-            </div>
-            {isPermanentlyKicked ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold font-mono">
-                <ShieldAlert className="h-3 w-3 text-rose-600 shrink-0" />
-                Permanently Locked (Terminated)
-              </span>
-            ) : isGraduated ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold font-mono">
-                <Award className="h-3 w-3 text-indigo-600 shrink-0" />
-                Permanently Locked (Graduated)
-              </span>
-            ) : null}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-gray-500 font-medium">Orientation:</span>
-            <button
-              onClick={handleToggleOrientation}
-              disabled={updatingOrientation}
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-extrabold transition-all cursor-pointer ${
-                applicant.orientation_conducted 
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100' 
-                  : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
-              }`}
-            >
-              {applicant.orientation_conducted ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Clock className="h-3.5 w-3.5 text-gray-400" />}
-              <span>{applicant.orientation_conducted ? 'Conducted' : 'Pending'}</span>
-            </button>
           </div>
         </div>
       </div>
@@ -595,15 +525,15 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
 
             {/* Action Buttons: Primary Next Stage + Kebab Exceptions Menu */}
             <div className="space-y-3 pt-2">
-              {isPermanentlyKicked ? (
+              {currentStageDef.type === 'terminal' ? (
                 <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2.5 text-rose-900 text-xs font-bold">
-                  <ShieldAlert className="h-4 w-4 text-rose-600 shrink-0" />
-                  <span>Startup Permanently Terminated. Stage advancement locked.</span>
+                  <XCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                  <span>Application {currentStageDef.label}. Admissions review concluded.</span>
                 </div>
-              ) : isGraduated ? (
-                <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center gap-2.5 text-indigo-900 text-xs font-bold">
-                  <Award className="h-4 w-4 text-indigo-600 shrink-0" />
-                  <span>Incubator Alumni (Graduated). Stage advancement and program modifications are locked.</span>
+              ) : currentStageDef.key === 'ENROLLED' ? (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-emerald-900 text-xs font-bold">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Application Confirmed & Enrolled into Cohort.</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 relative" ref={menuRef}>
@@ -619,7 +549,7 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
                     </button>
                   ) : (
                     <div className="flex-1 p-3 bg-gray-100 border border-gray-200 rounded-xl text-center text-xs font-bold text-gray-500">
-                      {currentStageDef.key === 'ENROLLED' ? 'Application Fully Enrolled' : 'Terminal / Exception Stage Reached'}
+                      Terminal / Final Stage Reached
                     </div>
                   )}
 
@@ -784,94 +714,87 @@ export const ApplicationDetailsPage: React.FC<ApplicationDetailsPageProps> = ({
                 Stage History Timeline
               </h2>
               <span className="text-[10px] font-bold text-gray-400 font-mono">
-                {stageHistory.length === 0 ? 'Baseline (0 Transitions)' : `${stageHistory.length} Transition${stageHistory.length !== 1 ? 's' : ''}`}
+                {timelineEvents.length} Event{timelineEvents.length !== 1 ? 's' : ''}
               </span>
             </div>
 
             {historyLoading ? (
               <p className="text-xs text-gray-400 italic">Loading stage history...</p>
-            ) : stageHistory.length === 0 ? (
-              <div className="space-y-4 relative pl-4 border-l-2 border-emerald-200">
-                <div className="relative group text-xs space-y-2">
-                  {/* Dot icon */}
-                  <div className="absolute -left-[21px] top-1.5 h-3 w-3 rounded-full bg-emerald-500 ring-4 ring-emerald-50" />
-
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 font-extrabold text-[10px] uppercase tracking-wider border border-blue-200">
-                        Initial Baseline
-                      </span>
-                      <span className="text-primary font-black text-xs">
-                        Intake Stage: {currentStageDef.label}
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono text-gray-400">
-                      {applicant.created_at ? new Date(applicant.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Intake Registration'}
-                    </span>
-                  </div>
-
-                  <div className="text-[11px] text-gray-500 font-medium">
-                    Logged by: <strong className="text-gray-800">System (Intake Admissions Portal)</strong>
-                  </div>
-
-                  <div className="p-3.5 bg-blue-50/60 border border-blue-200/80 rounded-xl space-y-1 mt-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-black uppercase tracking-wider text-blue-700 font-mono">Intake Milestone Note</span>
-                      <span className="text-[9px] font-mono font-bold text-blue-800 bg-blue-100/80 border border-blue-200 px-1.5 py-0.5 rounded">
-                        Active Baseline
-                      </span>
-                    </div>
-                    <p className="text-gray-800 font-medium leading-relaxed text-[11px]">
-                      Startup application was received under <strong className="font-bold text-gray-900">{applicant.startup_name}</strong> by <strong className="font-bold text-gray-900">{applicant.name}</strong>. Currently operating at initial baseline stage <strong className="text-primary font-bold">{currentStageDef.label}</strong>. No manual stage transitions have occurred yet.
-                    </p>
-                  </div>
-                </div>
+            ) : timelineEvents.length === 0 ? (
+              <div className="p-4 bg-gray-50 border border-gray-150 rounded-xl text-center text-xs text-gray-500 font-medium">
+                No stage history recorded yet.
               </div>
             ) : (
               <div className="space-y-4 relative pl-4 border-l-2 border-gray-150">
-                {stageHistory.map((item, idx) => {
-                  const prevDef = item.previous_stage ? getStageDef(item.previous_stage) : null;
-                  const newDef = getStageDef(item.new_stage);
+                {timelineEvents.map((evt) => {
+                  const isSub = evt.type === 'submission';
+                  const newDef = getStageDef(evt.new_stage);
+                  const prevDef = evt.previous_stage ? getStageDef(evt.previous_stage) : null;
 
                   return (
-                    <div key={item.id || idx} className="relative group text-xs space-y-1.5">
+                    <div key={evt.id} className="relative group text-xs space-y-1.5">
                       {/* Dot icon */}
-                      <div className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-primary ring-4 ring-rose-50" />
+                      <div
+                        className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ring-4 ${
+                          isSub
+                            ? 'bg-emerald-500 ring-emerald-50'
+                            : newDef.type === 'terminal'
+                            ? 'bg-rose-500 ring-rose-50'
+                            : 'bg-primary ring-rose-50'
+                        }`}
+                      />
 
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-1.5 font-extrabold">
-                          {prevDef && (
+                          {isSub ? (
+                            <span className="text-emerald-700 font-black">Application Submitted</span>
+                          ) : (
                             <>
-                              <span className="text-gray-500">{prevDef.label}</span>
-                              <ChevronRight className="h-3 w-3 text-gray-400" />
+                              {prevDef && (
+                                <>
+                                  <span className="text-gray-500 font-bold">{prevDef.label}</span>
+                                  <ChevronRight className="h-3 w-3 text-gray-400" />
+                                </>
+                              )}
+                              <span className="text-primary font-black">{newDef.label}</span>
                             </>
                           )}
-                          <span className="text-primary font-black">{newDef.label}</span>
                         </div>
                         <span className="text-[10px] font-mono text-gray-400">
-                          {new Date(item.change_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {evt.date
+                            ? new Date(evt.date).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })
+                            : '—'}
                         </span>
                       </div>
 
                       <div className="text-[11px] text-gray-500 font-medium">
-                        Updated by: <span className="font-bold text-gray-700">{item.updated_by_email || 'Staff'}</span>
+                        {isSub ? 'Submitted by:' : 'Updated by:'}{' '}
+                        <span className="font-bold text-gray-700">{evt.actor}</span>
                       </div>
 
-                      {item.comments && (
+                      {evt.comments && evt.comments !== 'Application Form Submitted' && (
                         <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-1 mt-1">
                           <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 font-mono">Remarks / Note</span>
-                            {item.include_in_email !== false ? (
+                            <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 font-mono">
+                              Remarks / Feedback
+                            </span>
+                            {evt.include_in_email !== false ? (
                               <span className="text-[9px] font-mono font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                                Included in Email
+                                Sent in Candidate Email
                               </span>
                             ) : (
                               <span className="text-[9px] font-mono font-bold text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded">
-                                Internal Only
+                                Internal Staff Note
                               </span>
                             )}
                           </div>
-                          <p className="text-gray-800 font-bold leading-relaxed">{item.comments}</p>
+                          <p className="text-gray-800 font-semibold leading-relaxed">{evt.comments}</p>
                         </div>
                       )}
                     </div>

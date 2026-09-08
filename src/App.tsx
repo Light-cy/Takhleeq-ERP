@@ -33,6 +33,7 @@ import { usersApi } from './features/admin/services/users.api';
 import { auditApi } from './features/admin/services/audit.api';
 import { authApi } from './features/auth/services/auth.api';
 import { setClientToken } from './shared/apiClient';
+import { isStaffTabAllowed, getFirstAllowedStaffTab } from './utils/staffNavigation';
 
 // Types
 import { Room, Booking, Ban, CustomRole, User as ERPUser, AuditRecord, Cohort } from './types';
@@ -47,8 +48,21 @@ export default function App() {
   });
 
   // Current tab for staff back-office (/staff/dashboard)
-  // Options: 'queue' | 'register' | 'governance' | 'rooms' | 'audits'
-  const [activeTab, setActiveTab] = useState<string>('queue');
+  // Dynamically default to the first module the active user has access to
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('currentUser') : null;
+    if (stored) {
+      try {
+        const u = JSON.parse(stored);
+        const check = (perm: string) => {
+          if (u.role === 'Administrator') return true;
+          return !!(u.permissions && u.permissions.includes(perm));
+        };
+        return getFirstAllowedStaffTab(check);
+      } catch (e) {}
+    }
+    return 'queue';
+  });
 
   const [activeUser, setActiveUser] = useState<ERPUser | null>(() => {
     const stored = localStorage.getItem('currentUser');
@@ -132,24 +146,56 @@ export default function App() {
         setRoles(Array.isArray(rolesData) ? rolesData : []);
         setUsers(Array.isArray(usersData) ? usersData : []);
 
-        // Synchronize activeUser with the latest role and permissions from backend if changed
-        if (effectiveUser && Array.isArray(usersData) && Array.isArray(rolesData)) {
-          const freshUserRecord = usersData.find(u => u.email.toLowerCase() === effectiveUser.email.toLowerCase());
-          if (freshUserRecord) {
-            const freshRoleRecord = rolesData.find(r => r.name === freshUserRecord.role);
-            const freshPermissions = freshRoleRecord ? freshRoleRecord.permissions : [];
-            
-            if (effectiveUser.role !== freshUserRecord.role || 
-                JSON.stringify(effectiveUser.permissions) !== JSON.stringify(freshPermissions) ||
-                effectiveUser.status !== freshUserRecord.status) {
+        // 1. Refresh activeUser credentials & permissions directly from session via /api/auth/me
+        try {
+          const meRes = await authApi.getMe(currentToken).catch(() => null);
+          if (meRes && meRes.user) {
+            const freshMe = meRes.user;
+            const freshPermissions = Array.isArray(freshMe.permissions) ? freshMe.permissions : [];
+            if (
+              effectiveUser.role !== freshMe.role ||
+              JSON.stringify(effectiveUser.permissions || []) !== JSON.stringify(freshPermissions) ||
+              effectiveUser.status !== freshMe.status ||
+              effectiveUser.name !== freshMe.name
+            ) {
               const updatedUser = {
                 ...effectiveUser,
-                role: freshUserRecord.role,
-                status: freshUserRecord.status,
+                name: freshMe.name || effectiveUser.name,
+                role: freshMe.role,
+                status: freshMe.status,
                 permissions: freshPermissions
               };
               setActiveUser(updatedUser);
               localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+              effectiveUser = updatedUser;
+            }
+          }
+        } catch (meErr) {
+          console.warn('Silent /api/auth/me refresh warning:', meErr);
+        }
+
+        // 2. Secondary fallback sync from users & roles lists (ONLY if role & permissions actually exist)
+        if (effectiveUser && Array.isArray(usersData) && usersData.length > 0 && Array.isArray(rolesData) && rolesData.length > 0) {
+          const freshUserRecord = usersData.find(u => u.email.toLowerCase() === effectiveUser.email.toLowerCase());
+          if (freshUserRecord) {
+            const freshRoleRecord = rolesData.find(r => r.name === freshUserRecord.role);
+            if (freshRoleRecord && Array.isArray(freshRoleRecord.permissions) && freshRoleRecord.permissions.length > 0) {
+              const freshPermissions = freshRoleRecord.permissions;
+              if (
+                effectiveUser.role !== freshUserRecord.role || 
+                JSON.stringify(effectiveUser.permissions) !== JSON.stringify(freshPermissions) ||
+                effectiveUser.status !== freshUserRecord.status
+              ) {
+                const updatedUser = {
+                  ...effectiveUser,
+                  role: freshUserRecord.role,
+                  status: freshUserRecord.status,
+                  permissions: freshPermissions
+                };
+                setActiveUser(updatedUser);
+                localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+                effectiveUser = updatedUser;
+              }
             }
           }
         }
@@ -282,9 +328,29 @@ export default function App() {
     } else if (user.role === 'UCP Member') {
       navigate('/booking');
     } else {
-      navigate('/staff/dashboard');
+      const userHasPerm = (perm: string): boolean => {
+        if (user.role === 'Administrator') return true;
+        if (user.permissions && user.permissions.includes(perm)) return true;
+        const roleRecord = roles.find(r => r.name === user.role);
+        return !!(roleRecord && roleRecord.permissions.includes(perm));
+      };
+      const initialTab = getFirstAllowedStaffTab(userHasPerm);
+      setActiveTab(initialTab);
+      navigate('/staff/dashboard', initialTab);
     }
   };
+
+  // Dynamically guard activeTab and switch to first allowed module if unauthorized
+  useEffect(() => {
+    if (activeUser && (currentPath === '/staff/dashboard' || currentPath.startsWith('/staff') || currentPath.startsWith('/admin'))) {
+      if (!isStaffTabAllowed(activeTab, hasPermission)) {
+        const allowed = getFirstAllowedStaffTab(hasPermission);
+        if (allowed && allowed !== activeTab) {
+          setActiveTab(allowed);
+        }
+      }
+    }
+  }, [activeUser, roles, currentPath, activeTab]);
 
   // --- CONTROLLER HANDLERS ---
 
@@ -349,6 +415,11 @@ export default function App() {
 
   const handleCreateUser = async (userData: any) => {
     await usersApi.create(userData, jwtToken);
+    await fetchStateData();
+  };
+
+  const handleDeleteUser = async (email: string) => {
+    await usersApi.delete(email, jwtToken);
     await fetchStateData();
   };
 
@@ -422,49 +493,15 @@ export default function App() {
 
     const normalizedPath = currentPath.split('?')[0].split('#')[0];
 
-    if (normalizedPath.startsWith('/admissions/applications')) {
-      if (!jwtToken || !activeUser) {
-        return (
-          <LoginPage 
-            onNavigate={navigate} 
-            onLoginSuccess={handleLoginSuccess} 
-            isStaff={true} 
-            simulatedUsers={users}
-          />
-        );
-      }
-      return (
-        <StaffLayout
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          activeUser={activeUser}
-          hasPermission={hasPermission}
-          onNavigate={navigate}
-          onLogout={handleLogout}
-          jwtToken={jwtToken}
-          cohortsList={cohortsList}
-          selectedCohortId={selectedCohortId}
-          setSelectedCohortId={setSelectedCohortId}
-          currentPath={currentPath}
-        >
-          <CohortManagementPage 
-            currentUser={activeUser}
-            hasPermission={hasPermission}
-            onRefresh={fetchStateData}
-            jwtToken={jwtToken}
-            activeTab="cohort_intake"
-            selectedCohortId={selectedCohortId}
-            setSelectedCohortId={setSelectedCohortId}
-            cohortsList={cohortsList}
-            auditLogs={auditLogs}
-            currentPath={currentPath}
-            onNavigate={navigate}
-          />
-        </StaffLayout>
-      );
-    }
+    const isStaffRoute = 
+      normalizedPath === '/staff/dashboard' ||
+      normalizedPath === '/staff' ||
+      normalizedPath === '/admin' ||
+      normalizedPath.startsWith('/admissions/applications') ||
+      normalizedPath.startsWith('/admin/checkins') ||
+      normalizedPath.startsWith('/admin/sessions');
 
-    if (normalizedPath.startsWith('/admin/checkins')) {
+    if (isStaffRoute) {
       if (!jwtToken || !activeUser) {
         return (
           <LoginPage 
@@ -489,61 +526,125 @@ export default function App() {
           setSelectedCohortId={setSelectedCohortId}
           currentPath={currentPath}
         >
-          <CohortManagementPage 
-            currentUser={activeUser}
-            hasPermission={hasPermission}
-            onRefresh={fetchStateData}
-            jwtToken={jwtToken}
-            activeTab="cohort_startups"
-            selectedCohortId={selectedCohortId}
-            setSelectedCohortId={setSelectedCohortId}
-            cohortsList={cohortsList}
-            auditLogs={auditLogs}
-            currentPath={currentPath}
-            onNavigate={navigate}
-          />
-        </StaffLayout>
-      );
-    }
+          {!isStaffTabAllowed(activeTab, hasPermission) ? (
+            <div className="p-8 text-center bg-white rounded-2xl border border-gray-150 shadow-2xs my-8 max-w-lg mx-auto">
+              <div className="h-12 w-12 rounded-full bg-rose-50 border border-rose-150 flex items-center justify-center mx-auto mb-3 text-rose-600">
+                <ShieldAlert className="h-6 w-6" />
+              </div>
+              <h3 className="text-sm font-black text-gray-900 mb-1">Access Restricted</h3>
+              <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+                Your assigned role does not grant permission to view this module.
+              </p>
+              <button
+                onClick={() => {
+                  const first = getFirstAllowedStaffTab(hasPermission);
+                  setActiveTab(first);
+                }}
+                className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary/90 transition-all cursor-pointer"
+              >
+                Go to Accessible Workspace
+              </button>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'queue' && (
+                <StaffReviewQueue 
+                  bookings={bookings}
+                  activeBans={bans}
+                  onApprove={handleApproveBooking}
+                  onReject={handleRejectBooking}
+                  onIssueBanClick={handleQuickBanRedirection}
+                  onRefresh={fetchStateData}
+                  hasPermission={hasPermission}
+                />
+              )}
 
-    if (normalizedPath.startsWith('/admin/sessions')) {
-      if (!jwtToken || !activeUser) {
-        return (
-          <LoginPage 
-            onNavigate={navigate} 
-            onLoginSuccess={handleLoginSuccess} 
-            isStaff={true} 
-            simulatedUsers={users}
-          />
-        );
-      }
-      return (
-        <StaffLayout
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          activeUser={activeUser}
-          hasPermission={hasPermission}
-          onNavigate={navigate}
-          onLogout={handleLogout}
-          jwtToken={jwtToken}
-          cohortsList={cohortsList}
-          selectedCohortId={selectedCohortId}
-          setSelectedCohortId={setSelectedCohortId}
-          currentPath={currentPath}
-        >
-          <CohortManagementPage 
-            currentUser={activeUser}
-            hasPermission={hasPermission}
-            onRefresh={fetchStateData}
-            jwtToken={jwtToken}
-            activeTab="cohort_sessions"
-            selectedCohortId={selectedCohortId}
-            setSelectedCohortId={setSelectedCohortId}
-            cohortsList={cohortsList}
-            auditLogs={auditLogs}
-            currentPath={currentPath}
-            onNavigate={navigate}
-          />
+              {activeTab === 'register' && (
+                <BookingCalendarDashboard 
+                  bookings={bookings}
+                  rooms={rooms}
+                  activeBans={bans}
+                  onRefresh={fetchStateData}
+                  onApprove={handleApproveBooking}
+                  onReject={handleRejectBooking}
+                  onOverride={handleOverrideBooking}
+                  hasPermission={hasPermission}
+                />
+              )}
+
+              {activeTab === 'governance' && (
+                <GovernanceCenterPage 
+                  roles={roles}
+                  users={users}
+                  bookings={bookings}
+                  activeBans={bans}
+                  currentUser={activeUser}
+                  hasPermission={hasPermission}
+                  onRefresh={fetchStateData}
+                  onCreateRole={handleCreateRole}
+                  onUpdateRole={handleUpdateRole}
+                  onDeleteRole={handleDeleteRole}
+                  onAssignRole={handleAssignUserRole}
+                  onCreateUser={handleCreateUser}
+                  onDeleteUser={handleDeleteUser}
+                  onIssueBan={handleIssueBan}
+                  onLiftBan={handleLiftBan}
+                />
+              )}
+
+              {activeTab === 'rooms' && (
+                <RoomManagementPage 
+                  rooms={rooms}
+                  onRefresh={fetchStateData}
+                  onAddRoom={handleAddRoom}
+                  onUpdateRoom={handleUpdateRoom}
+                  onDeleteRoom={handleDeleteRoom}
+                />
+              )}
+
+              {(activeTab === 'booking_types' || activeTab === 'types') && (
+                <BookingTypesPage 
+                  onRefresh={fetchStateData}
+                />
+              )}
+
+              {(activeTab === 'booking_analytics' || activeTab === 'analytics') && (
+                <OperationalAnalyticsPage 
+                  bookings={bookings}
+                  rooms={rooms}
+                />
+              )}
+
+              {activeTab === 'audits' && (
+                <AuditLogsPage 
+                  auditLogs={auditLogs}
+                  reportsData={reportsData}
+                  onRefresh={fetchStateData}
+                  hasPermission={hasPermission}
+                  bookings={bookings}
+                  rooms={rooms}
+                  activeBans={bans}
+                />
+              )}
+
+              {(activeTab.startsWith('cohort') || activeTab === 'builder' || currentPath.startsWith('/admissions/applications') || currentPath.startsWith('/admin/checkins') || currentPath.startsWith('/admin/sessions')) && (
+                <CohortManagementPage 
+                  key="cohort-mgmt-page"
+                  currentUser={activeUser}
+                  hasPermission={hasPermission}
+                  onRefresh={fetchStateData}
+                  jwtToken={jwtToken}
+                  activeTab={activeTab}
+                  selectedCohortId={selectedCohortId}
+                  setSelectedCohortId={setSelectedCohortId}
+                  cohortsList={cohortsList}
+                  auditLogs={auditLogs}
+                  currentPath={currentPath}
+                  onNavigate={navigate}
+                />
+              )}
+            </>
+          )}
         </StaffLayout>
       );
     }
@@ -668,128 +769,6 @@ export default function App() {
               onNavigate={navigate} 
             />
           </PublicLayout>
-        );
-
-      case '/staff/dashboard':
-        if (!jwtToken || !activeUser) {
-          return (
-            <LoginPage 
-              onNavigate={navigate} 
-              onLoginSuccess={handleLoginSuccess} 
-              isStaff={true} 
-              simulatedUsers={users}
-            />
-          );
-        }
-        return (
-          <StaffLayout
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            activeUser={activeUser}
-            hasPermission={hasPermission}
-            onNavigate={navigate}
-            onLogout={handleLogout}
-            jwtToken={jwtToken}
-            cohortsList={cohortsList}
-            selectedCohortId={selectedCohortId}
-            setSelectedCohortId={setSelectedCohortId}
-            currentPath={currentPath}
-          >
-            {activeTab === 'queue' && (
-              <StaffReviewQueue 
-                bookings={bookings}
-                activeBans={bans}
-                onApprove={handleApproveBooking}
-                onReject={handleRejectBooking}
-                onIssueBanClick={handleQuickBanRedirection}
-                onRefresh={fetchStateData}
-                hasPermission={hasPermission}
-              />
-            )}
-
-            {activeTab === 'register' && (
-              <BookingCalendarDashboard 
-                bookings={bookings}
-                rooms={rooms}
-                activeBans={bans}
-                onRefresh={fetchStateData}
-                onApprove={handleApproveBooking}
-                onReject={handleRejectBooking}
-                onOverride={handleOverrideBooking}
-                hasPermission={hasPermission}
-              />
-            )}
-
-            {activeTab === 'governance' && (
-              <GovernanceCenterPage 
-                roles={roles}
-                users={users}
-                bookings={bookings}
-                activeBans={bans}
-                currentUser={activeUser}
-                hasPermission={hasPermission}
-                onRefresh={fetchStateData}
-                onCreateRole={handleCreateRole}
-                onUpdateRole={handleUpdateRole}
-                onDeleteRole={handleDeleteRole}
-                onAssignRole={handleAssignUserRole}
-                onCreateUser={handleCreateUser}
-                onIssueBan={handleIssueBan}
-                onLiftBan={handleLiftBan}
-              />
-            )}
-
-            {activeTab === 'rooms' && (
-              <RoomManagementPage 
-                rooms={rooms}
-                onRefresh={fetchStateData}
-                onAddRoom={handleAddRoom}
-                onUpdateRoom={handleUpdateRoom}
-                onDeleteRoom={handleDeleteRoom}
-              />
-            )}
-
-            {(activeTab === 'booking_types' || activeTab === 'types') && (
-              <BookingTypesPage 
-                onRefresh={fetchStateData}
-              />
-            )}
-
-            {(activeTab === 'booking_analytics' || activeTab === 'analytics') && (
-              <OperationalAnalyticsPage 
-                bookings={bookings}
-                rooms={rooms}
-              />
-            )}
-
-            {activeTab === 'audits' && (
-              <AuditLogsPage 
-                auditLogs={auditLogs}
-                reportsData={reportsData}
-                onRefresh={fetchStateData}
-                hasPermission={hasPermission}
-                bookings={bookings}
-                rooms={rooms}
-                activeBans={bans}
-              />
-            )}
-
-            {(activeTab.startsWith('cohort') || activeTab === 'builder' || currentPath.startsWith('/admissions/applications') || currentPath.startsWith('/admin/checkins') || currentPath.startsWith('/admin/sessions')) && (
-              <CohortManagementPage 
-                currentUser={activeUser}
-                hasPermission={hasPermission}
-                onRefresh={fetchStateData}
-                jwtToken={jwtToken}
-                activeTab={activeTab}
-                selectedCohortId={selectedCohortId}
-                setSelectedCohortId={setSelectedCohortId}
-                cohortsList={cohortsList}
-                auditLogs={auditLogs}
-                currentPath={currentPath}
-                onNavigate={navigate}
-              />
-            )}
-          </StaffLayout>
         );
 
       default:

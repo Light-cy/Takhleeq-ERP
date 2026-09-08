@@ -6,7 +6,8 @@ import {
   getCurrentUser, 
   getUsers, 
   assignUserRole, 
-  createUser 
+  createUser,
+  deleteUser 
 } from './users.controller.ts';
 
 const router = Router();
@@ -28,5 +29,8 @@ router.post('/users/assign-role', requireAuth, requireAnyPermission(['MANAGE_ROL
 
 // Admin adds a simulated/pre-registered user account
 router.post('/users', requireAuth, requirePermission('MANAGE_USERS'), createUser);
+
+// Admin deletes a simulated/pre-registered user account
+router.delete('/users/:email', requireAuth, requirePermission('MANAGE_USERS'), deleteUser);
 
 export default router;

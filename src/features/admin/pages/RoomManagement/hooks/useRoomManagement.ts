@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Room } from '../../../../../types';
+import apiClient from '../../../../../shared/apiClient';
 
 interface UseRoomManagementParams {
   rooms: Room[];
@@ -7,6 +8,7 @@ interface UseRoomManagementParams {
   onAddRoom: (roomData: any) => Promise<void>;
   onUpdateRoom: (roomId: string, updateData: any) => Promise<void>;
   onDeleteRoom: (roomId: string) => Promise<void>;
+  initialBookingCategories?: string[];
 }
 
 export const ALL_BOOKING_CATEGORIES = [
@@ -27,11 +29,44 @@ export function useRoomManagement({
   onRefresh,
   onAddRoom,
   onUpdateRoom,
-  onDeleteRoom
+  onDeleteRoom,
+  initialBookingCategories
 }: UseRoomManagementParams) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [deletingRoom, setDeletingRoom] = useState<Room | null>(null);
+
+  // Dynamic booking categories state loaded from the backend
+  const [availableCategories, setAvailableCategories] = useState<string[]>(
+    initialBookingCategories && initialBookingCategories.length > 0
+      ? initialBookingCategories
+      : ALL_BOOKING_CATEGORIES
+  );
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      setIsLoadingCategories(true);
+      const res = await apiClient.get<any[]>('/api/booking-types');
+      if (Array.isArray(res) && res.length > 0) {
+        const activeNames = res
+          .filter(bt => bt.isActive !== false && bt.is_active !== false)
+          .map(bt => bt.name);
+        if (activeNames.length > 0) {
+          setAvailableCategories(activeNames);
+        }
+      }
+    } catch (err) {
+      console.warn('Silent note: fallback to current booking categories in useRoomManagement:', err);
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  }, []);
+
+  // Fetch dynamic categories on mount and when rooms update
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories, rooms]);
 
   // Form states
   const [roomName, setRoomName] = useState('');
@@ -103,7 +138,7 @@ export function useRoomManagement({
     });
   };
 
-  const selectAllBookingTypes = () => setRoomAllowedBookingTypes([...ALL_BOOKING_CATEGORIES]);
+  const selectAllBookingTypes = () => setRoomAllowedBookingTypes([...availableCategories]);
   const deselectAllBookingTypes = () => setRoomAllowedBookingTypes([]);
 
   const handleAddSubmit = async (e: React.FormEvent) => {
@@ -126,7 +161,7 @@ export function useRoomManagement({
       setSuccessMsg(`New space '${roomName}' registered in central facility registry.`);
       setRoomName('');
       setRoomPurpose('');
-      setRoomAllowedBookingTypes([...ALL_BOOKING_CATEGORIES]);
+      setRoomAllowedBookingTypes([...availableCategories]);
       setShowAddModal(false);
       onRefresh();
     } catch (err: any) {
@@ -171,11 +206,15 @@ export function useRoomManagement({
     setRoomMinDur(room.minBookingDuration.toString());
     setRoomMaxDur(room.maxBookingDuration.toString());
     setRoomPurpose(room.purpose);
-    setRoomAllowedBookingTypes(
-      room.allowedBookingTypes && room.allowedBookingTypes.length > 0
-        ? [...room.allowedBookingTypes]
-        : [...ALL_BOOKING_CATEGORIES]
+    
+    // Filter room allowed types against current available active categories to remove deleted types
+    const rawAllowed = room.allowedBookingTypes && room.allowedBookingTypes.length > 0
+      ? room.allowedBookingTypes
+      : availableCategories;
+    const sanitized = rawAllowed.filter(t =>
+      availableCategories.some(c => c.trim().toLowerCase() === t.trim().toLowerCase())
     );
+    setRoomAllowedBookingTypes(sanitized.length > 0 ? sanitized : [...availableCategories]);
     clearMessages();
   };
 
@@ -201,7 +240,7 @@ export function useRoomManagement({
     setRoomMinDur('30');
     setRoomMaxDur('180');
     setRoomPurpose('');
-    setRoomAllowedBookingTypes([...ALL_BOOKING_CATEGORIES]);
+    setRoomAllowedBookingTypes([...availableCategories]);
     setShowAddModal(true);
     clearMessages();
   };
@@ -241,6 +280,9 @@ export function useRoomManagement({
     handleEditSubmit,
     startEditing,
     handleDeleteConfirm,
-    startAdding
+    startAdding,
+    availableCategories,
+    isLoadingCategories,
+    refreshCategories: fetchCategories
   };
 }

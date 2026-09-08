@@ -22,6 +22,7 @@ interface RoomManagementPageProps {
   onAddRoom: (roomData: any) => Promise<void>;
   onUpdateRoom: (roomId: string, updateData: any) => Promise<void>;
   onDeleteRoom: (roomId: string) => Promise<void>;
+  bookingTypes?: string[];
 }
 
 export function RoomManagementPage({ 
@@ -29,7 +30,8 @@ export function RoomManagementPage({
   onRefresh, 
   onAddRoom, 
   onUpdateRoom, 
-  onDeleteRoom 
+  onDeleteRoom,
+  bookingTypes
 }: RoomManagementPageProps) {
   
   const {
@@ -67,14 +69,20 @@ export function RoomManagementPage({
     handleEditSubmit,
     startEditing,
     handleDeleteConfirm,
-    startAdding
+    startAdding,
+    availableCategories
   } = useRoomManagement({
     rooms,
     onRefresh,
     onAddRoom,
     onUpdateRoom,
-    onDeleteRoom
+    onDeleteRoom,
+    initialBookingCategories: bookingTypes
   });
+
+  const displayCategories = availableCategories && availableCategories.length > 0
+    ? availableCategories
+    : ALL_BOOKING_CATEGORIES;
 
   return (
     <div className="space-y-6 text-left animate-fade-in" id="room-management-view">
@@ -191,11 +199,13 @@ export function RoomManagementPage({
                 <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Allowed Booking Types</span>
                 <div className="flex flex-wrap gap-1">
                   {room.allowedBookingTypes && room.allowedBookingTypes.length > 0 ? (
-                    room.allowedBookingTypes.map((t: string) => (
-                      <span key={t} className="bg-gray-100 text-gray-700 font-extrabold text-[9px] px-2 py-0.5 rounded-md border border-gray-200/60">
-                        {t}
-                      </span>
-                    ))
+                    room.allowedBookingTypes
+                      .filter(t => displayCategories.some(c => c.trim().toLowerCase() === t.trim().toLowerCase()))
+                      .map((t: string) => (
+                        <span key={t} className="bg-gray-100 text-gray-700 font-extrabold text-[9px] px-2 py-0.5 rounded-md border border-gray-200/60">
+                          {t}
+                        </span>
+                      ))
                   ) : (
                     <span className="text-[9px] text-gray-400 italic">All booking types allowed</span>
                   )}
@@ -357,7 +367,7 @@ export function RoomManagementPage({
                   Select which reservation categories are authorized to book this room.
                 </p>
                 <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto p-2 bg-gray-50 border border-gray-150 rounded-xl">
-                  {ALL_BOOKING_CATEGORIES.map(category => {
+                  {displayCategories.map(category => {
                     const isChecked = roomAllowedBookingTypes.some(
                       t => t.trim().toLowerCase() === category.trim().toLowerCase()
                     );
@@ -511,7 +521,7 @@ export function RoomManagementPage({
                   Select which reservation categories are authorized to book this room.
                 </p>
                 <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto p-2 bg-gray-50 border border-gray-150 rounded-xl">
-                  {ALL_BOOKING_CATEGORIES.map(category => {
+                  {displayCategories.map(category => {
                     const isChecked = roomAllowedBookingTypes.some(
                       t => t.trim().toLowerCase() === category.trim().toLowerCase()
                     );
