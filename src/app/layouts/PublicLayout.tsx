@@ -18,6 +18,18 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
   children
 }) => {
   const isCohortPath = currentPath.includes('cohort') || currentPath.includes('founder-dashboard');
+  const mainRef = React.useRef<HTMLElement>(null);
+
+  React.useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
+  }, [currentPath]);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-[#FFFFFF]">
@@ -137,7 +149,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
         </div>
       </header>
 
-      <main className="flex-1 p-4 md:p-8 w-full overflow-y-auto">
+      <main ref={mainRef} className="flex-1 p-4 md:p-8 w-full overflow-y-auto">
         {children}
       </main>
     </div>

@@ -11,10 +11,16 @@ import {
   Building,
   Radio,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  X,
+  Info,
+  ExternalLink,
+  Home,
+  ArrowLeft
 } from 'lucide-react';
 import { Room, Booking } from '../../../types';
 import { bookingsApi } from '../services/bookings.api';
+import { roomsApi } from '../../admin/services/rooms.api';
 
 // ROOM COLOR MAPPING — Pill and badge styling for each facility room
 export const ROOM_COLORS: Record<string, { bg: string; text: string; border: string; badge: string; dot: string }> = {
@@ -78,6 +84,64 @@ export function getRoomColor(roomName: string) {
   };
 }
 
+export const DEFAULT_FACILITY_ROOMS: Room[] = [
+  {
+    id: '1',
+    name: 'Board Room',
+    capacity: 15,
+    operatingHours: '09:00 - 17:00',
+    minBookingDuration: 60,
+    maxBookingDuration: 180,
+    purpose: 'Formal executive meetings and syndicate sessions',
+    policies: ['Authorized UCP societies and startups only. Strictly no external foods allowed. Leave room clean.'],
+    isActive: true
+  },
+  {
+    id: '2',
+    name: 'Presentation Hall',
+    capacity: 50,
+    operatingHours: '09:00 - 17:00',
+    minBookingDuration: 60,
+    maxBookingDuration: 180,
+    purpose: 'Large cohort presentations, talks, and community panels',
+    policies: ['Pre-approval from Faculty advisor required. Keep setup reset after use.'],
+    isActive: true
+  },
+  {
+    id: '3',
+    name: 'Cube 1',
+    capacity: 6,
+    operatingHours: '09:00 - 17:00',
+    minBookingDuration: 30,
+    maxBookingDuration: 60,
+    purpose: 'Small meetings and focused discussions',
+    policies: ['Leave room clean. No loud noise.'],
+    isActive: true
+  },
+  {
+    id: '4',
+    name: 'Cube 2',
+    capacity: 6,
+    operatingHours: '09:00 - 17:00',
+    minBookingDuration: 30,
+    maxBookingDuration: 60,
+    purpose: 'Small meetings and focused discussions',
+    policies: ['Leave room clean. No loud noise.'],
+    isActive: true
+  },
+  {
+    id: '5',
+    name: 'Podcast Room',
+    capacity: 4,
+    operatingHours: '09:00 - 17:00',
+    minBookingDuration: 60,
+    maxBookingDuration: 180,
+    purpose: 'Podcast recording and audio sessions',
+    policies: ['Technical staff assistance must be booked separately.'],
+    isActive: true
+  }
+];
+
 interface PublicRoomDisplayPageProps {
   rooms?: Room[];
   bookings?: Booking[];
@@ -85,13 +149,65 @@ interface PublicRoomDisplayPageProps {
   onNavigate?: (path: string) => void;
 }
 
-export function PublicRoomDisplayPage({ onRefresh: parentOnRefresh }: PublicRoomDisplayPageProps) {
+export function PublicRoomDisplayPage({ 
+  rooms: propRooms, 
+  bookings: propBookings,
+  onRefresh: parentOnRefresh, 
+  onNavigate 
+}: PublicRoomDisplayPageProps) {
+  const [allRooms, setAllRooms] = useState<Room[]>(
+    propRooms && propRooms.length > 0 ? propRooms : DEFAULT_FACILITY_ROOMS
+  );
+  const [selectedRoomModal, setSelectedRoomModal] = useState<Room | null>(null);
+
   const [todayBookings, setTodayBookings] = useState<any[]>([]);
   const [upcomingWeek, setUpcomingWeek] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [nowMs, setNowMs] = useState<number>(Date.now());
+
+  // Synchronize prop rooms or fetch fallback if empty
+  useEffect(() => {
+    if (propRooms && propRooms.length > 0) {
+      setAllRooms(propRooms);
+    }
+  }, [propRooms]);
+
+  useEffect(() => {
+    if (!propRooms || propRooms.length === 0) {
+      roomsApi.getAll()
+        .then(data => {
+          if (Array.isArray(data) && data.length > 0) {
+            setAllRooms(data);
+          }
+        })
+        .catch(err => console.error('Failed to load rooms for signage display:', err));
+    }
+  }, [propRooms]);
+
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedRoomModal(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Prevent background scroll when modal is open
+  useEffect(() => {
+    if (selectedRoomModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedRoomModal]);
 
   // 1. DATA REFETCH TIMER (every 20 seconds)
   const fetchUnifiedData = async (showRefresher = false) => {
@@ -159,35 +275,68 @@ export function PublicRoomDisplayPage({ onRefresh: parentOnRefresh }: PublicRoom
       
       {/* HEADER BAR */}
       <header className="bg-[#121620] border-b border-slate-800/80 px-6 py-4 flex flex-wrap justify-between items-center gap-4 shrink-0 shadow-lg">
-        <div className="flex items-center gap-4">
-          <div className="h-11 w-11 bg-primary/20 border border-primary/40 rounded-2xl flex items-center justify-center text-primary shadow-inner">
-            <Tv className="h-6 w-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-base font-black tracking-widest text-white uppercase">Takhleeq Central Signage</h1>
-              <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-xs">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" /> Live Facility Feed
-              </span>
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+          {onNavigate && (
+            <button
+              type="button"
+              onClick={() => onNavigate('/')}
+              className="flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-700/80 shadow-xs group"
+              title="Return to Takhleeq Main Home Page"
+              id="signage-back-home-btn"
+            >
+              <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform text-amber-400" />
+              <Home className="h-4 w-4 text-slate-300 group-hover:text-white" />
+              <span>Main Home</span>
+            </button>
+          )}
+
+          <div 
+            className={`flex items-center gap-3 ${onNavigate ? 'cursor-pointer group' : ''}`}
+            onClick={() => onNavigate && onNavigate('/')}
+            title={onNavigate ? "Go to Main Home Page" : undefined}
+          >
+            <div className="h-11 w-11 bg-primary/20 border border-primary/40 rounded-2xl flex items-center justify-center text-primary shadow-inner group-hover:border-primary transition-colors">
+              <Tv className="h-6 w-6" />
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">Unified Real-time Space Activity & Today's Reservations</p>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-base font-black tracking-widest text-white uppercase group-hover:text-primary transition-colors">Takhleeq Central Signage</h1>
+                <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-xs">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" /> Live Facility Feed
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">Unified Real-time Space Activity & Today's Reservations</p>
+            </div>
           </div>
         </div>
 
         {/* Digital Clock & Date Display */}
-        <div className="flex items-center gap-6 bg-[#181D2A] border border-slate-800 rounded-2xl px-5 py-2.5 shadow-sm">
+        <div className="flex items-center gap-4 sm:gap-6 bg-[#181D2A] border border-slate-800 rounded-2xl px-5 py-2.5 shadow-sm">
           <div className="text-right">
             <div className="text-2xl font-mono font-black text-amber-400 tracking-wider">{formattedTime}</div>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{formattedDate}</div>
           </div>
           <div className="h-8 w-px bg-slate-800" />
-          <button 
-            onClick={() => fetchUnifiedData(true)}
-            className={`p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl cursor-pointer transition-all ${isRefreshing ? 'animate-spin text-amber-400' : ''}`}
-            title="Refresh Facility Feed"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button 
+              onClick={() => fetchUnifiedData(true)}
+              className={`p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl cursor-pointer transition-all ${isRefreshing ? 'animate-spin text-amber-400' : ''}`}
+              title="Refresh Facility Feed"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('/')}
+                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl cursor-pointer transition-all border border-slate-700/60"
+                title="Go to Main Home Page"
+                aria-label="Home"
+              >
+                <Home className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -226,11 +375,20 @@ export function PublicRoomDisplayPage({ onRefresh: parentOnRefresh }: PublicRoom
 
                       <div className="pl-2 space-y-1.5 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {/* Room Badge */}
-                          <span className={`text-[11px] px-2.5 py-0.5 rounded-md border ${colors.badge} uppercase tracking-wider flex items-center gap-1.5`}>
+                          {/* Room Badge (Clickable to view today's room schedule) */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const matched = allRooms.find(r => r.name.toLowerCase() === b.room.toLowerCase()) || { id: b.roomId || '0', name: b.room, capacity: 10, operatingHours: '09:00 - 17:00' };
+                              setSelectedRoomModal(matched as Room);
+                            }}
+                            className={`text-[11px] px-2.5 py-0.5 rounded-md border ${colors.badge} uppercase tracking-wider flex items-center gap-1.5 cursor-pointer hover:brightness-125 transition-all`}
+                            title={`Click to view today's schedule for ${b.room}`}
+                          >
                             <Building className="h-3 w-3" />
-                            {b.room}
-                          </span>
+                            <span>{b.room}</span>
+                            <ExternalLink className="h-2.5 w-2.5 opacity-70" />
+                          </button>
                           <span className="text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-md border border-slate-700">
                             {b.bookingType || 'Event'}
                           </span>
@@ -266,7 +424,7 @@ export function PublicRoomDisplayPage({ onRefresh: parentOnRefresh }: PublicRoom
           )}
 
           {/* SECTION 2: UPCOMING TODAY */}
-          <section className="space-y-3 flex-1" id="upcoming-today-section">
+          <section className="space-y-4 flex-1" id="upcoming-today-section">
             <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-amber-400" />
@@ -274,7 +432,65 @@ export function PublicRoomDisplayPage({ onRefresh: parentOnRefresh }: PublicRoom
                   Upcoming Today Across All Rooms ({upcomingToday.length})
                 </h2>
               </div>
-              <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Time Sorted</span>
+              <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Click any room for day schedule</span>
+            </div>
+
+            {/* Clickable Room Badges / Cards Grid (Cube 1, Cube 2, etc.) */}
+            <div className="bg-[#121620]/90 border border-slate-800/80 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <Building className="h-4 w-4 text-amber-400" />
+                  Facility Spaces (Click to inspect today's bookings):
+                </span>
+                <span className="text-[10px] text-slate-400">Click a room to open its daily schedule modal</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                {allRooms.filter(r => r.isActive !== false).map(room => {
+                  const colors = getRoomColor(room.name);
+                  const roomBookingsToday = todayBookings.filter(b => 
+                    (b.room && b.room.trim().toLowerCase() === room.name.trim().toLowerCase()) ||
+                    String(b.roomId) === String(room.id)
+                  );
+                  const isCurrentlyOccupied = roomBookingsToday.some(b => b.is_ongoing);
+                  const todayCount = roomBookingsToday.length;
+
+                  return (
+                    <button
+                      key={room.id}
+                      type="button"
+                      onClick={() => setSelectedRoomModal(room)}
+                      className={`group relative text-left p-3 rounded-xl border transition-all cursor-pointer bg-[#161B26] hover:bg-[#1C2333] ${colors.border} hover:scale-[1.02] shadow-sm flex flex-col justify-between`}
+                      title={`Click to view today's complete booking schedule for ${room.name}`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <span className={`text-[11px] font-black uppercase tracking-wider ${colors.text} truncate`}>
+                            {room.name}
+                          </span>
+                          <span 
+                            className={`h-2 w-2 rounded-full shrink-0 ${
+                              isCurrentlyOccupied ? 'bg-emerald-400 animate-ping' : todayCount > 0 ? 'bg-amber-400' : 'bg-slate-600'
+                            }`} 
+                          />
+                        </div>
+                        
+                        <div className="flex items-center justify-between text-[10px] text-slate-400">
+                          <span>Cap. {room.capacity}</span>
+                          <span className={`font-bold ${isCurrentlyOccupied ? 'text-emerald-400' : todayCount > 0 ? 'text-amber-400' : 'text-slate-400'}`}>
+                            {isCurrentlyOccupied ? 'In Use' : todayCount > 0 ? `${todayCount} Today` : 'Free'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-2.5 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[9.5px] text-slate-400 group-hover:text-amber-400 font-bold transition-colors">
+                        <span>View Bookings</span>
+                        <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform text-amber-400/80" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {isLoading ? (
@@ -299,10 +515,19 @@ export function PublicRoomDisplayPage({ onRefresh: parentOnRefresh }: PublicRoom
                     >
                       <div className="space-y-1.5 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {/* Colored Room Badge */}
-                          <span className={`text-[10px] px-2.5 py-0.5 rounded-md border ${colors.badge} uppercase tracking-wider`}>
-                            {b.room}
-                          </span>
+                          {/* Clickable Colored Room Badge */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const matched = allRooms.find(r => r.name.toLowerCase() === b.room.toLowerCase()) || { id: b.roomId || '0', name: b.room, capacity: 10, operatingHours: '09:00 - 17:00' };
+                              setSelectedRoomModal(matched as Room);
+                            }}
+                            className={`text-[10px] px-2.5 py-0.5 rounded-md border ${colors.badge} uppercase tracking-wider cursor-pointer hover:brightness-125 transition-all flex items-center gap-1`}
+                            title={`Click to view today's schedule for ${b.room}`}
+                          >
+                            <span>{b.room}</span>
+                            <ExternalLink className="h-2.5 w-2.5 opacity-70" />
+                          </button>
                           <span className="text-[10px] bg-slate-800 text-slate-400 font-semibold px-2 py-0.5 rounded-md border border-slate-700/60">
                             {b.bookingType || 'Event'}
                           </span>
@@ -394,6 +619,203 @@ export function PublicRoomDisplayPage({ onRefresh: parentOnRefresh }: PublicRoom
         </div>
 
       </div>
+
+      {/* POP-UP MODAL: ROOM DAILY SCHEDULE */}
+      {selectedRoomModal && (() => {
+        const modalColors = getRoomColor(selectedRoomModal.name);
+        const effectiveTodayBookings = todayBookings.length > 0 ? todayBookings : (propBookings || []).filter(b => {
+          const pktDate = new Date(Date.now() + 5 * 60 * 60 * 1000);
+          const todayStr = `${pktDate.getUTCFullYear()}-${String(pktDate.getUTCMonth() + 1).padStart(2, '0')}-${String(pktDate.getUTCDate()).padStart(2, '0')}`;
+          return b.date === todayStr && (b.status === 'APPROVED' || (b.status as string) === 'approved');
+        });
+
+        const modalBookings = effectiveTodayBookings.filter(b => 
+          (b.room && b.room.trim().toLowerCase() === selectedRoomModal.name.trim().toLowerCase()) ||
+          String(b.roomId) === String(selectedRoomModal.id)
+        ).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+
+        const currentActiveBooking = modalBookings.find(b => b.is_ongoing);
+
+        return (
+          <div 
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
+            onClick={() => setSelectedRoomModal(null)}
+            id="room-schedule-modal-overlay"
+          >
+            <div 
+              className="bg-[#121620] border border-slate-700/80 rounded-3xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl relative animate-scale-up"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="p-6 border-b border-slate-800/90 bg-[#161B26] flex items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-xs px-3 py-1 rounded-lg border font-black uppercase tracking-wider ${modalColors.badge}`}>
+                      {selectedRoomModal.name}
+                    </span>
+                    <span className="text-[10px] bg-slate-800 text-slate-300 font-bold px-2.5 py-1 rounded-lg border border-slate-700">
+                      Capacity: {selectedRoomModal.capacity} Persons
+                    </span>
+                    <span className="text-[10px] bg-slate-800 text-slate-300 font-bold px-2.5 py-1 rounded-lg border border-slate-700">
+                      Hours: {selectedRoomModal.operatingHours}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+                      Today's Complete Booking Schedule
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {formattedDate} • All reserved and scheduled time slots for {selectedRoomModal.name}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedRoomModal(null)}
+                  className="p-2 text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-xl transition-colors cursor-pointer shrink-0"
+                  title="Close (Esc)"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Occupancy Status Strip */}
+              <div className={`px-6 py-2.5 text-xs flex items-center justify-between border-b ${
+                currentActiveBooking 
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
+                  : 'bg-slate-800/40 border-slate-800 text-slate-400'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <span className={`h-2.5 w-2.5 rounded-full ${currentActiveBooking ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
+                  <span className="font-bold">
+                    {currentActiveBooking ? 'Space Occupied Right Now' : 'Space Currently Unoccupied'}
+                  </span>
+                  {currentActiveBooking && (
+                    <span className="font-mono text-emerald-400">
+                      ({currentActiveBooking.startTime} - {currentActiveBooking.endTime})
+                    </span>
+                  )}
+                </div>
+                <span className="font-mono font-semibold">
+                  {modalBookings.length} Total {modalBookings.length === 1 ? 'Booking' : 'Bookings'} Today
+                </span>
+              </div>
+
+              {/* Modal Body: Bookings List */}
+              <div className="p-6 overflow-y-auto space-y-3.5 flex-1">
+                {modalBookings.length === 0 ? (
+                  <div className="py-12 px-6 text-center space-y-3.5 bg-[#181E2B]/40 rounded-2xl border border-slate-800/60">
+                    <div className="h-14 w-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
+                      <CheckCircle2 className="h-7 w-7" />
+                    </div>
+                    <div>
+                      <h4 className="text-base font-bold text-white">No Bookings Scheduled for {selectedRoomModal.name} Today</h4>
+                      <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed mt-1">
+                        This facility room is completely free all day during its operating hours ({selectedRoomModal.operatingHours}).
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  modalBookings.map((b, idx) => {
+                    const isNow = b.is_ongoing;
+                    const isLater = !b.is_ongoing && b.is_upcoming;
+
+                    return (
+                      <div 
+                        key={b.id || idx}
+                        className={`rounded-2xl p-4 border transition-all ${
+                          isNow 
+                            ? 'bg-[#142028] border-emerald-500/60 shadow-lg shadow-emerald-950/20' 
+                            : isLater 
+                              ? 'bg-[#181E2B] border-slate-700/80 hover:border-slate-600' 
+                              : 'bg-[#141822]/60 border-slate-800/60 opacity-75'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Time badge */}
+                            <div className="flex items-center gap-1.5 font-mono text-xs font-extrabold text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2.5 py-1 rounded-lg">
+                              <Clock className="h-3.5 w-3.5 text-amber-400" />
+                              <span>{b.startTime} - {b.endTime}</span>
+                            </div>
+
+                            {/* Status tag */}
+                            {isNow ? (
+                              <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-md flex items-center gap-1.5">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+                                Ongoing Now
+                              </span>
+                            ) : isLater ? (
+                              <span className="text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-md">
+                                Upcoming Today
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-md">
+                                Completed Slot
+                              </span>
+                            )}
+
+                            <span className="text-[10px] bg-slate-800/90 text-slate-300 font-semibold px-2 py-0.5 rounded-md border border-slate-700">
+                              {b.bookingType || 'Event'}
+                            </span>
+                          </div>
+
+                          {b.expectedAttendance && (
+                            <span className="text-[11px] text-slate-400 flex items-center gap-1 font-medium">
+                              <Users className="h-3.5 w-3.5 text-slate-500" />
+                              {b.expectedAttendance} attendees
+                            </span>
+                          )}
+                        </div>
+
+                        <h4 className="text-sm font-extrabold text-white tracking-tight leading-snug">
+                          {b.eventTitle || b.purpose || 'Reserved Meeting'}
+                        </h4>
+
+                        <div className="mt-2 pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-slate-300">{b.name}</span>
+                            {b.organization && (
+                              <>
+                                <span>•</span>
+                                <span className="text-slate-400">{b.organization}</span>
+                              </>
+                            )}
+                          </div>
+                          {b.id && (
+                            <span className="font-mono text-[10px] text-slate-500">Ref: {b.id}</span>
+                          )}
+                        </div>
+
+                        {b.eventDescription && (
+                          <p className="mt-2 text-[11px] text-slate-400 bg-black/20 p-2.5 rounded-xl border border-slate-800/50 leading-relaxed">
+                            {b.eventDescription}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-slate-800/80 bg-[#151922] flex items-center justify-between gap-3 shrink-0">
+                <div className="text-xs text-slate-400">
+                  Room: <strong className="text-white">{selectedRoomModal.name}</strong> • Operating: <span className="font-mono text-slate-300">{selectedRoomModal.operatingHours}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRoomModal(null)}
+                  className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

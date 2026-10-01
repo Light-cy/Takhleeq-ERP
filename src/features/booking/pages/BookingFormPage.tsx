@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Room, BookingType, User as ERPUser } from '../../../types';
 import { bookingsApi } from '../services/bookings.api';
+import { roomsApi } from '../../admin/services/rooms.api';
 
 interface BookingFormPageProps {
   rooms: Room[];
@@ -83,13 +84,147 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Reference to track that auto-submit only fires once
+  const autoSubmittedRef = React.useRef(false);
+
+  const scrollToError = () => {
+    setTimeout(() => {
+      const banner = document.getElementById('form-error-banner-bottom') || document.getElementById('form-error-banner-top');
+      if (banner) {
+        banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 50);
+  };
+
+  // 1. Restore preserved form state on mount and ensure viewport is scrolled to top
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
+
+    if (typeof sessionStorage === 'undefined') return;
+    const raw = sessionStorage.getItem('pending_booking_submission');
+    if (!raw) return;
+
+    try {
+      const saved = JSON.parse(raw);
+      if (!saved) return;
+
+      if (saved.name) setName(saved.name);
+      if (saved.email && !selectedUserEmail) setEmail(saved.email);
+      if (saved.phone) setPhone(saved.phone);
+      if (saved.organization) setOrganization(saved.organization);
+      if (saved.room) setRoom(saved.room);
+      if (saved.date) setDate(saved.date);
+      if (saved.startTime) setStartTime(saved.startTime);
+      if (saved.endTime) setEndTime(saved.endTime);
+      if (saved.eventTitle) setEventTitle(saved.eventTitle);
+      if (saved.eventDescription) setEventDescription(saved.eventDescription);
+      if (saved.bookingType) setBookingType(saved.bookingType);
+      if (saved.expectedAttendance) setExpectedAttendance(saved.expectedAttendance);
+    } catch (err) {
+      console.error('Error parsing preserved booking form data:', err);
+    }
+  }, []);
+
+  // 2. Automatically submit saved booking request once authenticated
+  useEffect(() => {
+    if (!activeUser || !jwtToken || autoSubmittedRef.current) return;
+    if (typeof sessionStorage === 'undefined') return;
+
+    const raw = sessionStorage.getItem('pending_booking_submission');
+    if (!raw) return;
+
+    try {
+      const saved = JSON.parse(raw);
+      if (saved && saved.autoSubmit) {
+        autoSubmittedRef.current = true;
+        // Remove so subsequent refreshes don't re-submit
+        sessionStorage.removeItem('pending_booking_submission');
+
+        setSubmitting(true);
+        setErrorMsg(null);
+
+        const submitPayload = {
+          name: saved.name || activeUser.name || 'Requester',
+          email: activeUser.email || saved.email || selectedUserEmail,
+          phone: saved.phone || '',
+          organization: saved.organization || '',
+          room: saved.room,
+          date: saved.date,
+          startTime: saved.startTime,
+          endTime: saved.endTime,
+          eventTitle: saved.eventTitle,
+          eventDescription: saved.eventDescription,
+          bookingType: saved.bookingType || 'Student societies',
+          expectedAttendance: saved.expectedAttendance || ''
+        };
+
+        bookingsApi.submit(submitPayload, jwtToken)
+          .then(result => {
+            setSuccessData({
+              id: result?.booking?.id || result?.booking?.booking_id || 'TBK-2026',
+              message: result?.message || 'Your space booking request has been submitted successfully.'
+            });
+
+            // Reset form fields
+            setName('');
+            setPhone('');
+            setOrganization('');
+            setRoom('');
+            setDate('');
+            setStartTime('09:00');
+            setEndTime('10:00');
+            setEventTitle('');
+            setEventDescription('');
+            setExpectedAttendance('');
+
+            onBookingSubmitted();
+          })
+          .catch(err => {
+            console.error('Auto-submission of saved booking failed:', err);
+            setErrorMsg(err.message || 'Error submitting saved booking request. Please review details below.');
+            scrollToError();
+          })
+          .finally(() => {
+            setSubmitting(false);
+          });
+      }
+    } catch (err) {
+      console.error('Error auto-submitting saved booking:', err);
+    }
+  }, [activeUser, jwtToken, selectedUserEmail]);
+
   // Sync email on simulation identity change
   useEffect(() => {
     setEmail(selectedUserEmail);
   }, [selectedUserEmail]);
 
+  // Keep active rooms in state with fallback to fetch directly if rooms prop is empty
+  const [activeRooms, setActiveRooms] = useState<Room[]>(rooms);
+
+  useEffect(() => {
+    if (rooms && rooms.length > 0) {
+      setActiveRooms(rooms);
+    }
+  }, [rooms]);
+
+  useEffect(() => {
+    if (!rooms || rooms.length === 0) {
+      roomsApi.getAll()
+        .then(data => {
+          if (Array.isArray(data) && data.length > 0) {
+            setActiveRooms(data);
+          }
+        })
+        .catch(err => console.error('Error fetching fallback rooms:', err));
+    }
+  }, [rooms]);
+
   // Find room parameters
-  const selectedRoomObj = rooms.find(r => r.name === room);
+  const selectedRoomObj = activeRooms.find(r => r.name === room);
 
   // Dynamically compute permitted booking types based on selected room
   const availableBookingTypes = React.useMemo(() => {
@@ -275,55 +410,108 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
     setErrorMsg(null);
     setSuccessData(null);
 
-    // Mandatory Login Check
-    if (!activeUser || !selectedUserEmail) {
-      setErrorMsg("Login Required: You must be logged in to submit a space booking request. Please sign in or log in first.");
+    // Client-side Validations
+    if (!room) {
+      setErrorMsg("Validation Error: Please select an operational room or space.");
+      scrollToError();
       return;
     }
 
-    // Client-side Validations
+    if (!date) {
+      setErrorMsg("Validation Error: Please select a booking date.");
+      scrollToError();
+      return;
+    }
+
     if (nameError) {
       setErrorMsg(`Validation Error: ${nameError}`);
+      scrollToError();
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setErrorMsg("Validation Error: Invalid email address format.");
+      scrollToError();
       return;
     }
 
     if (phoneError) {
       setErrorMsg(`Validation Error: ${phoneError}`);
+      scrollToError();
       return;
     }
 
     if (organizationError) {
       setErrorMsg(`Validation Error: ${organizationError}`);
+      scrollToError();
       return;
     }
 
     if (isNaN(attendanceNum) || attendanceNum < 0) {
       setErrorMsg("Validation Error: Expected Attendance cannot be negative.");
+      scrollToError();
       return;
     }
 
     if (attendanceError) {
       setErrorMsg(`Validation Error: ${attendanceError}`);
+      scrollToError();
       return;
     }
 
     if (weekendError) {
       setErrorMsg(`Validation Error: ${weekendError}`);
+      scrollToError();
       return;
     }
 
     if (pastDateTimeError) {
       setErrorMsg(`Validation Error: ${pastDateTimeError}`);
+      scrollToError();
       return;
     }
 
     if (operatingHoursError) {
       setErrorMsg(`Validation Error: ${operatingHoursError}`);
+      scrollToError();
+      return;
+    }
+
+    if (!eventTitle.trim()) {
+      setErrorMsg("Validation Error: Please enter an event/meeting title.");
+      scrollToError();
+      return;
+    }
+
+    if (!eventDescription.trim()) {
+      setErrorMsg("Validation Error: Please enter a detailed event description.");
+      scrollToError();
+      return;
+    }
+
+    // Mandatory Authentication Check:
+    // When an unauthenticated user clicks Submit, redirect them to the University Account Login page
+    // while preserving their booking form data.
+    if (!activeUser || !jwtToken) {
+      const pendingData = {
+        name,
+        email: email || '',
+        phone,
+        organization,
+        room,
+        date,
+        startTime,
+        endTime,
+        eventTitle,
+        eventDescription,
+        bookingType,
+        expectedAttendance,
+        autoSubmit: true,
+        savedAt: Date.now()
+      };
+
+      sessionStorage.setItem('pending_booking_submission', JSON.stringify(pendingData));
+      onNavigate('/login?mode=university&redirect=/booking');
       return;
     }
 
@@ -365,6 +553,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
       onBookingSubmitted();
     } catch (err: any) {
       setErrorMsg(err.message || 'Error submitting booking request');
+      scrollToError();
     } finally {
       setSubmitting(false);
     }
@@ -394,18 +583,36 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="font-bold text-sm text-amber-950">Login Required to Submit Space Booking</h4>
+                <h4 className="font-bold text-sm text-amber-950">University Account Required for Space Booking</h4>
                 <p className="text-xs text-amber-800/90 mt-0.5">
-                  You are currently browsing as a guest. Please sign in or choose your simulated user account to submit a room booking request.
+                  You are currently browsing as a guest. Fill out the reservation details below; clicking Submit will redirect you to sign in with your University Account, and your booking will submit immediately without needing to re-enter details.
                 </p>
               </div>
             </div>
             <button
               type="button"
-              onClick={() => onNavigate('/login')}
+              onClick={() => {
+                const partialData = {
+                  name,
+                  email,
+                  phone,
+                  organization,
+                  room,
+                  date,
+                  startTime,
+                  endTime,
+                  eventTitle,
+                  eventDescription,
+                  bookingType,
+                  expectedAttendance,
+                  autoSubmit: false
+                };
+                sessionStorage.setItem('pending_booking_submission', JSON.stringify(partialData));
+                onNavigate('/login?mode=university&redirect=/booking');
+              }}
               className="bg-primary hover:bg-primary/95 text-white text-xs font-bold px-4 py-2.5 rounded-xl shrink-0 transition-colors cursor-pointer shadow-xs uppercase tracking-wider"
             >
-              Log In Now
+              Sign In with University Account
             </button>
           </div>
         )}
@@ -622,7 +829,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                         className="w-full p-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium cursor-pointer"
                       >
                         <option value="">-- Choose Space First --</option>
-                        {rooms.filter(r => r.isActive).map(r => (
+                        {activeRooms.filter(r => r.isActive).map(r => (
                           <option key={r.id} value={r.name}>{r.name} (Cap. {r.capacity})</option>
                         ))}
                       </select>
@@ -816,13 +1023,52 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                   </div>
                 </div>
 
+                {/* Bottom error display banner so user immediately sees error without having to scroll */}
+                {errorMsg && (
+                  <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 flex gap-3 text-left animate-shake" id="form-error-banner-bottom">
+                    <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="text-xs">
+                      <h3 className="font-bold uppercase tracking-wider text-rose-800">Submission Notice</h3>
+                      <p className="text-rose-700 mt-1">{errorMsg}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Submitting progress indicator */}
+                {submitting && (
+                  <div className="p-3.5 bg-primary/10 border border-primary/20 rounded-xl text-primary text-xs flex items-center gap-3">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
+                    <span className="font-bold">Submitting your space booking request to the system...</span>
+                  </div>
+                )}
+
+                {/* Unauthenticated notice near submit button */}
+                {!activeUser && !submitting && (
+                  <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl text-amber-900 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Info className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>
+                        <strong>University Account Required:</strong> Submitting will preserve your details and redirect you to sign in with your University Account, then automatically submit your saved request.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-end pt-5 border-t border-gray-100">
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="bg-primary hover:bg-primary/95 text-white font-bold py-3 px-8 rounded-xl text-xs transition-colors shadow-sm cursor-pointer disabled:opacity-50 uppercase tracking-wider"
+                    className="bg-primary hover:bg-primary/95 text-white font-bold py-3 px-8 rounded-xl text-xs transition-colors shadow-sm cursor-pointer disabled:opacity-50 uppercase tracking-wider flex items-center gap-2"
+                    id="submit-booking-btn"
                   >
-                    {submitting ? 'Submitting Request...' : 'Submit Booking Request'}
+                    {submitting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
+                        <span>Submitting Request...</span>
+                      </>
+                    ) : (
+                      <span>{!activeUser ? 'Sign In & Submit Booking Request' : 'Submit Booking Request'}</span>
+                    )}
                   </button>
                 </div>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Shield, Lock, Mail, ArrowLeft, Loader2 } from 'lucide-react';
+import { Shield, Lock, Mail, ArrowLeft, Loader2, GraduationCap, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User } from '../../../types';
 import { authApi } from '../services/auth.api';
@@ -14,11 +14,73 @@ interface LoginPageProps {
 export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: LoginPageProps) {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const hasPendingBooking = typeof sessionStorage !== 'undefined' && !!sessionStorage.getItem('pending_booking_submission');
   
-  // Login tab state: 'founder' or 'microsoft'
-  const [loginMode, setLoginMode] = useState<'founder' | 'microsoft'>('founder');
+  // Login tab state: 'university' or 'founder'
+  const [loginMode, setLoginMode] = useState<'university' | 'founder'>(() => {
+    if (typeof window !== 'undefined') {
+      const search = window.location.search;
+      if (search.includes('mode=university') || search.includes('mode=microsoft') || search.includes('redirect=/booking')) {
+        return 'university';
+      }
+      if (hasPendingBooking) {
+        return 'university';
+      }
+    }
+    return isStaff ? 'founder' : 'university';
+  });
+
   const [founderEmail, setFounderEmail] = useState('');
   const [founderPassword, setFounderPassword] = useState('');
+
+  // University account credentials
+  const [universityEmail, setUniversityEmail] = useState(() => {
+    if (typeof sessionStorage !== 'undefined') {
+      const pending = sessionStorage.getItem('pending_booking_submission');
+      if (pending) {
+        try {
+          const parsed = JSON.parse(pending);
+          if (parsed.email) return parsed.email;
+        } catch (e) {}
+      }
+    }
+    return '';
+  });
+  const [universityPassword, setUniversityPassword] = useState('');
+
+  const handleUniversitySubmit = async (e?: React.FormEvent, directEmail?: string) => {
+    if (e) e.preventDefault();
+    const targetEmail = (directEmail || universityEmail || '').trim().toLowerCase();
+    if (!targetEmail) {
+      setErrorMessage('Please enter your University Account email address (@ucp.edu.pk).');
+      return;
+    }
+    setLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const data = await authApi.loginSimulated(targetEmail, universityPassword.trim() || undefined);
+      onLoginSuccess(data.token, data.user);
+
+      const pending = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('pending_booking_submission') : null;
+      if (pending) {
+        onNavigate('/booking');
+        return;
+      }
+
+      if (data.user.role === 'Cohort Founder') {
+        onNavigate('/founder-dashboard');
+      } else if (data.user.role === 'UCP Member') {
+        onNavigate('/booking');
+      } else {
+        onNavigate('/staff/dashboard');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Authentication failed for university account.');
+      setLoading(false);
+    }
+  };
 
   const handleFounderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,6 +94,12 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
     try {
       const data = await authApi.loginSimulated(founderEmail.trim(), founderPassword.trim());
       onLoginSuccess(data.token, data.user);
+
+      const pending = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('pending_booking_submission') : null;
+      if (pending) {
+        onNavigate('/booking');
+        return;
+      }
 
       if (data.user.role === 'Cohort Founder') {
         onNavigate('/founder-dashboard');
@@ -53,7 +121,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
 
     const clientId = (import.meta as any).env?.VITE_MICROSOFT_CLIENT_ID || (import.meta as any).env?.AZURE_CLIENT_ID;
     if (!clientId) {
-      setErrorMessage('Microsoft Azure Client ID is not configured in environment variables. Please sign in with your Admin / Staff Email and Password.');
+      setErrorMessage('Microsoft Azure Client ID is not configured in environment variables. Please use the University Email Sign-in below with your @ucp.edu.pk account.');
       setLoading(false);
       return;
     }
@@ -96,6 +164,12 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
           // Successful authentication
           onLoginSuccess(data.token, data.user);
           
+          const pending = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('pending_booking_submission') : null;
+          if (pending) {
+            onNavigate('/booking');
+            return;
+          }
+
           if (data.user.role === 'Cohort Founder') {
             onNavigate('/founder-dashboard');
           } else if (data.user.role === 'UCP Member') {
@@ -182,10 +256,37 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
         {/* Form area */}
         <div className="p-8 space-y-5">
           
+          {/* Booking context banner if redirected from booking form */}
+          {hasPendingBooking && (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-left flex items-start gap-2.5 shadow-2xs" id="booking-redirect-notice">
+              <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-[11px] leading-relaxed">
+                <p className="font-black uppercase tracking-wider text-amber-900">University Account Required</p>
+                <p className="text-amber-800/90 mt-0.5">
+                  Your space booking details have been saved safely. Sign in to your University Account below, and your reservation will be <strong>submitted automatically</strong>.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Login Type Tabs */}
           <div className="grid grid-cols-2 p-1 bg-gray-100 rounded-xl gap-1">
             <button
               type="button"
+              id="tab-university-account"
+              onClick={() => { setLoginMode('university'); setErrorMessage(null); }}
+              className={`py-2 px-3 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                loginMode === 'university'
+                  ? 'bg-white text-primary shadow-xs'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <GraduationCap className="h-3.5 w-3.5" />
+              <span>University Account</span>
+            </button>
+            <button
+              type="button"
+              id="tab-founder"
               onClick={() => { setLoginMode('founder'); setErrorMessage(null); }}
               className={`py-2 px-3 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer ${
                 loginMode === 'founder'
@@ -194,17 +295,6 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
               }`}
             >
               Startup Founder
-            </button>
-            <button
-              type="button"
-              onClick={() => { setLoginMode('microsoft'); setErrorMessage(null); }}
-              className={`py-2 px-3 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer ${
-                loginMode === 'microsoft'
-                  ? 'bg-white text-primary shadow-xs'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              Microsoft / SSO
             </button>
           </div>
 
@@ -273,15 +363,11 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
             </form>
           ) : (
             <div className="space-y-4">
-              <div className="text-center space-y-1">
-                <p className="text-[11px] text-gray-400">Authenticating securely via Microsoft Azure AD SSO</p>
-              </div>
-
               {/* Microsoft branded button */}
               <button
                 onClick={handleRealMicrosoftLogin}
                 disabled={loading}
-                className="w-full bg-[#2F2F2F] hover:bg-black text-white py-3.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-3 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+                className="w-full bg-[#2F2F2F] hover:bg-black text-white py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-3 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
                 id="microsoft-sso-btn"
               >
                 {loading ? (
@@ -291,17 +377,115 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
                   </>
                 ) : (
                   <>
-                    {/* Standard Microsoft 4-box symbol */}
                     <svg className="h-4 w-4 shrink-0" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M0 0H10.8333V10.8333H0V0Z" fill="#F25022"/>
                       <path d="M12.1667 0H23V10.8333H12.1667V0Z" fill="#7FBA00"/>
                       <path d="M0 12.1667H10.8333V23H0V12.1667Z" fill="#00A4EF"/>
                       <path d="M12.1667 12.1667H23V23H12.1667V12.1667Z" fill="#FFB900"/>
                     </svg>
-                    <span>Sign in with Microsoft</span>
+                    <span>Sign in with Microsoft (@ucp.edu.pk)</span>
                   </>
                 )}
               </button>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-gray-200"></div>
+                <span className="flex-shrink mx-2 text-[10px] uppercase font-bold text-gray-400">or sign in with university email</span>
+                <div className="flex-grow border-t border-gray-200"></div>
+              </div>
+
+              {/* Direct University Account form */}
+              <form onSubmit={handleUniversitySubmit} className="space-y-3.5 text-left">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block font-mono">
+                    University Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="h-4 w-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="email"
+                      required
+                      value={universityEmail}
+                      onChange={(e) => setUniversityEmail(e.target.value)}
+                      placeholder="e.g. student@ucp.edu.pk"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-3.5 py-2.5 text-xs font-bold text-gray-900 focus:outline-none focus:border-primary focus:bg-white transition-all"
+                      id="university-email-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block font-mono">
+                    Password <span className="text-gray-400 font-normal">(Optional for student accounts)</span>
+                  </label>
+                  <div className="relative">
+                    <Lock className="h-4 w-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="password"
+                      value={universityPassword}
+                      onChange={(e) => setUniversityPassword(e.target.value)}
+                      placeholder="e.g. your university password"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-3.5 py-2.5 text-xs font-bold text-gray-900 focus:outline-none focus:border-primary focus:bg-white transition-all font-mono"
+                      id="university-password-input"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-primary hover:bg-primary-hover text-white py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-50 mt-1"
+                  id="university-login-submit-btn"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-white" />
+                      <span>Authenticating University Account...</span>
+                    </>
+                  ) : (
+                    <span>
+                      {hasPendingBooking ? 'Sign In & Submit Booking Request' : 'Sign In with University Account'}
+                    </span>
+                  )}
+                </button>
+
+                {/* Quick-select test accounts */}
+                <div className="pt-2 border-t border-gray-100">
+                  <p className="text-[10px] font-bold text-gray-400 mb-1.5 uppercase tracking-wider">Quick Sign-In Presets:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUniversityEmail('student@ucp.edu.pk');
+                        handleUniversitySubmit(undefined, 'student@ucp.edu.pk');
+                      }}
+                      className="text-[10px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                    >
+                      student@ucp.edu.pk
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUniversityEmail('society.head@ucp.edu.pk');
+                        handleUniversitySubmit(undefined, 'society.head@ucp.edu.pk');
+                      }}
+                      className="text-[10px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                    >
+                      society.head@ucp.edu.pk
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUniversityEmail('faculty@ucp.edu.pk');
+                        handleUniversitySubmit(undefined, 'faculty@ucp.edu.pk');
+                      }}
+                      className="text-[10px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                    >
+                      faculty@ucp.edu.pk
+                    </button>
+                  </div>
+                </div>
+              </form>
             </div>
           )}
 

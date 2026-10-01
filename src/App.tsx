@@ -98,7 +98,21 @@ export default function App() {
     }
     window.history.pushState({}, '', path);
     setCurrentPath(path);
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
   };
+
+  // Scroll to top on every route change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
+  }, [currentPath]);
 
   // Sync back & forward browser navigation
   useEffect(() => {
@@ -114,17 +128,22 @@ export default function App() {
   // Fetch all state tables from Express server
   const fetchStateData = async (token?: any) => {
     const currentToken = (typeof token === 'string' && token) ? token : jwtToken;
-    if (!currentToken) return;
 
     try {
-      // 1. Fetch public / common tables (rooms and bookings)
+      // 1. Fetch public / common tables (rooms and bookings) - public, no token required
       const [roomsData, bookingsData] = await Promise.all([
-        roomsApi.getAll(currentToken).catch(() => []),
-        bookingsApi.getAll(currentToken).catch(() => [])
+        roomsApi.getAll(currentToken || undefined).catch(() => []),
+        bookingsApi.getAll(currentToken || undefined).catch(() => [])
       ]);
 
       setRooms(Array.isArray(roomsData) ? roomsData : []);
       setBookings(Array.isArray(bookingsData) ? bookingsData : []);
+
+      // If user is not logged in, stop here (staff/admin tables require auth)
+      if (!currentToken) {
+        setLoading(false);
+        return;
+      }
 
       // 2. Determine effective user
       const storedUserStr = typeof localStorage !== 'undefined' ? localStorage.getItem('currentUser') : null;
@@ -282,6 +301,9 @@ export default function App() {
         } catch (err) {
           console.error('Session initialization error:', err);
         }
+      } else {
+        // Fetch public state (rooms, bookings) for unauthenticated guest visitors
+        await fetchStateData();
       }
       setLoading(false);
     };
@@ -323,6 +345,14 @@ export default function App() {
     setJwtToken(token);
     setActiveUser(user);
     fetchStateData(token);
+
+    // If there is a pending space booking request preserved, immediately return to booking page
+    const pendingBooking = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('pending_booking_submission') : null;
+    if (pendingBooking) {
+      navigate('/booking');
+      return;
+    }
+
     if (user.role === 'Cohort Founder') {
       navigate('/founder-dashboard');
     } else if (user.role === 'UCP Member') {

@@ -27,7 +27,8 @@ import {
   Instagram,
   ArrowUpRight,
   LogOut,
-  User
+  User,
+  Tv
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -352,13 +353,23 @@ export function LandingPage({ onNavigate, activeUser, onLogout }: LandingPagePro
                   </p>
                 </div>
               </div>
-              <button 
-                onClick={() => onNavigate('/booking')}
-                className="mt-6 w-full py-2 bg-primary hover:bg-primary/95 text-white text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1.5"
-              >
-                Launch Module
-                <ArrowUpRight className="h-3.5 w-3.5" />
-              </button>
+              <div className="mt-6 space-y-2">
+                <button 
+                  onClick={() => onNavigate('/booking')}
+                  className="w-full py-2 bg-primary hover:bg-primary/95 text-white text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1.5"
+                >
+                  Launch Module
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </button>
+                <button 
+                  onClick={() => onNavigate('/room-display')}
+                  className="w-full py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 text-[11px] font-bold uppercase tracking-wider rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1.5"
+                  title="View live Room TV Signage with schedule across all rooms"
+                >
+                  <Tv className="h-3.5 w-3.5 text-primary" />
+                  Room TV Signage
+                </button>
+              </div>
             </div>
 
             {/* Active module 2: Cohort Management */}
