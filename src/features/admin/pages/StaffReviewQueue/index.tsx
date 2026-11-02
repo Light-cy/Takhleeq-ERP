@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   ShieldAlert, 
   Check, 
@@ -10,9 +10,11 @@ import {
   ShieldCheck, 
   Search,
   CheckCircle2,
-  Lock
+  Lock,
+  History
 } from 'lucide-react';
 import { Booking, Ban } from '../../../../types';
+import { UserProfileHistoryModal } from '../../components/UserProfileHistoryModal';
 import { useStaffReview } from './hooks/useStaffReview';
 
 interface StaffReviewQueueProps {
@@ -33,6 +35,7 @@ export function StaffReviewQueue({
   hasPermission
 }: StaffReviewQueueProps) {
   const isAllowedToApproveReject = hasPermission ? hasPermission('APPROVE_REJECT_BOOKINGS') : true;
+  const [inspectedUserEmail, setInspectedUserEmail] = useState<string | null>(null);
 
   const {
     selectedBooking,
@@ -128,7 +131,15 @@ export function StaffReviewQueue({
                   <tr key={booking.id} className="hover:bg-gray-50/40 transition-colors text-xs text-gray-700">
                     <td className="py-4.5 px-6 font-mono font-black text-primary whitespace-nowrap">{booking.id}</td>
                     <td className="py-4.5 px-6">
-                      <p className="font-black text-gray-900">{booking.name}</p>
+                      <button
+                        type="button"
+                        onClick={() => setInspectedUserEmail(booking.email)}
+                        className="font-black text-gray-900 hover:text-primary transition-colors text-left flex items-center gap-1 group cursor-pointer"
+                        title="Click to view requester booking history"
+                      >
+                        <span>{booking.name}</span>
+                        <History className="h-3 w-3 text-gray-400 group-hover:text-primary transition-colors" />
+                      </button>
                       <p className="text-[10px] text-gray-400 font-mono flex items-center gap-1.5 mt-0.5">
                         <Mail className="h-3 w-3 text-gray-400" /> {booking.email}
                       </p>
@@ -286,7 +297,16 @@ export function StaffReviewQueue({
                 </div>
 
                 <div className="space-y-3.5">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-primary border-b border-gray-100 pb-1.5">Requester & Schedule details</h4>
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-1.5">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Requester & Schedule details</h4>
+                    <button
+                      type="button"
+                      onClick={() => setInspectedUserEmail(selectedBooking.email)}
+                      className="text-[10px] font-bold text-primary hover:text-primary/80 flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <History className="h-3 w-3" /> User History Dossier
+                    </button>
+                  </div>
                   <div className="text-xs space-y-2 text-gray-700 bg-[#F8F5F0]/40 p-4 rounded-xl border border-gray-100">
                     <p><strong>Name:</strong> {selectedBooking.name}</p>
                     <p className="font-mono"><strong>Email:</strong> {selectedBooking.email}</p>
@@ -376,6 +396,27 @@ export function StaffReviewQueue({
 
           </div>
         </div>
+      )}
+
+      {/* USER PROFILE HISTORY DOSSIER MODAL */}
+      {inspectedUserEmail && (
+        <UserProfileHistoryModal
+          userEmail={inspectedUserEmail}
+          bookings={bookings}
+          activeBans={activeBans}
+          onClose={() => setInspectedUserEmail(null)}
+          onViewBookingDetails={(b) => {
+            setSelectedBooking(b);
+            setShowRejectionInput(false);
+            setErrorMsg(null);
+          }}
+          onInitiateReject={(b) => {
+            setSelectedBooking(b);
+            setShowRejectionInput(true);
+            setRejectionReason('');
+          }}
+          isAllowedToApproveReject={isAllowedToApproveReject}
+        />
       )}
 
     </div>

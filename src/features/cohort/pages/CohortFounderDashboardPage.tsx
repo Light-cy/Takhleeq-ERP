@@ -313,6 +313,8 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   const [burnRateInput, setBurnRateInput] = useState('0');
   const [teamSizeInput, setTeamSizeInput] = useState('1');
   const [pitchDeckInput, setPitchDeckInput] = useState('');
+  const [isEditingPitchDeck, setIsEditingPitchDeck] = useState(false);
+  const [tempPitchDeckUrl, setTempPitchDeckUrl] = useState('');
   const [linkedinInput, setLinkedinInput] = useState('');
   const [twitterInput, setTwitterInput] = useState('');
   const [githubInput, setGithubInput] = useState('');
@@ -326,7 +328,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
 
   // Session Feedback Modal State
   const [activeFeedbackSession, setActiveFeedbackSession] = useState<Session | null>(null);
-  const [feedbackRating, setFeedbackRating] = useState(5);
+  const [feedbackRating, setFeedbackRating] = useState(0);
   const [feedbackTitle, setFeedbackTitle] = useState('');
   const [feedbackComment, setFeedbackComment] = useState('');
   const [feedbackIsAnonymous, setFeedbackIsAnonymous] = useState(false);
@@ -334,7 +336,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   // General Program Feedback Modal State
   const [showGeneralFeedbackModal, setShowGeneralFeedbackModal] = useState(false);
   const [generalFeedbackType, setGeneralFeedbackType] = useState<'PROGRAM' | 'FACILITY' | 'CURRICULUM' | 'MENTORSHIP' | 'OTHER'>('PROGRAM');
-  const [generalFeedbackRating, setGeneralFeedbackRating] = useState(5);
+  const [generalFeedbackRating, setGeneralFeedbackRating] = useState(0);
   const [generalFeedbackTitle, setGeneralFeedbackTitle] = useState('');
   const [generalFeedbackComment, setGeneralFeedbackComment] = useState('');
   const [generalFeedbackIsAnonymous, setGeneralFeedbackIsAnonymous] = useState(false);
@@ -994,6 +996,10 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   // General Program Feedback Submission Handler
   const handleGeneralFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (generalFeedbackRating <= 0) {
+      triggerToast('Please select a star rating before submitting.', 'error');
+      return;
+    }
     setSubmittingFeedback(true);
 
     try {
@@ -1016,7 +1022,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
         setShowGeneralFeedbackModal(false);
         setGeneralFeedbackTitle('');
         setGeneralFeedbackComment('');
-        setGeneralFeedbackRating(5);
+        setGeneralFeedbackRating(0);
         setGeneralFeedbackIsAnonymous(false);
         fetchMyFeedbackLogs();
 
@@ -1128,9 +1134,30 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
 
   // Attendance rate calculation
   const calculatedAttendanceRate = () => {
-    if (!sessions.length || !attendance.length) return 100;
+    if (!sessions.length || !attendance.length) return 0;
     const presentCount = attendance.filter(a => a.status === 'PRESENT' || a.status === 'LATE').length;
     return Math.round((presentCount / sessions.length) * 100);
+  };
+
+  // Helper to translate and format raw database status values (F-OV-05)
+  const formatStatusValue = (val?: string) => {
+    if (!val) return '—';
+    const mapping: Record<string, string> = {
+      IDEA_STAGE: 'Idea stage',
+      IDEA: 'Idea stage',
+      VALIDATION: 'Validation',
+      INCUBATION: 'Incubation',
+      ACCELERATION: 'Acceleration',
+      GRADUATED: 'Graduated',
+      ENROLLED: 'Active',
+      ACTIVE: 'Active',
+      INACTIVE: 'Inactive',
+      COMPLETED: 'Completed',
+      PENDING: 'Pending',
+    };
+    if (mapping[val.toUpperCase()]) return mapping[val.toUpperCase()];
+    const clean = val.replace(/_/g, ' ').toLowerCase();
+    return clean.charAt(0).toUpperCase() + clean.slice(1);
   };
 
   // Active Warning filter
@@ -1350,7 +1377,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               className="flex-1 bg-primary hover:bg-primary/95 text-white font-bold py-2.5 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
             >
               <CalendarRange className="w-4 h-4" />
-              <span>Book Spaces</span>
+              <span>Book a room</span>
             </button>
             <button
               onClick={() => onNavigate('/')}
@@ -1611,7 +1638,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               }`}
             >
               <AlertTriangle className={`w-3.5 h-3.5 ${activeWarnings.length > 0 ? 'text-rose-600' : ''}`} />
-              <span>Notices & Warnings</span>
+              <span>Notices</span>
               {warnings.length > 0 && (
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
                   activeWarnings.length > 0
@@ -1720,7 +1747,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               {/* MRR / Monthly Revenue */}
               <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs hover:border-gray-300 transition-all">
                 <div className="flex items-center justify-between text-gray-500 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">Monthly Revenue (MRR)</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Monthly revenue</span>
                   <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
                     <DollarSign className="w-4 h-4" />
                   </div>
@@ -1728,25 +1755,29 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                 <div className="text-2xl font-black text-gray-900 tracking-tight">
                   {monthlyRevenueInput && monthlyRevenueInput !== '0' ? monthlyRevenueInput : 'PKR 0'}
                 </div>
-                <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('profile_financials')}
+                  className="text-[11px] text-emerald-700 hover:text-emerald-800 font-bold mt-1 flex items-center gap-1 hover:underline cursor-pointer"
+                >
                   <Edit3 className="w-3 h-3 text-emerald-600" />
-                  <span>Editable in Profile & Revenue tab</span>
-                </p>
+                  <span>Update in Profile</span>
+                </button>
               </div>
 
               {/* Attendance Rate */}
               <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs hover:border-gray-300 transition-all">
                 <div className="flex items-center justify-between text-gray-500 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">Session Attendance</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Attendance</span>
                   <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
                     <CheckCircle2 className="w-4 h-4" />
                   </div>
                 </div>
                 <div className="text-2xl font-black text-gray-900 tracking-tight">
-                  {calculatedAttendanceRate()}%
+                  {sessions.length === 0 ? '—' : `${calculatedAttendanceRate()}%`}
                 </div>
                 <p className="text-[11px] text-gray-500 mt-1">
-                  {attendance.length} logged records across {sessions.length} sessions
+                  {sessions.length === 0 ? 'No sessions yet' : `${attendance.length} logged records across ${sessions.length} sessions`}
                 </p>
               </div>
 
@@ -1769,7 +1800,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               {/* Pending Deliverables */}
               <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs hover:border-gray-300 transition-all">
                 <div className="flex items-center justify-between text-gray-500 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">Pending Deliverables</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Assignments due</span>
                   <div className="p-2 bg-amber-50 rounded-xl text-amber-600">
                     <FileText className="w-4 h-4" />
                   </div>
@@ -1778,7 +1809,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                   {assignments.filter(a => a.status === 'PENDING').length}
                 </div>
                 <p className="text-[11px] text-gray-500 mt-1">
-                  {assignments.length} total assigned deliverables
+                  {assignments.filter(a => a.status === 'PENDING').length === 0 ? 'None due' : `${assignments.filter(a => a.status === 'PENDING').length} pending assignment${assignments.filter(a => a.status === 'PENDING').length > 1 ? 's' : ''}`}
                 </p>
               </div>
 
@@ -1793,34 +1824,34 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                 {/* Official Program Status Card */}
                 <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs">
                   <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-                    <div>
-                      <span className="text-[10px] font-black uppercase text-gray-400 tracking-wider block">Incubator Ledger Record</span>
-                      <h3 className="text-base font-bold text-gray-900">Official Cohort Enrollment Status</h3>
+                    <div className="flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-gray-400" />
+                      <h3 className="text-base font-bold text-gray-900">Program status</h3>
                     </div>
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 text-gray-600 text-[11px] font-bold">
-                      <Lock className="w-3 h-3 text-gray-400" /> Managed by Admin
+                      Set by Takhleeq staff
                     </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
                       <span className="text-[10px] font-bold text-gray-400 uppercase">Incubation Stage</span>
-                      <p className="text-sm font-black text-gray-900 mt-1 uppercase">
-                        {applicant.stage || applicant.current_stage || 'INCUBATION'}
+                      <p className="text-sm font-black text-gray-900 mt-1">
+                        {formatStatusValue(applicant.stage || applicant.current_stage || 'INCUBATION')}
                       </p>
                     </div>
 
                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
                       <span className="text-[10px] font-bold text-gray-400 uppercase">Program Status</span>
-                      <p className="text-sm font-black text-emerald-700 mt-1 uppercase">
-                        {applicant.program_status || applicant.status || 'ENROLLED'}
+                      <p className="text-sm font-black text-emerald-700 mt-1">
+                        {formatStatusValue(applicant.program_status || applicant.status || 'ACTIVE')}
                       </p>
                     </div>
 
                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
                       <span className="text-[10px] font-bold text-gray-400 uppercase">Orientation Status</span>
-                      <p className="text-sm font-black text-blue-700 mt-1 uppercase">
-                        {applicant.orientation_status || 'COMPLETED'}
+                      <p className="text-sm font-black text-blue-700 mt-1">
+                        {formatStatusValue(applicant.orientation_status || 'COMPLETED')}
                       </p>
                     </div>
                   </div>
@@ -1837,10 +1868,9 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                 <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-6">
                   <div className="flex items-center justify-between pb-4 border-b border-gray-100">
                     <div>
-                      <h3 className="text-base font-bold text-gray-900">Weekly Performance & Growth Analytics</h3>
-                      <p className="text-xs text-gray-500">Income growth trajectory, session attendance rate & mentorship logs</p>
+                      <h3 className="text-base font-bold text-gray-900">Your progress</h3>
+                      <p className="text-xs text-gray-500">Revenue and attendance by week</p>
                     </div>
-                    <span className="text-xs text-gray-400 font-mono font-bold">{checkins.length} Logs</span>
                   </div>
 
                   {/* Charts Grid: Income Line Graph & Attendance Pie Chart */}
@@ -1854,36 +1884,52 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                             <TrendingUp className="w-4 h-4" />
                           </div>
                           <div>
-                            <h4 className="text-xs font-extrabold text-gray-900">Weekly Income Growth</h4>
+                            <h4 className="text-xs font-extrabold text-gray-900">Weekly revenue</h4>
                             <p className="text-[10px] text-gray-500">Revenue growth over program weeks</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <span className="text-xs font-black text-emerald-700 block font-mono">
-                            {incomeGrowthData.displayFormatted}
-                          </span>
-                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 inline-block">
-                            {incomeGrowthData.growthRate} Growth
-                          </span>
-                        </div>
+                        {incomeGrowthData.currentRevenue > 0 && (
+                          <div className="text-right">
+                            <span className="text-xs font-black text-emerald-700 block font-mono">
+                              {incomeGrowthData.displayFormatted}
+                            </span>
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60 inline-block">
+                              {incomeGrowthData.growthRate} Growth
+                            </span>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="h-44 w-full pt-2">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={incomeGrowthData.points} margin={{ top: 5, right: 10, left: -22, bottom: 0 }}>
-                            <defs>
-                              <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10B981" stopOpacity={0.35}/>
-                                <stop offset="95%" stopColor="#10B981" stopOpacity={0.0}/>
-                              </linearGradient>
-                            </defs>
-                            <XAxis dataKey="week" stroke="#94A3B8" fontSize={10} tickLine={false} axisLine={{ stroke: '#CBD5E1' }} />
-                            <YAxis stroke="#94A3B8" fontSize={9} tickLine={false} axisLine={{ stroke: '#CBD5E1' }} tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`} />
-                            <RechartsTooltip content={<CustomIncomeTooltip />} />
-                            <Area type="monotone" dataKey="income" stroke="#059669" strokeWidth={2.5} fillOpacity={1} fill="url(#incomeGrad)" activeDot={{ r: 5, fill: '#059669', stroke: '#FFFFFF', strokeWidth: 2 }} />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
+                      {incomeGrowthData.currentRevenue === 0 ? (
+                        <div className="h-44 w-full flex flex-col items-center justify-center text-center p-4">
+                          <TrendingUp className="w-8 h-8 text-gray-300 mb-2" />
+                          <p className="text-xs text-gray-500 font-medium">Add your monthly revenue in Profile to see this chart.</p>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('profile_financials')}
+                            className="mt-2 text-xs text-emerald-700 hover:text-emerald-800 font-bold hover:underline cursor-pointer"
+                          >
+                            Update in Profile
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="h-44 w-full pt-2">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={incomeGrowthData.points} margin={{ top: 5, right: 10, left: -22, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#10B981" stopOpacity={0.35}/>
+                                  <stop offset="95%" stopColor="#10B981" stopOpacity={0.0}/>
+                                </linearGradient>
+                              </defs>
+                              <XAxis dataKey="week" stroke="#94A3B8" fontSize={10} tickLine={false} axisLine={{ stroke: '#CBD5E1' }} />
+                              <YAxis stroke="#94A3B8" fontSize={9} tickLine={false} axisLine={{ stroke: '#CBD5E1' }} tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`} />
+                              <RechartsTooltip content={<CustomIncomeTooltip />} />
+                              <Area type="monotone" dataKey="income" stroke="#059669" strokeWidth={2.5} fillOpacity={1} fill="url(#incomeGrad)" activeDot={{ r: 5, fill: '#059669', stroke: '#FFFFFF', strokeWidth: 2 }} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
                     </div>
 
                     {/* Chart 2: Attendance Rate Pie Chart */}
@@ -1894,87 +1940,96 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                             <PieChart className="w-4 h-4" />
                           </div>
                           <div>
-                            <h4 className="text-xs font-extrabold text-gray-900">Attendance Breakdown</h4>
+                            <h4 className="text-xs font-extrabold text-gray-900">Attendance</h4>
                             <p className="text-[10px] text-gray-500">Session presence & participation</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <span className="text-xs font-black text-blue-700 block font-mono">
-                            {attendancePieData.attendancePercentage}% Rate
-                          </span>
-                          <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60 inline-block">
-                            {attendancePieData.totalSessions} Sessions
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 items-center gap-2 pt-1">
-                        {/* Donut Chart */}
-                        <div className="h-40 w-full relative flex items-center justify-center">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <RechartsPieChart>
-                              <RechartsTooltip content={<CustomAttendanceTooltip />} />
-                              <Pie
-                                data={attendancePieData.items}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={38}
-                                outerRadius={60}
-                                paddingAngle={4}
-                                dataKey="value"
-                              >
-                                {attendancePieData.items.map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.color} stroke="#FFFFFF" strokeWidth={2} />
-                                ))}
-                              </Pie>
-                            </RechartsPieChart>
-                          </ResponsiveContainer>
-                          {/* Donut Center Overlay */}
-                          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-                            <span className="text-sm font-black text-gray-900 leading-none">
-                              {attendancePieData.attendancePercentage}%
+                        {attendancePieData.totalSessions > 0 && (
+                          <div className="text-right">
+                            <span className="text-xs font-black text-blue-700 block font-mono">
+                              {attendancePieData.attendancePercentage}% Rate
                             </span>
-                            <span className="text-[8px] font-bold text-gray-400 uppercase mt-0.5">Attended</span>
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60 inline-block">
+                              {attendancePieData.totalSessions} Sessions
+                            </span>
                           </div>
-                        </div>
-
-                        {/* Legend Breakdown List */}
-                        <div className="space-y-1.5 text-[11px]">
-                          <div className="flex items-center justify-between p-1.5 rounded-lg bg-emerald-50/80 border border-emerald-200/60">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                              <span className="font-bold text-emerald-950">Present</span>
-                            </div>
-                            <span className="font-mono font-bold text-emerald-700">{attendancePieData.present}</span>
-                          </div>
-
-                          <div className="flex items-center justify-between p-1.5 rounded-lg bg-amber-50/80 border border-amber-200/60">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                              <span className="font-bold text-amber-950">Late</span>
-                            </div>
-                            <span className="font-mono font-bold text-amber-700">{attendancePieData.late}</span>
-                          </div>
-
-                          <div className="flex items-center justify-between p-1.5 rounded-lg bg-rose-50/80 border border-rose-200/60">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
-                              <span className="font-bold text-rose-950">Absent</span>
-                            </div>
-                            <span className="font-mono font-bold text-rose-700">{attendancePieData.absent}</span>
-                          </div>
-
-                          {attendancePieData.unmarked > 0 && (
-                            <div className="flex items-center justify-between p-1.5 rounded-lg bg-slate-100 border border-slate-200/60">
-                              <div className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
-                                <span className="font-bold text-slate-800">Unmarked</span>
-                              </div>
-                              <span className="font-mono font-bold text-slate-600">{attendancePieData.unmarked}</span>
-                            </div>
-                          )}
-                        </div>
+                        )}
                       </div>
+
+                      {attendancePieData.totalSessions === 0 ? (
+                        <div className="h-44 w-full flex flex-col items-center justify-center text-center p-4">
+                          <PieChart className="w-8 h-8 text-gray-300 mb-2" />
+                          <p className="text-xs text-gray-500 font-medium">No sessions yet.</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 items-center gap-2 pt-1">
+                          {/* Donut Chart */}
+                          <div className="h-40 w-full relative flex items-center justify-center">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <RechartsPieChart>
+                                <RechartsTooltip content={<CustomAttendanceTooltip />} />
+                                <Pie
+                                  data={attendancePieData.items}
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={38}
+                                  outerRadius={60}
+                                  paddingAngle={4}
+                                  dataKey="value"
+                                >
+                                  {attendancePieData.items.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} stroke="#FFFFFF" strokeWidth={2} />
+                                  ))}
+                                </Pie>
+                              </RechartsPieChart>
+                            </ResponsiveContainer>
+                            {/* Donut Center Overlay */}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                              <span className="text-sm font-black text-gray-900 leading-none">
+                                {attendancePieData.attendancePercentage}%
+                              </span>
+                              <span className="text-[8px] font-bold text-gray-400 uppercase mt-0.5">Attended</span>
+                            </div>
+                          </div>
+
+                          {/* Legend Breakdown List */}
+                          <div className="space-y-1.5 text-[11px]">
+                            <div className="flex items-center justify-between p-1.5 rounded-lg bg-emerald-50/80 border border-emerald-200/60">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                                <span className="font-bold text-emerald-950">Present</span>
+                              </div>
+                              <span className="font-mono font-bold text-emerald-700">{attendancePieData.present}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between p-1.5 rounded-lg bg-amber-50/80 border border-amber-200/60">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                                <span className="font-bold text-amber-950">Late</span>
+                              </div>
+                              <span className="font-mono font-bold text-amber-700">{attendancePieData.late}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between p-1.5 rounded-lg bg-rose-50/80 border border-rose-200/60">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                                <span className="font-bold text-rose-950">Absent</span>
+                              </div>
+                              <span className="font-mono font-bold text-rose-700">{attendancePieData.absent}</span>
+                            </div>
+
+                            {attendancePieData.unmarked > 0 && (
+                              <div className="flex items-center justify-between p-1.5 rounded-lg bg-slate-100 border border-slate-200/60">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+                                  <span className="font-bold text-slate-800">Unmarked</span>
+                                </div>
+                                <span className="font-mono font-bold text-slate-600">{attendancePieData.unmarked}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                   </div>
@@ -1985,7 +2040,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                       <div>
                         <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
                           <CheckSquare className="w-3.5 h-3.5 text-primary" />
-                          <span>1-on-1 Advisory Check-ins & Action Items</span>
+                          <span>Check-ins & action items</span>
                         </h4>
                         <p className="text-[11px] text-gray-500 mt-0.5">
                           Assigned deliverables & advisory notes from incubator staff
@@ -1996,7 +2051,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                         onClick={() => setActiveTab('checkins')}
                         className="text-xs font-bold text-primary hover:text-primary/80 transition-colors flex items-center gap-1 cursor-pointer"
                       >
-                        <span>View All & Tasks</span>
+                        <span>View all</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -2004,7 +2059,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                     {checkins.length === 0 ? (
                       <div className="py-6 text-center text-xs text-gray-400 space-y-1">
                         <MessageSquare className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                        <p>No 1-on-1 check-in meetings or action items recorded yet by incubator staff.</p>
+                        <p>No check-ins yet. Your mentor's notes will appear here.</p>
                       </div>
                     ) : (
                       <div className="divide-y divide-gray-100 space-y-4">
@@ -2190,12 +2245,65 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
 
                 {/* Quick Pitch & Deck Box */}
                 <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-4">
-                  <h3 className="text-sm font-bold text-gray-900">Startup Pitch & Assets</h3>
-                  <p className="text-xs text-gray-600 line-clamp-3">
-                    {descInput || 'No startup tagline provided yet. Add in Profile & Revenue section.'}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-gray-900">Pitch</h3>
+                    {pitchDeckInput && !isEditingPitchDeck && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTempPitchDeckUrl(pitchDeckInput);
+                          setIsEditingPitchDeck(true);
+                        }}
+                        className="text-[11px] font-bold text-gray-500 hover:text-primary transition-colors cursor-pointer"
+                      >
+                        Change link
+                      </button>
+                    )}
+                  </div>
 
-                  {pitchDeckInput ? (
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Tagline</span>
+                    <p className="text-xs text-gray-700 line-clamp-3 leading-relaxed">
+                      {descInput || 'No startup tagline provided yet. Add in Profile & Revenue section.'}
+                    </p>
+                  </div>
+
+                  {isEditingPitchDeck ? (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 animate-fade-in">
+                      <label className="text-[11px] font-bold text-gray-700 block">
+                        Pitch Deck Link / Video URL
+                      </label>
+                      <input
+                        type="url"
+                        value={tempPitchDeckUrl}
+                        onChange={(e) => setTempPitchDeckUrl(e.target.value)}
+                        placeholder="https://docsend.com/view/..."
+                        className="w-full text-xs p-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-primary focus:outline-none font-mono bg-white"
+                        autoFocus
+                      />
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingPitchDeck(false)}
+                          className="px-2.5 py-1 text-xs text-gray-500 hover:text-gray-700 font-medium cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setPitchDeckInput(tempPitchDeckUrl);
+                            await syncProfileToBackend({ pitch_deck_url: tempPitchDeckUrl });
+                            setIsEditingPitchDeck(false);
+                            triggerToast('Pitch deck link saved.');
+                          }}
+                          className="px-3 py-1 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-all cursor-pointer"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  ) : pitchDeckInput ? (
                     <a
                       href={pitchDeckInput.startsWith('http') ? pitchDeckInput : `https://${pitchDeckInput}`}
                       target="_blank"
@@ -2203,15 +2311,18 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                       className="inline-flex items-center justify-center gap-2 w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition-colors"
                     >
                       <ExternalLink className="w-3.5 h-3.5 text-gray-600" />
-                      <span>View Pitch Deck</span>
+                      <span>View pitch deck</span>
                     </a>
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setActiveTab('profile_financials')}
-                      className="w-full py-2 bg-slate-50 border border-dashed border-gray-300 hover:bg-slate-100 text-gray-600 rounded-xl text-xs font-bold transition-colors"
+                      onClick={() => {
+                        setTempPitchDeckUrl('');
+                        setIsEditingPitchDeck(true);
+                      }}
+                      className="w-full py-2.5 bg-slate-50 border border-dashed border-gray-300 hover:bg-slate-100 text-gray-700 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                     >
-                      + Add Pitch Deck URL
+                      <span>Add pitch deck link</span>
                     </button>
                   )}
                 </div>
@@ -3397,10 +3508,10 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               <div>
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-primary" />
-                  <h2 className="text-lg font-black text-gray-900">Strategic Pivot Management</h2>
+                  <h2 className="text-lg font-black text-gray-900">Pivots</h2>
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Submit strategic direction changes for Incubation Administration approval. Profile updates apply once reviewed.
+                  Changing your idea, industry or customers? Ask staff to approve it here.
                 </p>
               </div>
 
@@ -3552,8 +3663,8 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                 <div className="bg-white border border-gray-200 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl animate-fade-in">
                   <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                     <div>
-                      <h3 className="text-base font-bold text-gray-900">Request Strategic Pivot</h3>
-                      <p className="text-xs text-gray-500">Submit proposed business transformation for Admin review</p>
+                      <h3 className="text-base font-bold text-gray-900">Request a pivot</h3>
+                      <p className="text-xs text-gray-500">Staff will review it and get back to you.</p>
                     </div>
                     <button
                       type="button"
@@ -3573,7 +3684,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                         onChange={(e) => setNewPivotIndustry(e.target.value)}
                         className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none bg-white"
                       >
-                        <option value="">-- Select Target Industry --</option>
+                        <option value="">Select an industry</option>
                         {availableIndustries.map((ind) => (
                           <option key={ind} value={ind}>{ind}</option>
                         ))}
@@ -3593,7 +3704,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold text-gray-700 block mb-1">Reason & Hypothesis for Pivot *</label>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Why are you pivoting? *</label>
                       <textarea
                         required
                         value={newPivotReason}
@@ -3646,8 +3757,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                     <h2 className="text-base font-bold text-gray-900">Founder Feedback & Program Evaluations</h2>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Share honest ratings, suggestions, or concerns regarding mentorship sessions, facilities, or program curriculum.
-                    Choose between <strong>🔒 Anonymous</strong> or <strong>👤 Non-Anonymous</strong> submissions anytime.
+                    Tell us what's working and what isn't. You can stay anonymous.
                   </p>
                 </div>
 
@@ -3665,9 +3775,9 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3.5 flex items-start gap-3">
                 <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                 <div className="text-xs text-amber-900 space-y-0.5">
-                  <p className="font-bold">End-to-End Anonymous Option Supported</p>
+                  <p className="font-bold">Anonymous means anonymous</p>
                   <p className="text-[11px] text-amber-800">
-                    When forms or submissions are marked as "100% Anonymous", your name, email, and startup details are masked directly at the database and API layer before staff or mentors view it.
+                    If you choose Anonymous, staff and mentors won't see your name or startup.
                   </p>
                 </div>
               </div>
@@ -3687,25 +3797,18 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">Surveys created by incubator administration specifically for this cohort</p>
                 </div>
-                <button
-                  onClick={fetchFeedbackSurveys}
-                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loadingFeedbackSurveys ? 'animate-spin' : ''}`} />
-                  <span>Refresh Surveys</span>
-                </button>
               </div>
 
               {loadingFeedbackSurveys ? (
                 <div className="p-8 text-center text-xs font-bold text-gray-400">Loading cohort surveys...</div>
               ) : pendingSurveysList.length === 0 ? (
-                <div className="p-8 text-center border border-dashed border-emerald-200 bg-emerald-50/30 rounded-xl text-xs text-gray-500 space-y-2">
-                  <div className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto shadow-3xs">
+                <div className="p-8 text-center border border-dashed border-gray-200 bg-slate-50/50 rounded-xl text-xs text-gray-500 space-y-2">
+                  <div className="w-10 h-10 bg-gray-100 text-gray-500 rounded-full flex items-center justify-center mx-auto shadow-3xs">
                     <CheckCircle2 className="w-5 h-5" />
                   </div>
-                  <p className="font-bold text-gray-800 text-sm">All Surveys Completed</p>
+                  <p className="font-bold text-gray-800 text-sm">No surveys right now</p>
                   <p className="max-w-md mx-auto text-gray-500">
-                    You have submitted all required feedback forms and surveys for this cohort. Your responses are securely processed on the administration dashboard.
+                    When staff send a survey, it will appear here.
                   </p>
                 </div>
               ) : (
@@ -3784,16 +3887,9 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-4">
               <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900">My General Feedback & Session Logs</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Ad-hoc feedback submitted directly by you to incubator management</p>
+                  <h3 className="text-sm font-bold text-gray-900">Your feedback</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Feedback you've sent</p>
                 </div>
-                <button
-                  onClick={fetchMyFeedbackLogs}
-                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loadingMyFeedback ? 'animate-spin' : ''}`} />
-                  <span>Refresh</span>
-                </button>
               </div>
 
               {loadingMyFeedback ? (
@@ -3884,31 +3980,37 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                       <select
                         value={generalFeedbackType}
                         onChange={(e: any) => setGeneralFeedbackType(e.target.value)}
-                        className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
+                        className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none bg-white"
                       >
-                        <option value="PROGRAM">Program Overview & Operations</option>
-                        <option value="CURRICULUM">Curriculum & Workshops</option>
-                        <option value="MENTORSHIP">Mentorship & Office Hours</option>
-                        <option value="FACILITY">Facilities & Co-working Space</option>
-                        <option value="OTHER">General Other</option>
+                        <option value="PROGRAM">Program</option>
+                        <option value="CURRICULUM">Workshops & curriculum</option>
+                        <option value="MENTORSHIP">Mentoring</option>
+                        <option value="FACILITY">Rooms & facilities</option>
+                        <option value="OTHER">Other</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold text-gray-700 block mb-1">Overall Satisfaction Rating</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-bold text-gray-700 block">Overall Satisfaction Rating *</label>
+                        {generalFeedbackRating === 0 && (
+                          <span className="text-[10px] text-amber-600 font-bold">Select a rating</span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2">
                         {[1, 2, 3, 4, 5].map((s) => (
                           <button
                             key={s}
                             type="button"
                             onClick={() => setGeneralFeedbackRating(s)}
-                            className="p-1 cursor-pointer"
+                            className="p-1 cursor-pointer focus:outline-none"
+                            title={`${s} star${s > 1 ? 's' : ''}`}
                           >
                             <Star
-                              className={`w-6 h-6 ${
+                              className={`w-6 h-6 transition-colors ${
                                 s <= generalFeedbackRating
                                   ? 'text-amber-400 fill-amber-400'
-                                  : 'text-gray-300'
+                                  : 'text-gray-300 hover:text-amber-200'
                               }`}
                             />
                           </button>
@@ -3917,7 +4019,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold text-gray-700 block mb-1">Feedback Title / Summary</label>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Subject</label>
                       <input
                         type="text"
                         value={generalFeedbackTitle}
@@ -3941,12 +4043,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                     {/* Submission Privacy Choice (Anonymous vs Non-Anonymous) */}
                     <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-gray-800">Submission Privacy Choice</span>
-                        <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
-                          generalFeedbackIsAnonymous ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-900'
-                        }`}>
-                          {generalFeedbackIsAnonymous ? '🔒 Anonymous' : '👤 Identified'}
-                        </span>
+                        <span className="text-xs font-bold text-gray-800">Who can see your name?</span>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
@@ -3961,8 +4058,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                         >
                           <UserCheck className="w-4 h-4 mt-0.5 shrink-0" />
                           <div>
-                            <p className="text-xs font-bold">Include My Name</p>
-                            <p className="text-[10px] text-gray-500 font-normal">Show founder profile</p>
+                            <p className="text-xs font-bold">Show my name</p>
                           </div>
                         </button>
 
@@ -3977,8 +4073,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                         >
                           <EyeOff className="w-4 h-4 mt-0.5 shrink-0" />
                           <div>
-                            <p className="text-xs font-bold">100% Anonymous</p>
-                            <p className="text-[10px] text-gray-500 font-normal">Hide name & startup info</p>
+                            <p className="text-xs font-bold">Stay anonymous</p>
                           </div>
                         </button>
                       </div>
@@ -4001,7 +4096,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                       </button>
                       <button
                         type="submit"
-                        disabled={submittingFeedback}
+                        disabled={submittingFeedback || generalFeedbackRating === 0}
                         className="px-5 py-2 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
                       >
                         {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
@@ -4212,9 +4307,9 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                     <AlertTriangle className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="text-base font-black text-gray-900">Official Incubator Compliance & Performance Notices</h2>
+                    <h2 className="text-base font-black text-gray-900">Notices</h2>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Formal compliance notices and official warning letters issued by the program management team.
+                      Official messages from Takhleeq staff.
                     </p>
                   </div>
                 </div>
@@ -4236,7 +4331,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-black uppercase tracking-wider text-gray-700 flex items-center gap-2">
                   <ShieldAlert className="w-4 h-4 text-rose-600" />
-                  <span>Active Warnings Requiring Attention ({activeWarnings.length})</span>
+                  <span>Open warnings ({activeWarnings.length})</span>
                 </h3>
               </div>
 

@@ -12,6 +12,7 @@ import { BookingFormPage } from './features/booking/pages/BookingFormPage';
 import { TrackPage } from './features/booking/pages/TrackPage';
 import { StaffReviewQueue } from './features/admin/pages/StaffReviewQueue';
 import { BookingCalendarDashboard } from './features/admin/pages/BookingCalendarDashboard';
+import { UserHistoryPage } from './features/admin/pages/UserHistory';
 import { GovernanceCenterPage } from './features/admin/pages/GovernanceCenter';
 import { RoomManagementPage } from './features/admin/pages/RoomManagement';
 import { BookingTypesPage } from './features/admin/pages/BookingTypes';
@@ -602,6 +603,19 @@ export default function App() {
                 />
               )}
 
+              {activeTab === 'user_history' && (
+                <UserHistoryPage 
+                  bookings={bookings}
+                  activeBans={bans}
+                  rooms={rooms}
+                  onRefresh={fetchStateData}
+                  onApprove={handleApproveBooking}
+                  onReject={handleRejectBooking}
+                  onOverride={handleOverrideBooking}
+                  hasPermission={hasPermission}
+                />
+              )}
+
               {activeTab === 'governance' && (
                 <GovernanceCenterPage 
                   roles={roles}
@@ -752,6 +766,7 @@ export default function App() {
           />
         );
 
+      case '/apply':
       case '/cohort-apply':
         return (
           <PublicLayout

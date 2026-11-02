@@ -166,6 +166,12 @@ export function PublicRoomDisplayPage({
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [nowMs, setNowMs] = useState<number>(Date.now());
+  const [isTvMode, setIsTvMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).get('tv') === 'true';
+    }
+    return false;
+  });
 
   // Synchronize prop rooms or fetch fallback if empty
   useEffect(() => {
@@ -273,51 +279,66 @@ export function PublicRoomDisplayPage({
   return (
     <div className="min-h-screen bg-[#0B0D12] text-slate-100 flex flex-col font-sans select-none antialiased" id="public-unified-signage-page">
       
-      {/* HEADER BAR */}
+      {/* HEADER BAR (SIG-01 & SIG-07) */}
       <header className="bg-[#121620] border-b border-slate-800/80 px-6 py-4 flex flex-wrap justify-between items-center gap-4 shrink-0 shadow-lg">
-        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+        <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
+          {/* Single Home Button (SIG-07) */}
           {onNavigate && (
             <button
               type="button"
               onClick={() => onNavigate('/')}
               className="flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-700/80 shadow-xs group"
-              title="Return to Takhleeq Main Home Page"
-              id="signage-back-home-btn"
+              title="Return to Home"
+              id="signage-home-btn"
             >
-              <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform text-amber-400" />
-              <Home className="h-4 w-4 text-slate-300 group-hover:text-white" />
-              <span>Main Home</span>
+              <Home className="h-4 w-4 text-amber-400" />
+              <span>Home</span>
             </button>
           )}
 
           <div 
-            className={`flex items-center gap-3 ${onNavigate ? 'cursor-pointer group' : ''}`}
+            className={`flex items-center gap-3.5 ${onNavigate ? 'cursor-pointer group' : ''}`}
             onClick={() => onNavigate && onNavigate('/')}
-            title={onNavigate ? "Go to Main Home Page" : undefined}
+            title={onNavigate ? "Go to Home" : undefined}
           >
-            <div className="h-11 w-11 bg-primary/20 border border-primary/40 rounded-2xl flex items-center justify-center text-primary shadow-inner group-hover:border-primary transition-colors">
+            <div className="h-12 w-12 bg-primary/20 border border-primary/40 rounded-2xl flex items-center justify-center text-primary shadow-inner group-hover:border-primary transition-colors shrink-0">
               <Tv className="h-6 w-6" />
             </div>
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-base font-black tracking-widest text-white uppercase group-hover:text-primary transition-colors">Takhleeq Central Signage</h1>
-                <span className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-xs">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" /> Live Facility Feed
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">Unified Real-time Space Activity & Today's Reservations</p>
+            {/* Heading & Live Badge, Subheading removed entirely (SIG-01) */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-white group-hover:text-primary transition-colors">
+                Room schedule – today
+              </h1>
+              <span className="bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-black uppercase px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" /> Live
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Digital Clock & Date Display */}
+        {/* Digital Clock, Date Display & Controls */}
         <div className="flex items-center gap-4 sm:gap-6 bg-[#181D2A] border border-slate-800 rounded-2xl px-5 py-2.5 shadow-sm">
           <div className="text-right">
             <div className="text-2xl font-mono font-black text-amber-400 tracking-wider">{formattedTime}</div>
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{formattedDate}</div>
           </div>
           <div className="h-8 w-px bg-slate-800" />
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
+            {/* TV vs Web mode toggle */}
+            <button
+              type="button"
+              onClick={() => setIsTvMode(!isTvMode)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                isTvMode 
+                  ? 'bg-amber-400/20 text-amber-300 border-amber-400/40' 
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700/60'
+              }`}
+              title={isTvMode ? "Currently in TV Display Mode (Tap to switch to Web Mode)" : "Currently in Web Mode (Tap to switch to TV Display Mode)"}
+            >
+              <Tv className="h-3.5 w-3.5" />
+              <span>{isTvMode ? 'TV Mode' : 'Web Mode'}</span>
+            </button>
+
             <button 
               onClick={() => fetchUnifiedData(true)}
               className={`p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl cursor-pointer transition-all ${isRefreshing ? 'animate-spin text-amber-400' : ''}`}
@@ -325,17 +346,6 @@ export function PublicRoomDisplayPage({
             >
               <RefreshCw className="h-4 w-4" />
             </button>
-            {onNavigate && (
-              <button
-                type="button"
-                onClick={() => onNavigate('/')}
-                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl cursor-pointer transition-all border border-slate-700/60"
-                title="Go to Main Home Page"
-                aria-label="Home"
-              >
-                <Home className="h-4 w-4" />
-              </button>
-            )}
           </div>
         </div>
       </header>
@@ -423,26 +433,27 @@ export function PublicRoomDisplayPage({
             </section>
           )}
 
-          {/* SECTION 2: UPCOMING TODAY */}
+          {/* SECTION 2: UPCOMING TODAY (SIG-02, SIG-03) */}
           <section className="space-y-4 flex-1" id="upcoming-today-section">
             <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-amber-400" />
                 <h2 className="text-xs font-black text-slate-200 uppercase tracking-widest">
-                  Upcoming Today Across All Rooms ({upcomingToday.length})
+                  Coming up today ({upcomingToday.length})
                 </h2>
               </div>
-              <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Click any room for day schedule</span>
             </div>
 
-            {/* Clickable Room Badges / Cards Grid (Cube 1, Cube 2, etc.) */}
+            {/* Room Cards Grid (SIG-02 & SIG-04) */}
             <div className="bg-[#121620]/90 border border-slate-800/80 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                   <Building className="h-4 w-4 text-amber-400" />
-                  Facility Spaces (Click to inspect today's bookings):
+                  Rooms
                 </span>
-                <span className="text-[10px] text-slate-400">Click a room to open its daily schedule modal</span>
+                {!isTvMode && (
+                  <span className="text-[11px] text-slate-400">Tap a room to see its full day.</span>
+                )}
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
@@ -459,9 +470,12 @@ export function PublicRoomDisplayPage({
                     <button
                       key={room.id}
                       type="button"
-                      onClick={() => setSelectedRoomModal(room)}
-                      className={`group relative text-left p-3 rounded-xl border transition-all cursor-pointer bg-[#161B26] hover:bg-[#1C2333] ${colors.border} hover:scale-[1.02] shadow-sm flex flex-col justify-between`}
-                      title={`Click to view today's complete booking schedule for ${room.name}`}
+                      onClick={() => !isTvMode && setSelectedRoomModal(room)}
+                      disabled={isTvMode}
+                      className={`group relative text-left p-3 rounded-xl border transition-all ${
+                        isTvMode ? 'cursor-default' : 'cursor-pointer hover:scale-[1.02] hover:bg-[#1C2333]'
+                      } bg-[#161B26] ${colors.border} shadow-sm flex flex-col justify-between`}
+                      title={isTvMode ? room.name : `Tap to view today's schedule for ${room.name}`}
                     >
                       <div>
                         <div className="flex items-center justify-between gap-1 mb-1">
@@ -476,17 +490,19 @@ export function PublicRoomDisplayPage({
                         </div>
                         
                         <div className="flex items-center justify-between text-[10px] text-slate-400">
-                          <span>Cap. {room.capacity}</span>
+                          <span>{room.capacity} seats</span>
                           <span className={`font-bold ${isCurrentlyOccupied ? 'text-emerald-400' : todayCount > 0 ? 'text-amber-400' : 'text-slate-400'}`}>
-                            {isCurrentlyOccupied ? 'In Use' : todayCount > 0 ? `${todayCount} Today` : 'Free'}
+                            {isCurrentlyOccupied ? 'In Use' : todayCount > 0 ? `${todayCount} Today` : 'Free now'}
                           </span>
                         </div>
                       </div>
 
-                      <div className="mt-2.5 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[9.5px] text-slate-400 group-hover:text-amber-400 font-bold transition-colors">
-                        <span>View Bookings</span>
-                        <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform text-amber-400/80" />
-                      </div>
+                      {!isTvMode && (
+                        <div className="mt-2.5 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[9.5px] text-slate-400 group-hover:text-amber-400 font-bold transition-colors">
+                          <span>View Bookings</span>
+                          <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform text-amber-400/80" />
+                        </div>
+                      )}
                     </button>
                   );
                 })}
@@ -501,8 +517,8 @@ export function PublicRoomDisplayPage({
             ) : upcomingToday.length === 0 ? (
               <div className="bg-[#121620]/60 border border-slate-800/60 rounded-2xl p-8 text-center text-slate-400 space-y-2">
                 <CheckCircle2 className="h-8 w-8 text-emerald-500/60 mx-auto" />
-                <h3 className="text-sm font-bold text-slate-300">No Further Bookings Scheduled Today</h3>
-                <p className="text-xs text-slate-500">All spaces are open for unscheduled reservation requests for the rest of today.</p>
+                <h3 className="text-sm font-bold text-slate-300">No more bookings today</h3>
+                <p className="text-xs text-slate-500">All rooms are free for the rest of the day.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3">
@@ -560,17 +576,17 @@ export function PublicRoomDisplayPage({
 
         </div>
 
-        {/* RIGHT PANEL: UPCOMING LATER THIS WEEK (ROOM AGNOSTIC) */}
+        {/* RIGHT PANEL: UPCOMING LATER THIS WEEK (SIG-06) */}
         <div className="bg-[#121620] border border-slate-800/80 rounded-2xl p-5 flex flex-col gap-4 overflow-hidden shadow-lg">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <div className="flex items-center gap-2">
               <Radio className="h-4 w-4 text-primary" />
               <h2 className="text-xs font-black text-slate-200 uppercase tracking-widest">
-                Facility Schedule (Rest of Week)
+                Later this week
               </h2>
             </div>
             <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 font-bold px-2 py-0.5 rounded-full">
-              {upcomingWeek.length} Sessions
+              {upcomingWeek.length} bookings
             </span>
           </div>
 
@@ -579,8 +595,7 @@ export function PublicRoomDisplayPage({
               <div className="p-6 text-center text-slate-500 text-xs">Loading upcoming weekly schedule...</div>
             ) : upcomingWeek.length === 0 ? (
               <div className="p-6 text-center text-slate-500 text-xs space-y-1">
-                <p className="font-bold text-slate-400">No Upcoming Week Bookings</p>
-                <p>No further sessions registered for the remaining week.</p>
+                <p className="font-bold text-slate-400">No bookings for the rest of the week.</p>
               </div>
             ) : (
               upcomingWeek.map((b) => {
@@ -613,8 +628,9 @@ export function PublicRoomDisplayPage({
             )}
           </div>
 
+          {/* Footer (SIG-09) */}
           <div className="pt-3 border-t border-slate-800 text-center text-[10px] text-slate-500 flex items-center justify-center gap-1.5">
-            <Sparkles className="h-3 w-3 text-amber-400" /> Auto-updating real-time display
+            <Sparkles className="h-3 w-3 text-amber-400" /> Updates automatically
           </div>
         </div>
 
@@ -662,7 +678,7 @@ export function PublicRoomDisplayPage({
                   </div>
                   <div>
                     <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
-                      Today's Complete Booking Schedule
+                      {selectedRoomModal.name} – today
                     </h3>
                     <p className="text-xs text-slate-400 mt-0.5">
                       {formattedDate} • All reserved and scheduled time slots for {selectedRoomModal.name}
@@ -680,7 +696,7 @@ export function PublicRoomDisplayPage({
                 </button>
               </div>
 
-              {/* Occupancy Status Strip */}
+              {/* Occupancy Status Strip (SIG-08) */}
               <div className={`px-6 py-2.5 text-xs flex items-center justify-between border-b ${
                 currentActiveBooking 
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
@@ -689,7 +705,7 @@ export function PublicRoomDisplayPage({
                 <div className="flex items-center gap-2">
                   <span className={`h-2.5 w-2.5 rounded-full ${currentActiveBooking ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
                   <span className="font-bold">
-                    {currentActiveBooking ? 'Space Occupied Right Now' : 'Space Currently Unoccupied'}
+                    {currentActiveBooking ? 'Occupied now' : 'Free now'}
                   </span>
                   {currentActiveBooking && (
                     <span className="font-mono text-emerald-400">
@@ -702,7 +718,7 @@ export function PublicRoomDisplayPage({
                 </span>
               </div>
 
-              {/* Modal Body: Bookings List */}
+              {/* Modal Body: Bookings List (SIG-08) */}
               <div className="p-6 overflow-y-auto space-y-3.5 flex-1">
                 {modalBookings.length === 0 ? (
                   <div className="py-12 px-6 text-center space-y-3.5 bg-[#181E2B]/40 rounded-2xl border border-slate-800/60">
@@ -710,10 +726,7 @@ export function PublicRoomDisplayPage({
                       <CheckCircle2 className="h-7 w-7" />
                     </div>
                     <div>
-                      <h4 className="text-base font-bold text-white">No Bookings Scheduled for {selectedRoomModal.name} Today</h4>
-                      <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed mt-1">
-                        This facility room is completely free all day during its operating hours ({selectedRoomModal.operatingHours}).
-                      </p>
+                      <h4 className="text-base font-bold text-white">Free all day (9 AM – 5 PM)</h4>
                     </div>
                   </div>
                 ) : (

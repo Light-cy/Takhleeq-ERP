@@ -2541,6 +2541,15 @@ export function executeLocalQuery(text: string, params: any[] = []): { rows: any
       booking.conflict_status = 'NO_CONFLICT';
       booking.conflicting_booking_id = null;
       booking.updated_at = new Date().toISOString();
+
+      // Unblock other pending requests that were conflicting with this newly rejected booking
+      db.bookings.forEach((other: any) => {
+        if (other.conflicting_booking_id === id && other.status === 'PENDING REVIEW') {
+          other.conflict_status = 'NO_CONFLICT';
+          other.conflicting_booking_id = null;
+        }
+      });
+
       saveLocalDB(db);
     }
     return { rows: booking ? [booking] : [] };

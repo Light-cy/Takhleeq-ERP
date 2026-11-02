@@ -247,7 +247,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
               {isStaff ? (
                 <p className="text-[10px] text-accent font-extrabold uppercase tracking-widest mt-1">Staff Back-Office Portal</p>
               ) : (
-                <p className="text-[10px] text-white/80 font-bold uppercase tracking-widest mt-1">Problem Solving Institute ERP</p>
+                <p className="text-[10px] text-white/80 font-bold uppercase tracking-widest mt-1">Sign in to Takhleeq</p>
               )}
             </div>
           </div>
@@ -269,7 +269,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
             </div>
           )}
 
-          {/* Login Type Tabs */}
+          {/* Login Type Tabs (LGN-08) */}
           <div className="grid grid-cols-2 p-1 bg-gray-100 rounded-xl gap-1">
             <button
               type="button"
@@ -282,7 +282,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
               }`}
             >
               <GraduationCap className="h-3.5 w-3.5" />
-              <span>University Account</span>
+              <span>UCP account</span>
             </button>
             <button
               type="button"
@@ -294,7 +294,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
                   : 'text-gray-500 hover:text-gray-900'
               }`}
             >
-              Startup Founder
+              Founder
             </button>
           </div>
 
@@ -326,7 +326,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block font-mono">
-                  Generated Portal Password
+                  Password
                 </label>
                 <div className="relative">
                   <Lock className="h-4 w-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -335,7 +335,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
                     required
                     value={founderPassword}
                     onChange={(e) => setFounderPassword(e.target.value)}
-                    placeholder="e.g. Tk#849201"
+                    placeholder="Your password"
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-3.5 py-2.5 text-xs font-bold text-gray-900 focus:outline-none focus:border-primary focus:bg-white transition-all font-mono"
                   />
                 </div>
@@ -358,7 +358,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
               </button>
 
               <p className="text-[10px] text-gray-400 text-center leading-normal pt-1">
-                Your credentials are provided in your seat enrollment email. Contact admissions if you need password recovery.
+                Your password is in your acceptance email. Forgot it? Email takhleeq@ucp.edu.pk
               </p>
             </form>
           ) : (
@@ -390,7 +390,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
 
               <div className="relative flex py-1 items-center">
                 <div className="flex-grow border-t border-gray-200"></div>
-                <span className="flex-shrink mx-2 text-[10px] uppercase font-bold text-gray-400">or sign in with university email</span>
+                <span className="flex-shrink mx-2 text-[10px] uppercase font-bold text-gray-400">or use your UCP email</span>
                 <div className="flex-grow border-t border-gray-200"></div>
               </div>
 
@@ -414,17 +414,19 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
                   </div>
                 </div>
 
+                {/* Password field: required and clean label (LGN-02) */}
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block font-mono">
-                    Password <span className="text-gray-400 font-normal">(Optional for student accounts)</span>
+                    Password
                   </label>
                   <div className="relative">
                     <Lock className="h-4 w-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="password"
+                      required
                       value={universityPassword}
                       onChange={(e) => setUniversityPassword(e.target.value)}
-                      placeholder="e.g. your university password"
+                      placeholder="Your password"
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-3.5 py-2.5 text-xs font-bold text-gray-900 focus:outline-none focus:border-primary focus:bg-white transition-all font-mono"
                       id="university-password-input"
                     />
@@ -440,64 +442,26 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
                   {loading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin text-white" />
-                      <span>Authenticating University Account...</span>
+                      <span>Signing in...</span>
                     </>
                   ) : (
                     <span>
-                      {hasPendingBooking ? 'Sign In & Submit Booking Request' : 'Sign In with University Account'}
+                      {hasPendingBooking ? 'Sign in & submit booking' : 'Sign in'}
                     </span>
                   )}
                 </button>
-
-                {/* Quick-select test accounts */}
-                <div className="pt-2 border-t border-gray-100">
-                  <p className="text-[10px] font-bold text-gray-400 mb-1.5 uppercase tracking-wider">Quick Sign-In Presets:</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUniversityEmail('student@ucp.edu.pk');
-                        handleUniversitySubmit(undefined, 'student@ucp.edu.pk');
-                      }}
-                      className="text-[10px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                    >
-                      student@ucp.edu.pk
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUniversityEmail('society.head@ucp.edu.pk');
-                        handleUniversitySubmit(undefined, 'society.head@ucp.edu.pk');
-                      }}
-                      className="text-[10px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                    >
-                      society.head@ucp.edu.pk
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUniversityEmail('faculty@ucp.edu.pk');
-                        handleUniversitySubmit(undefined, 'faculty@ucp.edu.pk');
-                      }}
-                      className="text-[10px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                    >
-                      faculty@ucp.edu.pk
-                    </button>
-                  </div>
-                </div>
               </form>
             </div>
           )}
 
-          {/* Guidelines notes */}
-          <div className="text-center space-y-2 pt-4 border-t border-gray-50">
-            <p className="text-[10px] text-gray-400 font-medium leading-normal">
-              {isStaff 
-                ? "This login is restricted to verified administrator and manager accounts. Unauthorized login attempts are recorded on the immutable system audit trail."
-                : "Active booking requests require an authorized Microsoft 365 identity. Only @ucp.edu.pk or authorized @takhleeq.pk domains are accepted."
-              }
-            </p>
-          </div>
+          {/* Guidelines notes (LGN-07: restricted to University Tab) */}
+          {loginMode === 'university' && (
+            <div className="text-center space-y-2 pt-3 border-t border-gray-50">
+              <p className="text-[10px] text-gray-400 font-medium leading-normal">
+                Use your @ucp.edu.pk account to book rooms.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

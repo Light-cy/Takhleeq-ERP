@@ -13,11 +13,15 @@ function generateTrackingToken(): string {
 // 1. DYNAMIC APPLICATION FORM SETTINGS
 export const getCohortFormSettings = async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const activeCohortRes = await query("SELECT name FROM cohorts WHERE status = 'ACTIVE' ORDER BY id DESC LIMIT 1");
+    const activeCohortName = activeCohortRes.rows[0]?.name || 'Cohort 1';
+
     const result = await query('SELECT * FROM cohort_form_settings LIMIT 1');
     if (result.rows.length === 0 || !result.rows[0]) {
       // Return default if empty
       const defaultSettings = {
         is_active: true,
+        cohort_name: activeCohortName,
         fields: [
           { id: 'field_startup_name', label: 'Startup Name', type: 'text', required: true, placeholder: 'Enter your startup name' },
           { id: 'field_startup_desc', label: 'Idea Description', type: 'text', required: true, placeholder: 'Explain your business idea in 2-3 sentences' },
@@ -33,6 +37,7 @@ export const getCohortFormSettings = async (req: AuthenticatedRequest, res: Resp
     const fields = typeof row.fields === 'string' ? JSON.parse(row.fields) : row.fields;
     res.json({
       is_active: row.is_active,
+      cohort_name: activeCohortName,
       fields: fields
     });
   } catch (err: any) {
@@ -116,10 +121,12 @@ export const submitApplicant = async (req: AuthenticatedRequest, res: Response) 
 
     const { name, email, phone, cnic, startup_name, startup_description, form_data } = req.body;
 
-    // Baseline validation of core Pakistani identity criteria
-    if (!name || !email || !phone || !cnic || !startup_name || !startup_description) {
-      return res.status(400).json({ error: 'Baseline criteria error: Name, Email, Phone, CNIC, Startup Name, and Startup Description are strictly required.' });
+    // Baseline validation of core identity criteria (CNIC now collected at onboarding per APP-11)
+    if (!name || !email || !phone || !startup_name || !startup_description) {
+      return res.status(400).json({ error: 'Baseline criteria error: Name, Email, Phone, Startup Name, and Startup Description are strictly required.' });
     }
+
+    const safeCnic = cnic ? String(cnic).trim() : '';
 
     const normalizedEmail = String(email).toLowerCase().trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -142,15 +149,16 @@ export const submitApplicant = async (req: AuthenticatedRequest, res: Response) 
       });
     }
 
-    // Check for previous application by CNIC to set parent link (if re-applying with new verified email)
-    const prevAppRes = await query(
-      `SELECT id, tracking_token FROM applicants WHERE REPLACE(cnic, '-', '') = REPLACE($1, '-', '') ORDER BY id DESC LIMIT 1`,
-      [cnic.trim()]
-    );
-    
+    // Check for previous application by CNIC to set parent link (if re-applying with new verified email and CNIC provided)
     let parent_applicant_id: number | null = null;
-    if (prevAppRes.rows && prevAppRes.rows.length > 0) {
-      parent_applicant_id = prevAppRes.rows[0].id;
+    if (safeCnic) {
+      const prevAppRes = await query(
+        `SELECT id, tracking_token FROM applicants WHERE REPLACE(cnic, '-', '') = REPLACE($1, '-', '') ORDER BY id DESC LIMIT 1`,
+        [safeCnic]
+      );
+      if (prevAppRes.rows && prevAppRes.rows.length > 0) {
+        parent_applicant_id = prevAppRes.rows[0].id;
+      }
     }
 
     const token = generateTrackingToken();
@@ -160,7 +168,7 @@ export const submitApplicant = async (req: AuthenticatedRequest, res: Response) 
       `INSERT INTO applicants (tracking_token, name, email, phone, cnic, startup_name, startup_description, status, program_status, panel_scores, parent_applicant_id, form_data, orientation_conducted)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'SUBMITTED', 'NOT_ENROLLED', NULL, $8, $9, FALSE)
        RETURNING *`,
-      [token, name.trim(), normalizedEmail, phone.trim(), cnic.trim(), startup_name.trim(), startup_description.trim(), parent_applicant_id, cleanFormData]
+      [token, name.trim(), normalizedEmail, phone.trim(), safeCnic, startup_name.trim(), startup_description.trim(), parent_applicant_id, cleanFormData]
     );
 
     const newApplicant = insertRes.rows[0];

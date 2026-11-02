@@ -17,7 +17,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
   onLogout,
   children
 }) => {
-  const isCohortPath = currentPath.includes('cohort') || currentPath.includes('founder-dashboard');
+  const isCohortPath = currentPath.includes('cohort') || currentPath.includes('founder-dashboard') || currentPath.includes('apply');
   const mainRef = React.useRef<HTMLElement>(null);
 
   React.useEffect(() => {
@@ -37,15 +37,15 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => onNavigate('/')}>
           <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center">
             <span className="text-white text-base font-black tracking-widest font-mono">
-              {isCohortPath ? 'C' : 'T'}
+              {isCohortPath ? 'T' : 'T'}
             </span>
           </div>
           <div>
             <h1 className="text-sm font-black text-primary uppercase tracking-wider">
-              {isCohortPath ? 'Takhleeq Cohort Portal' : 'Takhleeq public scheduler'}
+              {isCohortPath ? 'Takhleeq Portal' : 'Takhleeq Room Booking'}
             </h1>
             <p className="text-[10px] text-gray-400 font-black tracking-widest uppercase">
-              {isCohortPath ? 'Incubation & Acceleration' : 'University of Central Punjab'}
+              {isCohortPath ? 'Incubation program' : 'University of Central Punjab'}
             </p>
           </div>
         </div>
@@ -96,7 +96,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
                     : 'text-gray-600 hover:text-gray-950'
                 }`}
               >
-                Book Space
+                Book a room
               </button>
               <button
                 onClick={() => onNavigate('/track')}
@@ -106,7 +106,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
                     : 'text-gray-600 hover:text-gray-950'
                 }`}
               >
-                Track booking
+                My bookings
               </button>
               <button
                 onClick={() => onNavigate('/room-display')}
@@ -116,7 +116,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
                     : 'text-gray-600 hover:text-gray-950'
                 }`}
               >
-                Room TV Signage
+                Room schedule
               </button>
             </>
           )}

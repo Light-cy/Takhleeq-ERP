@@ -21,6 +21,13 @@ import { Room, BookingType, User as ERPUser } from '../../../types';
 import { bookingsApi } from '../services/bookings.api';
 import { roomsApi } from '../../admin/services/rooms.api';
 
+export const ALL_BOOKING_GROUPS = [
+  'Faculty member',
+  'Cohort startup',
+  'Entrepreneur in residence',
+  'Student society'
+];
+
 interface BookingFormPageProps {
   rooms: Room[];
   selectedUserEmail: string;
@@ -37,49 +44,17 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
   const [phone, setPhone] = useState('');
   const [organization, setOrganization] = useState('');
   const [room, setRoom] = useState('');
+  const [purpose, setPurpose] = useState('');
   const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:00');
   const [eventTitle, setEventTitle] = useState('');
   const [eventDescription, setEventDescription] = useState('');
-  const [bookingType, setBookingType] = useState('Student societies');
+  const [bookingType, setBookingType] = useState('Faculty member');
   const [expectedAttendance, setExpectedAttendance] = useState('');
-  const [bookingTypes, setBookingTypes] = useState<BookingType[]>([]);
 
   // UI state
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Fetch dynamic booking types on mount
-  useEffect(() => {
-    fetch('/api/booking-types')
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch booking types');
-        return res.json();
-      })
-      .then((data: BookingType[]) => {
-        const activeTypes = data.filter(bt => bt.isActive !== false);
-        setBookingTypes(activeTypes);
-        if (activeTypes.length > 0) {
-          // Default to the first active booking type
-          setBookingType(activeTypes[0].name);
-        }
-      })
-      .catch(err => {
-        console.error('Error loading booking types:', err);
-        // Fallback to initial seed types if backend fails
-        const fallback: BookingType[] = [
-          { id: 1, name: 'Student societies', isActive: true },
-          { id: 2, name: 'Startup teams', isActive: true },
-          { id: 3, name: 'Faculty members', isActive: true },
-          { id: 4, name: 'Department representatives', isActive: true },
-          { id: 5, name: 'Cohort members', isActive: true },
-          { id: 6, name: 'Entrepreneurs in residence', isActive: true },
-          { id: 7, name: 'Professionals in residence', isActive: true }
-        ];
-        setBookingTypes(fallback);
-        setBookingType('Student societies');
-      });
-  }, []);
   const [successData, setSuccessData] = useState<{ id: string; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -117,6 +92,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
       if (saved.phone) setPhone(saved.phone);
       if (saved.organization) setOrganization(saved.organization);
       if (saved.room) setRoom(saved.room);
+      if (saved.purpose) setPurpose(saved.purpose);
       if (saved.date) setDate(saved.date);
       if (saved.startTime) setStartTime(saved.startTime);
       if (saved.endTime) setEndTime(saved.endTime);
@@ -153,12 +129,13 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
           phone: saved.phone || '',
           organization: saved.organization || '',
           room: saved.room,
+          purpose: saved.purpose || '',
           date: saved.date,
           startTime: saved.startTime,
           endTime: saved.endTime,
           eventTitle: saved.eventTitle,
           eventDescription: saved.eventDescription,
-          bookingType: saved.bookingType || 'Student societies',
+          bookingType: saved.bookingType || 'Faculty member',
           expectedAttendance: saved.expectedAttendance || ''
         };
 
@@ -226,46 +203,43 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
   // Find room parameters
   const selectedRoomObj = activeRooms.find(r => r.name === room);
 
-  // Dynamically compute permitted booking types based on selected room
-  const availableBookingTypes = React.useMemo(() => {
-    if (bookingTypes.length === 0) {
-      // If bookingTypes haven't loaded yet, return empty or room allowed list as fallback
-      if (selectedRoomObj?.allowedBookingTypes && selectedRoomObj.allowedBookingTypes.length > 0) {
-        return selectedRoomObj.allowedBookingTypes.map((a, idx) => ({
-          id: 9900 + idx,
-          name: a,
-          isActive: true
-        }));
-      }
-      return [];
-    }
-
-    // When room has no specific restriction or empty list, all active bookingTypes are allowed
+  // Dynamically compute permitted booking groups based on selected room
+  const availableBookingGroups = React.useMemo(() => {
     if (!selectedRoomObj || !selectedRoomObj.allowedBookingTypes || selectedRoomObj.allowedBookingTypes.length === 0) {
-      return bookingTypes;
+      return ALL_BOOKING_GROUPS;
     }
 
-    const allowedList = selectedRoomObj.allowedBookingTypes;
+    const roomAllowed = selectedRoomObj.allowedBookingTypes.map(t => t.trim().toLowerCase());
+    
+    return ALL_BOOKING_GROUPS.filter(group => {
+      const g = group.toLowerCase();
+      if (g === 'faculty member') {
+        return roomAllowed.some(a => a.includes('faculty'));
+      }
+      if (g === 'cohort startup') {
+        return roomAllowed.some(a => a.includes('cohort') || a.includes('startup'));
+      }
+      if (g === 'entrepreneur in residence') {
+        return roomAllowed.some(a => a.includes('entrepreneur'));
+      }
+      if (g === 'student society') {
+        return roomAllowed.some(a => a.includes('student') || a.includes('societ'));
+      }
+      return false;
+    });
+  }, [selectedRoomObj]);
 
-    // Filter active bookingTypes that match the room's allowed list
-    const matched = bookingTypes.filter(bt =>
-      allowedList.some(a => a.trim().toLowerCase() === bt.name.trim().toLowerCase())
-    );
-
-    return matched.length > 0 ? matched : bookingTypes;
-  }, [selectedRoomObj, bookingTypes]);
-
-  // When room selection or available booking types change, ensure selected bookingType is valid for the room
+  // When room selection or available booking groups change, ensure selected bookingType is valid for the room
   useEffect(() => {
-    if (availableBookingTypes.length > 0) {
-      const isValid = availableBookingTypes.some(
-        bt => bt.name.trim().toLowerCase() === bookingType.trim().toLowerCase()
+    if (availableBookingGroups.length > 0) {
+      const isValid = availableBookingGroups.some(
+        g => g.trim().toLowerCase() === bookingType.trim().toLowerCase()
       );
       if (!isValid) {
-        setBookingType(availableBookingTypes[0].name);
+        setBookingType(availableBookingGroups[0]);
       }
     }
-  }, [availableBookingTypes, bookingType]);
+  }, [availableBookingGroups, bookingType]);
 
   // Real-time Validations
   const getNameValidationError = (val: string) => {
@@ -499,6 +473,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
         phone,
         organization,
         room,
+        purpose,
         date,
         startTime,
         endTime,
@@ -524,6 +499,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
         phone,
         organization,
         room,
+        purpose,
         date,
         startTime,
         endTime,
@@ -543,6 +519,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
       setPhone('');
       setOrganization('');
       setRoom('');
+      setPurpose('');
       setDate('');
       setStartTime('09:00');
       setEndTime('10:00');
@@ -598,6 +575,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                   phone,
                   organization,
                   room,
+                  purpose,
                   date,
                   startTime,
                   endTime,
@@ -681,10 +659,9 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
             <div className="bg-primary px-6 py-6 text-white text-left relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-b from-black/10 to-transparent" />
               <div className="relative z-10 space-y-1">
-                <span className="text-accent text-[9px] font-black uppercase tracking-widest block">Operational Space Request</span>
-                <h2 className="text-base font-black uppercase tracking-wider">Public Space Booking Form</h2>
+                <h2 className="text-base font-black uppercase tracking-wider">Book a room</h2>
                 <p className="text-[11px] text-white/80 max-w-3xl leading-relaxed">
-                  Incubation startups, departmental managers, and UCP-affiliated student societies can reserve co-working desks, panels, and auditoriums.
+                  UCP faculty, cohort startups and student societies can book the Board Room, Cube 1, Cube 2 or the Podcast Room. Staff will email you once your request is reviewed.
                 </p>
               </div>
             </div>
@@ -706,7 +683,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                 <div className="space-y-4">
                   <div className="bg-primary/5 text-primary text-xs font-black uppercase tracking-wider px-4 py-2 rounded-lg flex items-center gap-2">
                     <User className="h-4 w-4 text-primary" />
-                    <span>1. Requester Information</span>
+                    <span>1. Your details</span>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -752,7 +729,6 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                           className="w-full pl-9.5 pr-3 py-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium"
                         />
                       </div>
-                      <p className="text-[10px] text-gray-400 mt-1">Checked automatically against banned registry on submit.</p>
                     </div>
 
                     <div>
@@ -785,12 +761,13 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Organization Name <span className="text-gray-400">(Optional)</span></label>
+                      <label htmlFor="organization-field" className="block text-xs font-bold text-gray-700 mb-1">Society, department or startup (optional)</label>
                       <div className="relative">
                         <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center">
                           <Building className={`h-4 w-4 ${organizationError ? 'text-rose-500' : 'text-gray-400'}`} />
                         </span>
                         <input
+                          id="organization-field"
                           type="text"
                           value={organization}
                           onChange={e => setOrganization(e.target.value)}
@@ -816,63 +793,72 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                 <div className="space-y-4">
                   <div className="bg-primary/5 text-primary text-xs font-black uppercase tracking-wider px-4 py-2 rounded-lg flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-primary" />
-                    <span>2. Space & Event Details</span>
+                    <span>2. Room</span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Select Room <span className="text-red-500">*</span></label>
+                      <label htmlFor="room-select" className="block text-xs font-bold text-gray-700 mb-1">Select Room <span className="text-red-500">*</span></label>
                       <select
+                        id="room-select"
                         required
                         value={room}
                         onChange={e => setRoom(e.target.value)}
                         className="w-full p-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium cursor-pointer"
                       >
-                        <option value="">-- Choose Space First --</option>
+                        <option value="">Select a room</option>
                         {activeRooms.filter(r => r.isActive).map(r => (
-                          <option key={r.id} value={r.name}>{r.name} (Cap. {r.capacity})</option>
+                          <option key={r.id} value={r.name}>
+                            {r.name === 'Board Room' ? 'Board Room – up to 15 people' : `${r.name} – up to ${r.capacity} people`}
+                          </option>
                         ))}
                       </select>
-                      {selectedRoomObj ? (
-                        <p className="text-[10px] text-emerald-700 font-medium mt-1">
-                          Space selected: {selectedRoomObj.name}
-                        </p>
-                      ) : (
+                      {!selectedRoomObj && (
                         <p className="text-[10px] text-gray-400 mt-1">
-                          Select a room to view permitted booking categories.
+                          Pick a room to see who can book it.
                         </p>
                       )}
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Booking Type <span className="text-red-500">*</span></label>
+                      <label htmlFor="booking-type-select" className="block text-xs font-bold text-gray-700 mb-1">I'm booking as <span className="text-red-500">*</span></label>
                       <select
+                        id="booking-type-select"
                         value={bookingType}
                         onChange={e => setBookingType(e.target.value)}
                         className="w-full p-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium cursor-pointer"
                       >
-                        {availableBookingTypes.map(bt => (
-                          <option key={bt.id} value={bt.name}>{bt.name}</option>
+                        {availableBookingGroups.map(group => (
+                          <option key={group} value={group}>{group}</option>
                         ))}
                       </select>
-                      {selectedRoomObj ? (
+                      {selectedRoomObj && availableBookingGroups.length === 3 && (
                         <p className="text-[10px] text-emerald-700 font-medium mt-1">
-                          Permitted categories for {selectedRoomObj.name} ({availableBookingTypes.length} available).
-                        </p>
-                      ) : (
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          Showing default categories.
+                          3 groups can book the {selectedRoomObj.name}.
                         </p>
                       )}
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Expected Attendance <span className="text-red-500">*</span></label>
+                      <label htmlFor="booking-purpose-field" className="block text-xs font-bold text-gray-700 mb-1">Purpose</label>
+                      <input
+                        id="booking-purpose-field"
+                        type="text"
+                        value={purpose}
+                        onChange={e => setPurpose(e.target.value)}
+                        placeholder="e.g. Meeting or Event"
+                        className="w-full p-2.5 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-primary focus:border-primary bg-white text-gray-800 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="expected-attendance-field" className="block text-xs font-bold text-gray-700 mb-1">Expected Attendance <span className="text-red-500">*</span></label>
                       <div className="relative">
                         <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center">
                           <Users className={`h-4 w-4 ${attendanceError ? 'text-rose-500' : 'text-gray-400'}`} />
                         </span>
                         <input
+                          id="expected-attendance-field"
                           type="number"
                           required
                           min="0"
@@ -892,9 +878,9 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                           <span>{attendanceError}</span>
                         </p>
                       ) : selectedRoomObj ? (
-                        <p className="text-[10px] text-gray-400 mt-1">Maximum allowed for {selectedRoomObj.name} is {selectedRoomObj.capacity} persons.</p>
+                        <p className="text-[10px] text-gray-400 mt-1">Up to {selectedRoomObj.capacity} people in the {selectedRoomObj.name}.</p>
                       ) : (
-                        <p className="text-[10px] text-gray-400 mt-1">Please select a room to check maximum allowed capacity.</p>
+                        <p className="text-[10px] text-gray-400 mt-1">Pick a room first.</p>
                       )}
                     </div>
                   </div>
@@ -904,7 +890,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                     <div className="p-4 bg-[#F8F5F0] rounded-xl text-xs border border-amber-200/40 text-gray-700 space-y-2 animate-fade-in">
                       <div className="flex items-center gap-1.5 text-primary font-bold">
                         <Info className="h-4 w-4 text-accent" />
-                        <span>Room Guidelines: {selectedRoomObj.name}</span>
+                        <span>About the {selectedRoomObj.name}</span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] text-gray-600 font-medium">
                         <div><strong>Capacity limit:</strong> {selectedRoomObj.capacity} persons</div>
@@ -912,7 +898,11 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                         <div><strong>Min duration:</strong> {selectedRoomObj.minBookingDuration} mins</div>
                         <div><strong>Max duration:</strong> {selectedRoomObj.maxBookingDuration} mins</div>
                       </div>
-                      <p className="text-[11px] text-gray-500 border-t border-gray-200/50 pt-1.5 mt-1.5"><strong>Purpose Restriction:</strong> {selectedRoomObj.purpose}</p>
+                      <p className="text-[11px] text-gray-500 border-t border-gray-200/50 pt-1.5 mt-1.5">
+                        {selectedRoomObj.name === 'Board Room'
+                          ? 'Best for: formal meetings and presentations'
+                          : `Best for: ${selectedRoomObj.purpose ? selectedRoomObj.purpose.toLowerCase() : 'general use'}`}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -921,7 +911,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                 <div className="space-y-4">
                   <div className="bg-primary/5 text-primary text-xs font-black uppercase tracking-wider px-4 py-2 rounded-lg flex items-center gap-2">
                     <Clock className="h-4 w-4 text-primary" />
-                    <span>3. Date & Time Scheduling</span>
+                    <span>3. Date and time</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -993,13 +983,14 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                 <div className="space-y-4">
                   <div className="bg-primary/5 text-primary text-xs font-black uppercase tracking-wider px-4 py-2 rounded-lg flex items-center gap-2">
                     <FileText className="h-4 w-4 text-primary" />
-                    <span>4. Purpose & Descriptions</span>
+                    <span>4. What's it for?</span>
                   </div>
 
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Event/Meeting Title <span className="text-red-500">*</span></label>
+                      <label htmlFor="event-title-field" className="block text-xs font-bold text-gray-700 mb-1">Title <span className="text-red-500">*</span></label>
                       <input
+                        id="event-title-field"
                         type="text"
                         required
                         value={eventTitle}
@@ -1010,8 +1001,9 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Detailed Event/Meeting Description <span className="text-red-500">*</span></label>
+                      <label htmlFor="event-desc-field" className="block text-xs font-bold text-gray-700 mb-1">Short description <span className="text-red-500">*</span></label>
                       <textarea
+                        id="event-desc-field"
                         required
                         rows={3}
                         value={eventDescription}
@@ -1064,10 +1056,10 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                     {submitting ? (
                       <>
                         <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
-                        <span>Submitting Request...</span>
+                        <span>Sending request...</span>
                       </>
                     ) : (
-                      <span>{!activeUser ? 'Sign In & Submit Booking Request' : 'Submit Booking Request'}</span>
+                      <span>Send booking request</span>
                     )}
                   </button>
                 </div>

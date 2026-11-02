@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, 
   Calendar, 
@@ -11,7 +11,12 @@ import {
   MapPin, 
   ArrowLeft,
   Users,
-  Info
+  Info,
+  Copy,
+  Check,
+  FileText,
+  Eye,
+  History
 } from 'lucide-react';
 import { Booking } from '../../../types';
 import { bookingsApi } from '../services/bookings.api';
@@ -28,6 +33,8 @@ interface TrackPageProps {
 export function TrackPage({ bookings, currentUserEmail, jwtToken, currentPath, onRefresh, onNavigate }: TrackPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState<Booking[] | null>(null);
+  const [personalTab, setPersonalTab] = useState<'all' | 'upcoming' | 'past' | 'cancelled'>('all');
+  const [viewingReceipt, setViewingReceipt] = useState<Booking | null>(null);
   
   // Cancellation Modal state
   const [cancellingBooking, setCancellingBooking] = useState<Booking | null>(null);
@@ -52,7 +59,49 @@ export function TrackPage({ bookings, currentUserEmail, jwtToken, currentPath, o
   };
 
   // Get auto personal history for simulated logged in email
-  const personalHistory = bookings.filter(b => b.email.toLowerCase() === currentUserEmail.toLowerCase());
+  const personalHistory = bookings.filter(b => b.email && b.email.toLowerCase() === currentUserEmail.toLowerCase());
+
+  const parseToMidnight = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    }
+    return new Date(dateStr);
+  };
+
+  const isPastBooking = (b: Booking) => {
+    if (!b.date) return false;
+    const now = new Date();
+    const bDate = parseToMidnight(b.date);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (bDate < today) return true;
+    if (bDate.getTime() === today.getTime() && b.endTime) {
+      const [h, m] = b.endTime.split(':').map(Number);
+      const bookingEnd = new Date(today);
+      bookingEnd.setHours(h || 0, m || 0, 0, 0);
+      return now > bookingEnd;
+    }
+    return false;
+  };
+
+  const personalTotal = personalHistory.length;
+  const personalApproved = personalHistory.filter(b => b.status === 'APPROVED').length;
+  const personalPending = personalHistory.filter(b => b.status.includes('PENDING')).length;
+  const personalCancelled = personalHistory.filter(b => b.status === 'CANCELLED' || b.status.includes('REJECTED')).length;
+
+  const filteredPersonalHistory = useMemo(() => {
+    return personalHistory.filter(b => {
+      if (personalTab === 'upcoming') {
+        if (isPastBooking(b) || b.status.includes('REJECTED') || b.status === 'CANCELLED') return false;
+      } else if (personalTab === 'past') {
+        if (!isPastBooking(b)) return false;
+      } else if (personalTab === 'cancelled') {
+        if (b.status !== 'CANCELLED' && !b.status.includes('REJECTED')) return false;
+      }
+      return true;
+    });
+  }, [personalHistory, personalTab]);
 
   // Parse initial token query parameter from URL (e.g., /track?token=TBK-2026-001)
   useEffect(() => {
@@ -278,7 +327,14 @@ export function TrackPage({ bookings, currentUserEmail, jwtToken, currentPath, o
               ) : (
                 <div className="space-y-6">
                   {searchResult.map(booking => (
-                    <BookingCard key={booking.id} booking={booking} onCancelClick={setCancellingBooking} getStatusBadge={getStatusBadge} renderStatusTimeline={renderStatusTimeline} />
+                    <BookingCard 
+                      key={booking.id} 
+                      booking={booking} 
+                      onCancelClick={setCancellingBooking} 
+                      onViewReceipt={setViewingReceipt}
+                      getStatusBadge={getStatusBadge} 
+                      renderStatusTimeline={renderStatusTimeline} 
+                    />
                   ))}
                 </div>
               )}
@@ -287,23 +343,108 @@ export function TrackPage({ bookings, currentUserEmail, jwtToken, currentPath, o
         </div>
 
         {/* Personal history lists */}
-        <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100/60 space-y-4" id="personal-history-card">
-          <div className="space-y-1">
-            <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">Your Personal History</h2>
-            <p className="text-[11px] text-gray-500">
-              Showing bookings requested by your active simulated identity: <strong className="text-primary font-bold">{currentUserEmail}</strong>
-            </p>
+        <div className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-gray-100/60 space-y-6" id="personal-history-card">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="space-y-1">
+              <h2 className="text-sm font-black text-gray-900 uppercase tracking-wider">My Reservations & History</h2>
+              <p className="text-[11px] text-gray-500">
+                Bookings requested by active profile: <strong className="text-primary font-bold">{currentUserEmail}</strong>
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onNavigate('/booking')}
+              className="bg-primary hover:bg-primary/95 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider transition-all shadow-3xs cursor-pointer"
+            >
+              + Reserve Space
+            </button>
           </div>
 
-          {personalHistory.length === 0 ? (
-            <div className="border border-dashed border-gray-200 rounded-xl py-10 px-4 text-center text-xs text-gray-400 leading-relaxed">
-              No booking history found for {currentUserEmail}.<br/>
-              Submit a new request in the Booking Portal or switch your simulated identity at the top to load a different history.
+          {/* Personal Summary Stats Strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3 bg-gray-50 border border-gray-200/70 rounded-xl">
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Total Bookings</span>
+              <p className="text-lg font-black text-gray-900 font-mono tabular-nums mt-0.5">{personalTotal}</p>
+            </div>
+            <div className="p-3 bg-emerald-50/50 border border-emerald-200/60 rounded-xl">
+              <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">Approved</span>
+              <p className="text-lg font-black text-emerald-700 font-mono tabular-nums mt-0.5">{personalApproved}</p>
+            </div>
+            <div className="p-3 bg-amber-50/50 border border-amber-200/60 rounded-xl">
+              <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">In Review</span>
+              <p className="text-lg font-black text-amber-700 font-mono tabular-nums mt-0.5">{personalPending}</p>
+            </div>
+            <div className="p-3 bg-gray-100/70 border border-gray-200 rounded-xl">
+              <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wider block">Concluded / Cancelled</span>
+              <p className="text-lg font-black text-gray-700 font-mono tabular-nums mt-0.5">{personalCancelled}</p>
+            </div>
+          </div>
+
+          {/* Segmented Filter Control */}
+          <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setPersonalTab('all')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                personalTab === 'all' ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              All Records ({personalTotal})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPersonalTab('upcoming')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                personalTab === 'upcoming' ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Upcoming Schedule
+            </button>
+            <button
+              type="button"
+              onClick={() => setPersonalTab('past')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                personalTab === 'past' ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Past Completed
+            </button>
+            <button
+              type="button"
+              onClick={() => setPersonalTab('cancelled')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                personalTab === 'cancelled' ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              Cancelled / Rejected ({personalCancelled})
+            </button>
+          </div>
+
+          {filteredPersonalHistory.length === 0 ? (
+            <div className="border border-dashed border-gray-200 rounded-xl py-12 px-4 text-center text-xs text-gray-400 space-y-3">
+              <History className="h-8 w-8 text-gray-300 mx-auto" />
+              <p className="font-bold text-gray-700">No reservations found in this section</p>
+              <p>Submit a new space reservation request in the booking portal.</p>
+              <button
+                type="button"
+                onClick={() => onNavigate('/booking')}
+                className="bg-primary hover:bg-primary/95 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider inline-block cursor-pointer"
+              >
+                Book Space Now
+              </button>
             </div>
           ) : (
             <div className="space-y-4">
-              {personalHistory.map(booking => (
-                <BookingCard key={booking.id} booking={booking} onCancelClick={setCancellingBooking} getStatusBadge={getStatusBadge} renderStatusTimeline={renderStatusTimeline} />
+              {filteredPersonalHistory.map(booking => (
+                <BookingCard 
+                  key={booking.id} 
+                  booking={booking} 
+                  onCancelClick={setCancellingBooking} 
+                  onViewReceipt={setViewingReceipt}
+                  getStatusBadge={getStatusBadge} 
+                  renderStatusTimeline={renderStatusTimeline} 
+                />
               ))}
             </div>
           )}
@@ -368,6 +509,71 @@ export function TrackPage({ bookings, currentUserEmail, jwtToken, currentPath, o
         </div>
       )}
 
+      {/* PUBLIC USER BOOKING RECEIPT MODAL */}
+      {viewingReceipt && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="receipt-modal">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-gray-100 overflow-hidden flex flex-col text-left">
+            <div className="bg-primary text-white p-5 font-bold text-sm flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4.5 w-4.5 text-accent" />
+                <span>Reservation Details & Receipt</span>
+              </div>
+              <button onClick={() => setViewingReceipt(null)} className="text-white hover:text-accent font-bold cursor-pointer">✕</button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs text-gray-700 overflow-y-auto max-h-[80vh]">
+              <div className="p-3.5 bg-gray-50 border border-gray-200/70 rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-gray-400 font-bold uppercase block">Status</span>
+                  <div className="mt-0.5">{getStatusBadge(viewingReceipt.status)}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] text-gray-400 font-bold uppercase block">Reference Code</span>
+                  <p className="font-mono font-bold text-primary">{viewingReceipt.id}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 border-b border-gray-100 pb-3">
+                <p><strong>Event Title:</strong> {viewingReceipt.eventTitle || 'Untitled Event'}</p>
+                <p><strong>Space / Facility:</strong> {viewingReceipt.room}</p>
+                <p><strong>Scheduled Slot:</strong> {viewingReceipt.date} @ {viewingReceipt.startTime} - {viewingReceipt.endTime}</p>
+                <p><strong>Classification:</strong> {viewingReceipt.bookingType}</p>
+                <p><strong>Expected Attendees:</strong> {viewingReceipt.expectedAttendance || 0} participants</p>
+                {viewingReceipt.eventDescription && (
+                  <p className="text-gray-500 pt-1"><strong>Description:</strong> {viewingReceipt.eventDescription}</p>
+                )}
+              </div>
+
+              {viewingReceipt.rejectionReason && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 space-y-1">
+                  <p className="font-bold uppercase tracking-wider text-[10px]">Rejection Reason:</p>
+                  <p className="italic">"{viewingReceipt.rejectionReason}"</p>
+                </div>
+              )}
+
+              {viewingReceipt.cancellationReason && (
+                <div className="p-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-600 space-y-1">
+                  <p className="font-bold uppercase tracking-wider text-[10px]">Cancellation Reason:</p>
+                  <p className="italic">"{viewingReceipt.cancellationReason}"</p>
+                </div>
+              )}
+
+              {renderStatusTimeline(viewingReceipt.status)}
+            </div>
+
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setViewingReceipt(null)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl text-xs font-bold cursor-pointer"
+              >
+                Close Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -377,11 +583,21 @@ interface BookingCardProps {
   key?: string | number;
   booking: Booking;
   onCancelClick: (booking: Booking) => void;
+  onViewReceipt?: (booking: Booking) => void;
   getStatusBadge: (status: string) => React.ReactNode;
   renderStatusTimeline: (status: string) => React.ReactNode;
 }
 
-function BookingCard({ booking, onCancelClick, getStatusBadge, renderStatusTimeline }: BookingCardProps) {
+function BookingCard({ booking, onCancelClick, onViewReceipt, getStatusBadge, renderStatusTimeline }: BookingCardProps) {
+  const [copied, setCopied] = useState(false);
+
+  const copyId = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(booking.id);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const getLocalDateString = () => {
     const d = new Date();
     const year = d.getFullYear();
@@ -423,6 +639,14 @@ function BookingCard({ booking, onCancelClick, getStatusBadge, renderStatusTimel
       <div className="bg-gray-50 border-b border-gray-100 p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs font-black text-primary bg-[#F8F5F0] px-2.5 py-1 rounded border border-gray-200">{booking.id}</span>
+          <button
+            type="button"
+            onClick={copyId}
+            className="text-gray-400 hover:text-gray-700 transition-colors p-1 rounded"
+            title="Copy Reference Code"
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+          </button>
           <span className="text-xs font-bold text-gray-900 truncate max-w-[200px] sm:max-w-xs">{booking.eventTitle}</span>
         </div>
         <div className="flex items-center gap-2">
@@ -490,8 +714,19 @@ function BookingCard({ booking, onCancelClick, getStatusBadge, renderStatusTimel
         {renderStatusTimeline(booking.status)}
 
         {/* Card action controls */}
-        {isCancellable && (
-          <div className="flex justify-end pt-4 border-t border-gray-100">
+        <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+          {onViewReceipt ? (
+            <button
+              type="button"
+              onClick={() => onViewReceipt(booking)}
+              className="text-primary hover:text-primary/80 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span>View Booking Receipt & Details</span>
+            </button>
+          ) : <div />}
+
+          {isCancellable && (
             <button
               onClick={() => onCancelClick(booking)}
               className="text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 font-bold px-4 py-2 rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-3xs"
@@ -499,8 +734,8 @@ function BookingCard({ booking, onCancelClick, getStatusBadge, renderStatusTimel
               <Trash2 className="h-4 w-4" />
               Cancel Reservation
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
       </div>
     </div>

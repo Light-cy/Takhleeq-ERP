@@ -400,9 +400,17 @@ router.post('/bookings', async (req, res) => {
         }
       }
       if (allowedTypes && allowedTypes.length > 0) {
-        const isAllowed = allowedTypes.some(
-          (t: string) => t.trim().toLowerCase() === String(bookingType).trim().toLowerCase()
-        );
+        const isAllowed = allowedTypes.some((t: string) => {
+          const cleanT = t.trim().toLowerCase();
+          const cleanB = String(bookingType).trim().toLowerCase();
+          if (cleanT === cleanB) return true;
+          // Normalizations for singular / plural
+          const normT = cleanT.replace(/ies\b/g, 'y').replace(/s\b/g, '');
+          const normB = cleanB.replace(/ies\b/g, 'y').replace(/s\b/g, '');
+          if (normT === normB) return true;
+          if (cleanB.includes('cohort') && (cleanT.includes('cohort') || cleanT.includes('startup'))) return true;
+          return false;
+        });
         if (!isAllowed) {
           validationErrorMsg = `Validation Error: The selected room '${roomRecord.name}' is restricted to specific booking types (${allowedTypes.join(', ')}). '${bookingType}' is not permitted for this space.`;
         }
@@ -696,6 +704,27 @@ router.post('/bookings/:id/reject', requireAuth, requirePermission('APPROVE_REJE
     }
     const booking = bookingRes.rows[0];
 
+    // Validate that the booking date has not already passed
+    const bDateStr = booking.date ? (typeof booking.date === 'string' ? booking.date : booking.date.toISOString().split('T')[0]) : null;
+    if (bDateStr) {
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      if (bDateStr < todayStr) {
+        return res.status(400).json({ error: 'Action Blocked: Cannot reject a booking whose scheduled date has already passed.' });
+      }
+      if (bDateStr === todayStr && booking.end_time) {
+        const endTimeStr = booking.end_time.slice(0, 5);
+        const [eH, eM] = endTimeStr.split(':').map(Number);
+        const currentHours = today.getHours();
+        const currentMins = today.getMinutes();
+        if (!isNaN(eH) && !isNaN(eM)) {
+          if (currentHours > eH || (currentHours === eH && currentMins >= eM)) {
+            return res.status(400).json({ error: 'Action Blocked: Cannot reject a booking whose scheduled time slot has already concluded.' });
+          }
+        }
+      }
+    }
+
     const prevBooking = mapBooking(booking);
 
     // Set status to REJECTED_BY_STAFF
@@ -706,6 +735,20 @@ router.post('/bookings/:id/reject', requireAuth, requirePermission('APPROVE_REJE
       [reason.trim(), booking.id]
     );
 
+    // If an approved booking is force rejected, clear any pending requests that were conflicting with it
+    if (booking.status === 'APPROVED') {
+      try {
+        await query(
+          `UPDATE bookings 
+           SET conflict_status = 'NO_CONFLICT', conflicting_booking_id = NULL
+           WHERE conflicting_booking_id = $1 AND status = 'PENDING REVIEW'`,
+          [booking.id]
+        );
+      } catch (clearErr) {
+        console.error('Failed to clear conflicting booking references:', clearErr);
+      }
+    }
+
     const updatedRes = await query(
       `SELECT b.*, r.name as room_name 
        FROM bookings b
@@ -715,7 +758,10 @@ router.post('/bookings/:id/reject', requireAuth, requirePermission('APPROVE_REJE
     );
     const updatedBooking = mapBooking(updatedRes.rows[0]);
 
-    await logAudit(`Rejected Booking: ${bookingId}. Reason: ${reason}`, 'booking', bookingId, staff.email, prevBooking, updatedBooking);
+    const auditAction = prevBooking.status === 'APPROVED' 
+      ? `Force Rejected Approved Booking: ${bookingId}. Reason: ${reason}` 
+      : `Rejected Booking: ${bookingId}. Reason: ${reason}`;
+    await logAudit(auditAction, 'booking', bookingId, staff.email, prevBooking, updatedBooking);
 
     // Trigger rejection email asynchronously
     try {

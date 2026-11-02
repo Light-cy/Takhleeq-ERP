@@ -454,8 +454,108 @@
   ],
   "assignments": [],
   "assignment_submissions": [],
-  "session_feedback": [],
-  "bookings": [],
+  "bookings": [
+    {
+      "id": 1,
+      "booking_id": "BK-2026-003",
+      "requester_name": "Hamza Tariq",
+      "requester_email": "hamza.tariq@ucp.edu.pk",
+      "requester_phone": "03001234567",
+      "organization_name": "Robotics Society",
+      "room_id": 1,
+      "booking_type": "Student societies",
+      "event_title": "AI & Robotics Showcase",
+      "event_description": "Annual syndicate assembly and prototype exhibition",
+      "date": "2026-10-21",
+      "start_time": "10:00:00",
+      "end_time": "12:00:00",
+      "expected_attendance": 12,
+      "status": "APPROVED",
+      "conflict_status": "NO_CONFLICT",
+      "conflicting_booking_id": null,
+      "rejection_reason": null,
+      "cancellation_reason": null,
+      "approved_by": 1,
+      "approved_at": "2026-10-15T10:00:00.000Z",
+      "created_at": "2026-10-14T09:00:00.000Z",
+      "updated_at": "2026-10-15T10:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "booking_id": "BK-2026-004",
+      "requester_name": "Ayesha Khan",
+      "requester_email": "ayesha.khan@ucp.edu.pk",
+      "requester_phone": "03217654321",
+      "organization_name": "EduTech Startup",
+      "room_id": 3,
+      "booking_type": "Startup teams",
+      "event_title": "Investor Pitch Rehearsal",
+      "event_description": "Pitch deck walkthrough and financial projection critique in Cube 1",
+      "date": "2026-10-22",
+      "start_time": "14:00:00",
+      "end_time": "15:30:00",
+      "expected_attendance": 4,
+      "status": "APPROVED",
+      "conflict_status": "NO_CONFLICT",
+      "conflicting_booking_id": null,
+      "rejection_reason": null,
+      "cancellation_reason": null,
+      "approved_by": 1,
+      "approved_at": "2026-10-15T11:00:00.000Z",
+      "created_at": "2026-10-14T10:30:00.000Z",
+      "updated_at": "2026-10-15T11:00:00.000Z"
+    },
+    {
+      "id": 3,
+      "booking_id": "TBK-2026-003",
+      "requester_name": "Dr. Usman Ghani",
+      "requester_email": "director@takhleeq.pk",
+      "requester_phone": "03001234567",
+      "organization_name": "Faculty of Computer Science",
+      "room_id": null,
+      "booking_type": "Faculty member",
+      "event_title": "Curriculum & Research Review",
+      "event_description": "Executive session to review research grant proposals.",
+      "date": "2026-11-02",
+      "start_time": "10:00",
+      "end_time": "11:00",
+      "expected_attendance": 12,
+      "status": "REJECTED_VALIDATION",
+      "conflict_status": "NO_CONFLICT",
+      "conflicting_booking_id": null,
+      "rejection_reason": "Validation Error: The selected room 'Board Room' is restricted to specific booking types (Startup teams, Faculty members, Department representatives, Cohort members, Entrepreneurs in residence, Professionals in residence, Cohort Startup, Department). 'Faculty member' is not permitted for this space.",
+      "cancellation_reason": null,
+      "approved_by": null,
+      "approved_at": null,
+      "created_at": "2026-10-29T12:46:23.349Z",
+      "updated_at": "2026-10-29T12:46:23.349Z"
+    },
+    {
+      "id": 4,
+      "booking_id": "TBK-2026-004",
+      "requester_name": "Qaseeb Ahmed",
+      "requester_email": "qaseebahmed@gmail.com",
+      "requester_phone": "03001234567",
+      "organization_name": "Takhleeq Lab",
+      "room_id": 1,
+      "booking_type": "Faculty member",
+      "event_title": "Advisory Board Meeting",
+      "event_description": "Review of startup progression and cohort KPIs.",
+      "date": "2026-11-02",
+      "start_time": "10:00",
+      "end_time": "11:00",
+      "expected_attendance": 10,
+      "status": "PENDING_REVIEW",
+      "conflict_status": "NO_CONFLICT",
+      "conflicting_booking_id": null,
+      "rejection_reason": null,
+      "cancellation_reason": null,
+      "approved_by": null,
+      "approved_at": null,
+      "created_at": "2026-10-29T12:47:03.272Z",
+      "updated_at": "2026-10-29T12:47:03.272Z"
+    }
+  ],
   "ban_records": [],
   "audit_logs": [
     {
@@ -1811,6 +1911,40 @@
         "status": "Active"
       },
       "timestamp": "2026-09-07T09:04:00.999Z"
+    },
+    {
+      "id": 91,
+      "action": "Rejected booking request during validation stage: Validation Error: The selected room 'Board Room' is restricted to specific booking types (Startup teams, Faculty members, Department representatives, Cohort members, Entrepreneurs in residence, Professionals in residence, Cohort Startup, Department). 'Faculty member' is not permitted for this space.",
+      "entity_type": "booking",
+      "entity_id": "TBK-2026-003",
+      "actor_email": "System (Validator)",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-10-29T12:46:23.352Z"
+    },
+    {
+      "id": 92,
+      "action": "Submitted Booking Request: TBK-2026-004. Status: PENDING_REVIEW. Conflict Status: NO_CONFLICT",
+      "entity_type": "booking",
+      "entity_id": "TBK-2026-004",
+      "actor_email": "Qaseeb Ahmed",
+      "previous_value": null,
+      "new_value": null,
+      "timestamp": "2026-10-29T12:47:03.278Z"
+    },
+    {
+      "id": 93,
+      "action": "New startup application submitted: 'Test Startup' by founder Test Founder. Token: TK-STR-3255",
+      "entity_type": "applicant",
+      "entity_id": "4",
+      "actor_email": "test_verify_applicant@ucp.edu.pk",
+      "previous_value": null,
+      "new_value": {
+        "tracking_token": "TK-STR-3255",
+        "startup_name": "Test Startup",
+        "parent_linked": false
+      },
+      "timestamp": "2026-11-02T13:29:12.408Z"
     }
   ],
   "rooms": [
@@ -1952,14 +2086,14 @@
     "fields": [
       {
         "id": "field_startup_name",
-        "label": "Q1. What is the name of your startup?",
+        "label": "What is the name of your startup? *",
         "type": "text",
         "required": true,
         "placeholder": "Enter startup name"
       },
       {
         "id": "field_q2_venture_type",
-        "label": "Q2. Is this a product-based or service-based venture?",
+        "label": "Is this a product-based or service-based venture? *",
         "type": "select",
         "required": true,
         "options": [
@@ -1970,191 +2104,163 @@
       },
       {
         "id": "field_startup_desc",
-        "label": "Q3. Describe your idea/startup. What does it do, and how does it work?",
+        "label": "Describe your idea/startup. What does it do, and how does it work? *",
         "type": "textarea",
         "required": true,
-        "placeholder": "Be concise but clear about your concept or business model"
+        "placeholder": "In 2–3 sentences: the problem you solve, for whom, and how far you’ve got."
       },
       {
         "id": "field_q4_services",
-        "label": "Q4. If you’re providing services, describe your offerings and any clients you’ve worked with",
+        "label": "If you’re providing services, describe your offerings and any clients you’ve worked with",
         "type": "textarea",
         "required": false,
         "placeholder": "Describe service offerings and client history if applicable"
       },
       {
         "id": "field_q5_business_model",
-        "label": "Q5. What is your business model? (e.g., B2B, B2C, subscription-based, etc.)",
+        "label": "What is your business model? (e.g., B2B, B2C, subscription-based, etc.) *",
         "type": "text",
         "required": true,
         "placeholder": "e.g. B2B SaaS, B2C Subscription, Marketplace commission"
       },
       {
         "id": "field_q6_discovery",
-        "label": "Q6. How did you get to know about Takhleeq Cohort 11 Incubation Program?",
+        "label": "How did you hear about Takhleeq? *",
         "type": "select",
         "required": true,
         "options": [
-          "Email",
-          "Takhleeq Socials",
-          "UCP Socials",
-          "Dean/hod/faculty email or word",
-          "Digital display across ucp (tv screens etc)"
+          "Takhleeq social media",
+          "UCP social media",
+          "Dean, HoD or faculty",
+          "Screens around UCP"
         ]
       },
       {
         "id": "field_q7_stage",
-        "label": "Q7. What stage is your startup currently at?",
+        "label": "What stage is your startup currently at? *",
         "type": "select",
         "required": true,
         "options": [
-          "Idea stage",
-          "Problem Discovery / validation",
-          "Proof of Concept / MVP",
-          "Post Revenue",
-          "Scale"
+          "Idea",
+          "Problem discovery",
+          "Market validation",
+          "Prototype / MVP",
+          "Earning revenue",
+          "Scaling"
         ]
       },
       {
         "id": "field_q8_team_size",
-        "label": "Q8. Number of members in Team",
+        "label": "How many people are in your team? *",
         "type": "select",
         "required": true,
         "options": [
-          "Solo",
+          "Just me",
           "2",
           "3",
-          "4"
+          "4",
+          "5 or more"
         ]
       },
       {
         "id": "field_founder_name",
-        "label": "Q9. Team lead name",
+        "label": "Full Name *",
         "type": "text",
         "required": true,
         "placeholder": "Enter full name of the team lead"
       },
       {
-        "id": "field_q10_father_name",
-        "label": "Q10. Team Lead Father's Name",
-        "type": "text",
-        "required": true,
-        "placeholder": "Enter father's name"
-      },
-      {
-        "id": "field_q11_gender",
-        "label": "Q11. Team Lead's Gender",
-        "type": "select",
-        "required": true,
-        "options": [
-          "Male",
-          "Female"
-        ]
-      },
-      {
         "id": "field_founder_email",
-        "label": "Q12. Team Lead's Email",
+        "label": "Email Address *",
         "type": "email",
         "required": true,
-        "placeholder": "Enter email address"
+        "placeholder": "founder@startup.pk"
       },
       {
         "id": "field_founder_phone",
-        "label": "Q13. Team Lead's Contact Number",
+        "label": "Phone Number *",
         "type": "phone",
         "required": true,
         "placeholder": "e.g. 0300-1234567"
       },
       {
-        "id": "field_q14_roll_number",
-        "label": "Q14. Team Lead's Roll Number",
-        "type": "text",
-        "required": false,
-        "placeholder": "Enter student roll number if applicable"
-      },
-      {
-        "id": "field_founder_cnic",
-        "label": "Q15. Team Lead's CNIC/Passport Number",
-        "type": "cnic",
-        "required": true,
-        "placeholder": "e.g. 35201-1234567-1"
-      },
-      {
-        "id": "field_q16_location",
-        "label": "Q16. Team Lead's Location",
+        "id": "field_city",
+        "label": "City *",
         "type": "text",
         "required": true,
-        "placeholder": "e.g. Lahore, Pakistan"
-      },
-      {
-        "id": "field_q17_postal_address",
-        "label": "Q17. Team Lead's Postal Address",
-        "type": "text",
-        "required": true,
-        "placeholder": "Enter full home/postal address"
+        "placeholder": "e.g. Lahore"
       },
       {
         "id": "field_q18_team_role",
-        "label": "Q18. Team Lead: Role in the Team",
+        "label": "Your role in the team *",
         "type": "text",
         "required": true,
         "placeholder": "e.g. Founder & CEO, Chief Technology Officer"
       },
       {
         "id": "field_q19_skillset",
-        "label": "Q19. Team Lead: How does your skillset contribute to this venture?",
+        "label": "How does your skillset contribute to this venture? *",
         "type": "textarea",
         "required": true,
         "placeholder": "Explain technical, business or domain expertise"
       },
       {
         "id": "field_q20_linkedin",
-        "label": "Q20. Team Lead: LinkedIn Profile (optional)",
+        "label": "LinkedIn profile (optional)",
         "type": "text",
         "required": false,
         "placeholder": "https://linkedin.com/in/username"
       },
       {
         "id": "field_q21_past_projects",
-        "label": "Q21. Team Lead: Have you worked on a project before? If yes, describe briefly.",
+        "label": "Have you worked on a project before? If yes, describe briefly",
         "type": "textarea",
         "required": false,
         "placeholder": "Describe previous projects, hackathons or research"
       },
       {
         "id": "field_q22_status",
-        "label": "Q22. Team Lead: What's your current status?",
+        "label": "What’s your connection to UCP? *",
         "type": "select",
         "required": true,
         "options": [
-          "Current Student/Faculty/Staff",
-          "Alumni Student"
+          "Current student",
+          "Faculty",
+          "Staff",
+          "Alumni"
         ]
       },
       {
+        "id": "field_q14_roll_number",
+        "label": "UCP roll number (students only)",
+        "type": "text",
+        "required": false,
+        "placeholder": "UCP roll number (students only)"
+      },
+      {
         "id": "field_q23_batch_year",
-        "label": "Q23. What is your batch's starting year",
+        "label": "Which year did your batch start? *",
         "type": "text",
         "required": true,
         "placeholder": "e.g. 2022"
       },
       {
         "id": "field_q24_department",
-        "label": "Q24. Department",
+        "label": "Department *",
         "type": "text",
         "required": true,
         "placeholder": "e.g. Computer Science, Business School"
       },
       {
         "id": "field_q25_degree",
-        "label": "Q25. Degree/Position",
+        "label": "Degree/Position *",
         "type": "text",
         "required": true,
         "placeholder": "e.g. BS Computer Science, Assistant Professor"
       },
       {
         "id": "field_q26_working",
-        "label": "Q26. Are you currently working?",
+        "label": "Are you currently working? *",
         "type": "select",
         "required": true,
         "options": [
@@ -2164,10 +2270,10 @@
       },
       {
         "id": "field_q27_work_details",
-        "label": "Q27. If Yes, Where are you working? Provide Company name and designation.",
+        "label": "Where do you work? (company and job title)",
         "type": "text",
         "required": false,
-        "placeholder": "Company name & designation if working"
+        "placeholder": "Company name and job title"
       }
     ]
   },

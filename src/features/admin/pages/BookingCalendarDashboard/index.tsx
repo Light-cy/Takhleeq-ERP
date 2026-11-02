@@ -1,8 +1,11 @@
-import React from 'react';
-import { RefreshCw } from 'lucide-react';
+import React, { useState } from 'react';
+import { RefreshCw, AlertOctagon, Eye, History } from 'lucide-react';
 import { Booking, Room, Ban } from '../../../../types';
 import { BookingFilterToolbar } from '../../components/BookingFilterToolbar';
 import { BookingOverrideModal } from '../../components/BookingOverrideModal';
+import { BookingRejectModal } from '../../components/BookingRejectModal';
+import { BookingDetailModal } from '../../components/BookingDetailModal';
+import { UserProfileHistoryModal } from '../../components/UserProfileHistoryModal';
 import { useBookingDashboard } from './hooks/useBookingDashboard';
 
 interface BookingCalendarDashboardProps {
@@ -21,11 +24,17 @@ export function BookingCalendarDashboard({
   rooms, 
   activeBans,
   onRefresh, 
+  onApprove,
+  onReject,
   onOverride,
   hasPermission
 }: BookingCalendarDashboardProps) {
-  // Check if current user is allowed to perform overrides
+  // Check if current user is allowed to perform overrides or approve/reject
   const isAllowedToOverride = hasPermission ? hasPermission('BOOKING_OVERRIDE') : true;
+  const isAllowedToApproveReject = hasPermission ? hasPermission('APPROVE_REJECT_BOOKINGS') : true;
+  const [rejectingBooking, setRejectingBooking] = useState<Booking | null>(null);
+  const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
+  const [inspectedUserEmail, setInspectedUserEmail] = useState<string | null>(null);
 
   // Get today's local date string "YYYY-MM-DD"
   const getLocalDateString = () => {
@@ -57,6 +66,23 @@ export function BookingCalendarDashboard({
     const bDate = parseToMidnight(bookingDateStr);
     const tDate = parseToMidnight(currentTodayStr);
     return bDate < tDate;
+  };
+
+  const isBookingConcludedOrPast = (bookingDateStr: string, endTimeStr?: string) => {
+    if (!bookingDateStr) return false;
+    if (isDateInPast(bookingDateStr, todayStr)) return true;
+    if (bookingDateStr === todayStr && endTimeStr) {
+      const now = new Date();
+      const currentHours = now.getHours();
+      const currentMins = now.getMinutes();
+      const [eH, eM] = endTimeStr.split(':').map(Number);
+      if (!isNaN(eH) && !isNaN(eM)) {
+        if (currentHours > eH || (currentHours === eH && currentMins >= eM)) {
+          return true;
+        }
+      }
+    }
+    return false;
   };
 
   const {
@@ -111,7 +137,7 @@ export function BookingCalendarDashboard({
         <div>
           <span className="text-accent text-[9px] font-black uppercase tracking-widest block">Administration Registry</span>
           <h1 className="text-base font-black text-gray-900 uppercase tracking-wider mt-0.5">Space Reservation Register & Schedule</h1>
-          <p className="text-[11px] text-gray-500">Live operational timetables, administrative overrides, and CSV snapshots.</p>
+          <p className="text-[11px] text-gray-500">Live operational timetables, administrative overrides, force rejections, and CSV snapshots.</p>
         </div>
         
         <div className="flex items-center gap-2">
@@ -162,7 +188,7 @@ export function BookingCalendarDashboard({
                 <th className="py-3 px-6">Conflict Status</th>
                 <th className="py-3 px-6">Ban Status</th>
                 <th className="py-3 px-6">Status</th>
-                <th className="py-3 px-6 text-right">Overrides</th>
+                <th className="py-3 px-6 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -175,6 +201,9 @@ export function BookingCalendarDashboard({
               ) : (
                 filteredBookings.map(b => {
                   const isBanned = activeBans.some(ban => ban.email.toLowerCase() === b.email.toLowerCase() && ban.status === 'Active');
+                  const isPast = isBookingConcludedOrPast(b.date, b.endTime);
+                  const isAlreadyRejectedOrCancelled = b.status.includes('REJECTED') || b.status === 'CANCELLED';
+
                   return (
                     <tr key={b.id} className="hover:bg-gray-50/30 transition-colors text-xs text-gray-700">
                       <td className="py-4 px-6 font-mono font-black text-primary whitespace-nowrap">{b.id}</td>
@@ -188,7 +217,15 @@ export function BookingCalendarDashboard({
                         <p className="text-[10px] text-gray-400 font-mono">{b.startTime} - {b.endTime}</p>
                       </td>
                       <td className="py-4 px-6">
-                        <p className="font-extrabold text-gray-900 whitespace-nowrap">{b.name}</p>
+                        <button
+                          type="button"
+                          onClick={() => setInspectedUserEmail(b.email)}
+                          className="font-extrabold text-gray-900 hover:text-primary transition-colors text-left flex items-center gap-1.5 group cursor-pointer whitespace-nowrap"
+                          title="Click to view full user booking dossier"
+                        >
+                          <span>{b.name}</span>
+                          <History className="h-3 w-3 text-gray-400 group-hover:text-primary transition-colors" />
+                        </button>
                         <p className="text-[10px] text-gray-400 font-mono whitespace-nowrap">{b.email}</p>
                       </td>
                       <td className="py-4 px-6 font-semibold text-gray-800 whitespace-nowrap">{b.bookingType}</td>
@@ -214,17 +251,56 @@ export function BookingCalendarDashboard({
                         </div>
                       </td>
                       <td className="py-4 px-6 text-right whitespace-nowrap">
-                        <button
-                          onClick={() => startEditing(b)}
-                          disabled={b.status.includes('REJECTED') || b.status === 'CANCELLED' || isDateInPast(b.date, todayStr)}
-                          className={`border px-3 py-1.5 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all duration-200 whitespace-nowrap ${
-                            b.status.includes('REJECTED') || b.status === 'CANCELLED' || isDateInPast(b.date, todayStr)
-                              ? 'border-gray-150 text-gray-300 bg-gray-50/50 cursor-not-allowed'
-                              : 'text-primary hover:text-white hover:bg-primary border-primary/20 hover:border-primary cursor-pointer'
-                          }`}
-                        >
-                          Override
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* View Details Button */}
+                          <button
+                            type="button"
+                            onClick={() => setDetailBooking(b)}
+                            className="border border-gray-200 text-gray-700 hover:text-gray-950 hover:bg-gray-100 px-2.5 py-1.5 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all duration-200 whitespace-nowrap flex items-center gap-1 cursor-pointer"
+                            title="Open complete reservation details"
+                          >
+                            <Eye className="h-3 w-3" />
+                            <span>Details</span>
+                          </button>
+
+                          {/* Override Button */}
+                          <button
+                            onClick={() => startEditing(b)}
+                            disabled={isAlreadyRejectedOrCancelled || isPast}
+                            className={`border px-2.5 py-1.5 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all duration-200 whitespace-nowrap ${
+                              isAlreadyRejectedOrCancelled || isPast
+                                ? 'border-gray-150 text-gray-300 bg-gray-50/50 cursor-not-allowed'
+                                : 'text-primary hover:text-white hover:bg-primary border-primary/20 hover:border-primary cursor-pointer'
+                            }`}
+                            title={isPast ? 'Booking date/time has passed' : 'Modify room or timing parameters'}
+                          >
+                            Override
+                          </button>
+
+                          {/* Force Reject Button */}
+                          {isAlreadyRejectedOrCancelled ? (
+                            <span className="text-[10px] font-bold text-gray-400 italic px-2 py-1">
+                              {b.status === 'CANCELLED' ? 'Cancelled' : 'Rejected'}
+                            </span>
+                          ) : isPast ? (
+                            <span 
+                              className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-1 rounded-lg"
+                              title="Past bookings cannot be rejected"
+                            >
+                              Concluded
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setRejectingBooking(b)}
+                              disabled={!isAllowedToApproveReject}
+                              className="border border-rose-200 text-rose-700 hover:bg-rose-600 hover:text-white hover:border-rose-600 px-2.5 py-1.5 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all duration-200 whitespace-nowrap flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
+                              title={b.status === 'APPROVED' ? 'Force reject this accepted reservation before its scheduled date' : 'Reject booking request'}
+                            >
+                              <AlertOctagon className="h-3 w-3" />
+                              <span>{b.status === 'APPROVED' ? 'Force Reject' : 'Reject'}</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -242,8 +318,61 @@ export function BookingCalendarDashboard({
           setEditingBooking={setEditingBooking}
           rooms={rooms}
           isAllowedToOverride={isAllowedToOverride}
+          isAllowedToReject={isAllowedToApproveReject}
           onOverride={onOverride}
           onRefresh={onRefresh}
+          onInitiateReject={(target) => setRejectingBooking(target)}
+        />
+      )}
+
+      {/* FORCE REJECT BOOKING MODAL */}
+      {rejectingBooking && (
+        <BookingRejectModal
+          booking={rejectingBooking}
+          onClose={() => setRejectingBooking(null)}
+          onConfirmReject={async (id, reason) => {
+            await onReject(id, reason);
+            await onRefresh();
+          }}
+          isAllowedToReject={isAllowedToApproveReject}
+          onSuccess={onRefresh}
+        />
+      )}
+
+      {/* BOOKING DETAILS MODAL */}
+      {detailBooking && (
+        <BookingDetailModal
+          booking={detailBooking}
+          activeBans={activeBans}
+          onClose={() => setDetailBooking(null)}
+          onApprove={onApprove}
+          onInitiateReject={(target) => {
+            setDetailBooking(null);
+            setRejectingBooking(target);
+          }}
+          onInitiateOverride={(target) => {
+            setDetailBooking(null);
+            startEditing(target);
+          }}
+          onViewUserHistory={(email) => {
+            setDetailBooking(null);
+            setInspectedUserEmail(email);
+          }}
+          isAllowedToApproveReject={isAllowedToApproveReject}
+          isAllowedToOverride={isAllowedToOverride}
+        />
+      )}
+
+      {/* USER PROFILE HISTORY DOSSIER MODAL */}
+      {inspectedUserEmail && (
+        <UserProfileHistoryModal
+          userEmail={inspectedUserEmail}
+          bookings={bookings}
+          activeBans={activeBans}
+          onClose={() => setInspectedUserEmail(null)}
+          onViewBookingDetails={(target) => setDetailBooking(target)}
+          onInitiateReject={(target) => setRejectingBooking(target)}
+          isAllowedToApproveReject={isAllowedToApproveReject}
         />
       )}
 

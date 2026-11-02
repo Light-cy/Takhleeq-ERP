@@ -7,8 +7,10 @@ interface BookingOverrideModalProps {
   setEditingBooking: (b: Booking | null) => void;
   rooms: Room[];
   isAllowedToOverride: boolean;
+  isAllowedToReject?: boolean;
   onOverride: (id: string, updateData: any) => Promise<void>;
   onRefresh: () => void;
+  onInitiateReject?: (b: Booking) => void;
 }
 
 export function BookingOverrideModal({
@@ -16,8 +18,10 @@ export function BookingOverrideModal({
   setEditingBooking,
   rooms,
   isAllowedToOverride,
+  isAllowedToReject = true,
   onOverride,
-  onRefresh
+  onRefresh,
+  onInitiateReject
 }: BookingOverrideModalProps) {
   const [overrideRoom, setOverrideRoom] = useState(editingBooking.room);
   const [overrideDate, setOverrideDate] = useState(editingBooking.date);
@@ -157,21 +161,41 @@ export function BookingOverrideModal({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2.5 border-t border-gray-100 pt-4">
-            <button
-              type="button"
-              onClick={() => setEditingBooking(null)}
-              className="px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-50 cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={processing || !isAllowedToOverride}
-              className="px-5 py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 uppercase tracking-wider"
-            >
-              {processing ? 'Processing Override...' : 'Commit Override'}
-            </button>
+          <div className="flex items-center justify-between border-t border-gray-100 pt-4">
+            <div>
+              {onInitiateReject && !editingBooking.status.includes('REJECTED') && editingBooking.status !== 'CANCELLED' && (
+                <button
+                  type="button"
+                  disabled={!isAllowedToReject}
+                  onClick={() => {
+                    const target = editingBooking;
+                    setEditingBooking(null);
+                    onInitiateReject(target);
+                  }}
+                  className="px-3.5 py-2 border border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300 rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  title="Force reject or revoke this booking reservation"
+                >
+                  <span className="h-2 w-2 rounded-full bg-rose-600 animate-pulse" />
+                  Force Reject
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setEditingBooking(null)}
+                className="px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={processing || !isAllowedToOverride}
+                className="px-5 py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 uppercase tracking-wider"
+              >
+                {processing ? 'Processing Override...' : 'Commit Override'}
+              </button>
+            </div>
           </div>
 
         </form>

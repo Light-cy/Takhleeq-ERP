@@ -25,7 +25,8 @@ import {
   Users,
   MessageSquare,
   Layers,
-  BarChart3
+  BarChart3,
+  History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User as ERPUser } from '../../types';
@@ -214,6 +215,22 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                         Booking Register
                       </span>
                       {!hasPermission('BOOKING_OVERRIDE') && !hasPermission('VIEW_PENDING_QUEUE') && <Lock className="h-3 w-3 text-gray-400 animate-pulse" />}
+                    </button>
+
+                    <button
+                      onClick={() => handleTabClick('user_history')}
+                      disabled={!hasPermission('VIEW_PENDING_QUEUE') && !hasPermission('BOOKING_OVERRIDE') && !hasPermission('MANAGE_USERS') && !hasPermission('APPROVE_REJECT_BOOKINGS')}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        activeTab === 'user_history' 
+                          ? 'bg-primary text-white shadow-3xs' 
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <History className="h-3.5 w-3.5" />
+                        User History
+                      </span>
+                      {!hasPermission('VIEW_PENDING_QUEUE') && !hasPermission('BOOKING_OVERRIDE') && !hasPermission('MANAGE_USERS') && !hasPermission('APPROVE_REJECT_BOOKINGS') && <Lock className="h-3 w-3 text-gray-400" />}
                     </button>
 
                     <button
@@ -552,6 +569,8 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                 ? 'Operational Pending Reviews' 
                 : activeTab === 'register' 
                 ? 'Schedules & CSV Snapper' 
+                : activeTab === 'user_history'
+                ? 'User History & Requesters Dossier'
                 : activeTab === 'governance' 
                 ? 'Custom Role Compiler' 
                 : activeTab === 'rooms' 
@@ -604,6 +623,13 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                   className={`w-full text-left font-black text-xs p-3 rounded-xl uppercase tracking-wider ${activeTab === 'register' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
                 >
                   Booking Register
+                </button>
+                <button 
+                  onClick={() => handleTabClick('user_history')}
+                  disabled={!hasPermission('VIEW_PENDING_QUEUE') && !hasPermission('BOOKING_OVERRIDE') && !hasPermission('MANAGE_USERS') && !hasPermission('APPROVE_REJECT_BOOKINGS')}
+                  className={`w-full text-left font-black text-xs p-3 rounded-xl uppercase tracking-wider ${activeTab === 'user_history' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
+                >
+                  User History
                 </button>
                 <button 
                   onClick={() => handleTabClick('rooms')}

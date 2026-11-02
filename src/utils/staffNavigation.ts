@@ -24,6 +24,12 @@ export const STAFF_TABS: StaffTabDefinition[] = [
     check: (has) => has('BOOKING_OVERRIDE') || has('VIEW_PENDING_QUEUE')
   },
   {
+    id: 'user_history',
+    name: 'User History',
+    section: 'booking',
+    check: (has) => has('VIEW_PENDING_QUEUE') || has('BOOKING_OVERRIDE') || has('MANAGE_USERS') || has('APPROVE_REJECT_BOOKINGS')
+  },
+  {
     id: 'rooms',
     name: 'Room Management',
     section: 'booking',
@@ -154,6 +160,7 @@ export function normalizeStaffTab(tabId: string): string {
   if (!tabId) return 'queue';
   if (tabId === 'types') return 'booking_types';
   if (tabId === 'analytics') return 'booking_analytics';
+  if (tabId === 'history' || tabId === 'user_history' || tabId === 'users_history') return 'user_history';
   if (tabId === 'cohorts') return 'cohort_dashboard';
   if (tabId === 'builder') return 'cohort_form_config';
   if (tabId === 'cohort_intake') return 'cohort_applications';
