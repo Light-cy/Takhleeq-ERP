@@ -27,11 +27,11 @@ export function BookingTypesPage({ onRefresh }: BookingTypesPageProps) {
           <div className="flex items-center gap-2">
             <Layers className="h-5 w-5 text-primary" />
             <h2 className="text-base font-black text-gray-900 uppercase tracking-wider">
-              Booking Classifications & Types
+              Who can book
             </h2>
           </div>
           <p className="text-xs text-gray-500 font-medium mt-1">
-            Configure purpose classifications, eligibility scopes, and permitted booking categories for university facility reservations.
+            Configure who can book rooms and assign rules for each group.
           </p>
         </div>
       </div>

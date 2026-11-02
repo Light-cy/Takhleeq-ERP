@@ -50,46 +50,35 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 bg-[#F8F5F0] p-1 rounded-xl border border-gray-150">
-          {isCohortPath ? (
-            <>
-              {currentPath !== '/founder-dashboard' && (
-                <>
-                  <button
-                    onClick={() => onNavigate('/cohort-apply')}
-                    className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
-                      currentPath === '/cohort-apply'
-                        ? 'bg-primary text-white shadow-3xs'
-                        : 'text-gray-600 hover:text-gray-950'
-                    }`}
-                  >
-                    Apply Now
-                  </button>
-                  <button
-                    onClick={() => onNavigate('/cohort-track')}
-                    className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
-                      currentPath === '/cohort-track'
-                        ? 'bg-primary text-white shadow-3xs'
-                        : 'text-gray-600 hover:text-gray-950'
-                    }`}
-                  >
-                    Track Status
-                  </button>
-                </>
-              )}
-              {currentPath === '/founder-dashboard' && (
+        {currentPath !== '/founder-dashboard' && (
+          <div className="flex items-center gap-2 bg-[#F8F5F0] p-1 rounded-xl border border-gray-150">
+            {isCohortPath ? (
+              <>
                 <button
-                  onClick={() => onNavigate('/founder-dashboard')}
-                  className="px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer bg-primary text-white shadow-3xs"
+                  onClick={() => onNavigate('/cohort-apply')}
+                  className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
+                    currentPath === '/cohort-apply'
+                      ? 'bg-primary text-white shadow-3xs'
+                      : 'text-gray-600 hover:text-gray-950'
+                  }`}
                 >
-                  Founder Portal
+                  Apply Now
                 </button>
-              )}
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => onNavigate('/booking')}
+                <button
+                  onClick={() => onNavigate('/cohort-track')}
+                  className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
+                    currentPath === '/cohort-track'
+                      ? 'bg-primary text-white shadow-3xs'
+                      : 'text-gray-600 hover:text-gray-950'
+                  }`}
+                >
+                  Track Status
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => onNavigate('/booking')}
                 className={`px-3.5 py-1.5 rounded-lg text-[10.5px] font-bold uppercase tracking-wider cursor-pointer ${
                   currentPath === '/booking'
                     ? 'bg-primary text-white shadow-3xs'
@@ -119,8 +108,8 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
                 Room schedule
               </button>
             </>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="flex items-center gap-2 text-xs">
           {activeUser ? (

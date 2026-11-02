@@ -319,6 +319,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
   const [twitterInput, setTwitterInput] = useState('');
   const [githubInput, setGithubInput] = useState('');
   const [instagramInput, setInstagramInput] = useState('');
+  const [facebookInput, setFacebookInput] = useState('');
 
   // Modals & Interactive UI Triggers
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
@@ -497,6 +498,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
       setTwitterInput(pf.twitter_url || '');
       setGithubInput(pf.github_url || '');
       setInstagramInput(pf.instagram_url || '');
+      setFacebookInput(pf.facebook_url || '');
 
       // 4. Assignments from authoritative backend
       if (data.assignments && Array.isArray(data.assignments)) {
@@ -584,6 +586,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
     twitter_url?: string;
     github_url?: string;
     instagram_url?: string;
+    facebook_url?: string;
     assignments?: AssignmentItem[];
     team_roster?: TeamMember[];
     shared_notes?: SharedNote[];
@@ -615,6 +618,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
         twitter_url: payload.twitter_url !== undefined ? payload.twitter_url : (currentPf.twitter_url || twitterInput),
         github_url: payload.github_url !== undefined ? payload.github_url : (currentPf.github_url || githubInput),
         instagram_url: payload.instagram_url !== undefined ? payload.instagram_url : (currentPf.instagram_url || instagramInput),
+        facebook_url: payload.facebook_url !== undefined ? payload.facebook_url : (currentPf.facebook_url || facebookInput),
         assignments: payload.assignments !== undefined ? payload.assignments : (currentPf.assignments || assignments),
         team_roster: payload.team_roster !== undefined ? payload.team_roster : (currentPf.team_roster || teamRoster),
         shared_notes: payload.shared_notes !== undefined ? payload.shared_notes : (currentPf.shared_notes || sharedNotes),
@@ -646,6 +650,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
           twitter_url: payload.twitter_url !== undefined ? payload.twitter_url : twitterInput,
           github_url: payload.github_url !== undefined ? payload.github_url : githubInput,
           instagram_url: payload.instagram_url !== undefined ? payload.instagram_url : instagramInput,
+          facebook_url: payload.facebook_url !== undefined ? payload.facebook_url : facebookInput,
           assignments: updatedProfile.assignments,
           team_roster: updatedProfile.team_roster,
           pivot_history: updatedProfile.pivot_history,
@@ -687,6 +692,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
       twitter_url: twitterInput,
       github_url: githubInput,
       instagram_url: instagramInput,
+      facebook_url: facebookInput,
     });
 
     if (success) {
@@ -3071,45 +3077,29 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
             
             <form onSubmit={handleProfileAndFinancialsSave} className="space-y-8">
               
-              {/* Top Banner: Editable vs Read-Only Legend */}
-              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-black text-gray-900">Startup Venture Profile & Financials</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Update your revenue, funding, team members, social presence, and deck links
-                  </p>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="px-5 py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {actionLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                  <span>{actionLoading ? 'Saving Edits...' : 'Save Profile & Metrics'}</span>
-                </button>
+              {/* Top Banner per F-PRF-01 / F-PRF-02 */}
+              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs">
+                <h2 className="text-lg font-black text-gray-900">Startup profile</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Keep your startup's details up to date.
+                </p>
               </div>
 
-              {/* SECTION A: FOUNDER EDITABLE FINANCIAL METRICS */}
+              {/* SECTION A: FINANCIAL METRICS & TRACTION (F-PRF-03 to F-PRF-09) */}
               <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-6">
-                <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
-                      <DollarSign className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold text-gray-900">Financial Metrics & Traction</h3>
-                      <p className="text-xs text-gray-500">Founder editable financial performance indicators</p>
-                    </div>
+                <div className="flex items-center gap-2 pb-4 border-b border-gray-100">
+                  <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600">
+                    <DollarSign className="w-5 h-5" />
                   </div>
-                  <span className="text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-lg">
-                    Editable by Founder
-                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900">Financial Metrics & Traction</h3>
+                    <p className="text-xs text-gray-500">Track and report your startup's financial growth</p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   
-                  {/* Revenue Status */}
+                  {/* Revenue Status (F-PRF-05) */}
                   <div>
                     <label className="text-xs font-bold text-gray-700 block mb-1">
                       Revenue Status
@@ -3119,41 +3109,47 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                       onChange={(e) => setRevenueStatusInput(e.target.value)}
                       className="w-full text-xs p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none font-medium text-gray-900"
                     >
-                      <option value="PRE_REVENUE">PRE_REVENUE (Idea/Validation)</option>
-                      <option value="POST_REVENUE">POST_REVENUE (Generating Income)</option>
-                      <option value="PROFITABLE">PROFITABLE</option>
+                      <option value="PRE_REVENUE">Not earning yet</option>
+                      <option value="POST_REVENUE">Earning revenue</option>
+                      <option value="PROFITABLE">Profitable</option>
                     </select>
                   </div>
 
-                  {/* Monthly Revenue */}
+                  {/* Monthly Revenue (F-PRF-07) */}
                   <div>
-                    <label className="text-xs font-bold text-gray-700 block mb-1">
-                      Monthly Revenue / MRR ($ / PKR)
+                    <label className="text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
+                      <span>Monthly revenue (PKR)</span>
+                      <span className="text-gray-400 cursor-help" title="What you make each month">
+                        <HelpCircle className="w-3 h-3" />
+                      </span>
                     </label>
                     <input
                       type="text"
                       value={monthlyRevenueInput}
                       onChange={(e) => setMonthlyRevenueInput(e.target.value)}
-                      placeholder="e.g. PKR 150,000"
+                      placeholder="e.g. 150000"
                       className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
                     />
                   </div>
 
-                  {/* Annual Recurring Revenue */}
+                  {/* Annual Recurring Revenue (F-PRF-07) */}
                   <div>
-                    <label className="text-xs font-bold text-gray-700 block mb-1">
-                      Annual Recurring Revenue / ARR ($ / PKR)
+                    <label className="text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
+                      <span>Yearly revenue (PKR)</span>
+                      <span className="text-gray-400 cursor-help" title="Estimated revenue across 12 months">
+                        <HelpCircle className="w-3 h-3" />
+                      </span>
                     </label>
                     <input
                       type="text"
                       value={annualRecurringRevenueInput}
                       onChange={(e) => setAnnualRecurringRevenueInput(e.target.value)}
-                      placeholder="e.g. PKR 1,800,000"
+                      placeholder="e.g. 1800000"
                       className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
                     />
                   </div>
 
-                  {/* Funding Status */}
+                  {/* Funding Status (F-PRF-06) */}
                   <div>
                     <label className="text-xs font-bold text-gray-700 block mb-1">
                       Funding Status
@@ -3163,45 +3159,51 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                       onChange={(e) => setFundingStatusInput(e.target.value)}
                       className="w-full text-xs p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none font-medium text-gray-900"
                     >
-                      <option value="BOOTSTRAPPED">BOOTSTRAPPED</option>
-                      <option value="ANGEL_FUNDED">ANGEL_FUNDED</option>
-                      <option value="SEED_FUNDED">SEED_FUNDED</option>
-                      <option value="SERIES_A">SERIES_A</option>
+                      <option value="BOOTSTRAPPED">Self-funded</option>
+                      <option value="ANGEL_FUNDED">Angel funded</option>
+                      <option value="SEED_FUNDED">Seed funded</option>
+                      <option value="SERIES_A">Series A</option>
                     </select>
                   </div>
 
-                  {/* Total Funding Raised */}
+                  {/* Total Funding Raised (F-PRF-07) */}
                   <div>
-                    <label className="text-xs font-bold text-gray-700 block mb-1">
-                      Total Funding Raised ($ / PKR)
+                    <label className="text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
+                      <span>Total funding raised (PKR)</span>
+                      <span className="text-gray-400 cursor-help" title="Total money invested in your startup">
+                        <HelpCircle className="w-3 h-3" />
+                      </span>
                     </label>
                     <input
                       type="text"
                       value={fundingRaisedInput}
                       onChange={(e) => setFundingRaisedInput(e.target.value)}
-                      placeholder="e.g. $50,000 or PKR 5,000,000"
+                      placeholder="e.g. 5000000"
                       className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
                     />
                   </div>
 
-                  {/* Monthly Burn Rate */}
+                  {/* Monthly Spending (F-PRF-07) */}
                   <div>
-                    <label className="text-xs font-bold text-gray-700 block mb-1">
-                      Monthly Burn Rate ($ / PKR)
+                    <label className="text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
+                      <span>Monthly spending (PKR)</span>
+                      <span className="text-gray-400 cursor-help" title="What you spend each month (burn rate)">
+                        <HelpCircle className="w-3 h-3" />
+                      </span>
                     </label>
                     <input
                       type="text"
                       value={burnRateInput}
                       onChange={(e) => setBurnRateInput(e.target.value)}
-                      placeholder="e.g. PKR 150,000"
+                      placeholder="e.g. 150000"
                       className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
                     />
                   </div>
 
-                  {/* Team Size */}
+                  {/* Team Size (F-PRF-08) */}
                   <div>
                     <label className="text-xs font-bold text-gray-700 block mb-1">
-                      Team Size (Count)
+                      Team size
                     </label>
                     <input
                       type="text"
@@ -3212,16 +3214,16 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                     />
                   </div>
 
-                  {/* Pitch Deck Link */}
+                  {/* Pitch Deck Link (F-PRF-09) */}
                   <div>
                     <label className="text-xs font-bold text-gray-700 block mb-1">
-                      Pitch Deck Link / Video Demo URL
+                      Pitch deck or demo video link
                     </label>
                     <input
                       type="text"
                       value={pitchDeckInput}
                       onChange={(e) => setPitchDeckInput(e.target.value)}
-                      placeholder="https://docsend.com/view/..."
+                      placeholder="e.g. a Google Drive or YouTube link"
                       className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none font-mono"
                     />
                   </div>
@@ -3229,24 +3231,19 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                 </div>
               </div>
 
-              {/* SECTION B: FOUNDER EDITABLE SOCIAL LINKS & BRANDING */}
+              {/* SECTION B: LINKS & CONTACT (F-PRF-10 / F-PRF-11 / G-12) */}
               <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-6">
-                <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
-                      <Globe className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold text-gray-900">Social Handles & Online Presence</h3>
-                      <p className="text-xs text-gray-500">Manage public links and founder contacts</p>
-                    </div>
+                <div className="flex items-center gap-2 pb-4 border-b border-gray-100">
+                  <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
+                    <Globe className="w-5 h-5" />
                   </div>
-                  <span className="text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-lg">
-                    Editable by Founder
-                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900">Links & contact</h3>
+                    <p className="text-xs text-gray-500">Add your website and social profiles so mentors and investors can find you.</p>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   
                   {/* Website */}
                   <div>
@@ -3265,7 +3262,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                   {/* LinkedIn */}
                   <div>
                     <label className="text-xs font-bold text-gray-700 block mb-1 flex items-center gap-1.5">
-                      <Linkedin className="w-3.5 h-3.5 text-blue-600" /> LinkedIn Profile / Page
+                      <Linkedin className="w-3.5 h-3.5 text-blue-600" /> LinkedIn
                     </label>
                     <input
                       type="text"
@@ -3279,7 +3276,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                   {/* Twitter / X */}
                   <div>
                     <label className="text-xs font-bold text-gray-700 block mb-1 flex items-center gap-1.5">
-                      <Twitter className="w-3.5 h-3.5 text-blue-400" /> Twitter / X Profile
+                      <Twitter className="w-3.5 h-3.5 text-blue-400" /> Twitter / X
                     </label>
                     <input
                       type="text"
@@ -3290,10 +3287,10 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                     />
                   </div>
 
-                  {/* GitHub / Tech */}
+                  {/* GitHub */}
                   <div>
                     <label className="text-xs font-bold text-gray-700 block mb-1 flex items-center gap-1.5">
-                      <Github className="w-3.5 h-3.5 text-gray-800" /> GitHub Repository
+                      <Github className="w-3.5 h-3.5 text-gray-800" /> GitHub
                     </label>
                     <input
                       type="text"
@@ -3304,19 +3301,47 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                     />
                   </div>
 
+                  {/* Instagram (F-PRF-10) */}
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 block mb-1 flex items-center gap-1.5">
+                      <Instagram className="w-3.5 h-3.5 text-pink-600" /> Instagram
+                    </label>
+                    <input
+                      type="text"
+                      value={instagramInput}
+                      onChange={(e) => setInstagramInput(e.target.value)}
+                      placeholder="https://instagram.com/mystartup"
+                      className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Facebook (F-PRF-10) */}
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 block mb-1 flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-blue-700" /> Facebook
+                    </label>
+                    <input
+                      type="text"
+                      value={facebookInput}
+                      onChange={(e) => setFacebookInput(e.target.value)}
+                      placeholder="https://facebook.com/mystartup"
+                      className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
+                    />
+                  </div>
+
                 </div>
 
-                {/* Description & Contact Phone */}
+                {/* Tagline & Contact Phone (F-PRF-11 / G-12) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                   <div className="md:col-span-2">
                     <label className="text-xs font-bold text-gray-700 block mb-1">
-                      Startup Tagline & Mission Description
+                      Tagline (one line)
                     </label>
                     <textarea
                       value={descInput}
                       onChange={(e) => setDescInput(e.target.value)}
-                      rows={3}
-                      placeholder="Briefly describe what your startup builds and your target market..."
+                      rows={2}
+                      placeholder="e.g. AI-powered inventory for local pharmacies"
                       className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
                     />
                   </div>
@@ -3329,7 +3354,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                       type="text"
                       value={contactInput}
                       onChange={(e) => setContactInput(e.target.value)}
-                      placeholder="+92 300 1234567"
+                      placeholder="e.g. 0300 1234567"
                       className="w-full text-xs p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-primary focus:outline-none"
                     />
                   </div>
@@ -3338,11 +3363,12 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
               </div>
 
               {/* SECTION C: TEAM ROSTER MANAGEMENT */}
+              {/* SECTION C: TEAM (F-PRF-12) */}
               <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                   <div>
-                    <h3 className="text-base font-bold text-gray-900">Co-Founders & Core Team Roster</h3>
-                    <p className="text-xs text-gray-500">Key members associated with this venture</p>
+                    <h3 className="text-base font-bold text-gray-900">Team</h3>
+                    <p className="text-xs text-gray-500">Add the people building this with you.</p>
                   </div>
                   <button
                     type="button"
@@ -3375,15 +3401,18 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                 </div>
               </div>
 
-              {/* SECTION D: READ-ONLY ADMIN INCUBATOR RECORDS */}
+              {/* SECTION D: PROGRAM DETAILS (F-PRF-04) */}
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                   <div className="flex items-center gap-2">
                     <Lock className="w-4 h-4 text-gray-500" />
-                    <h3 className="text-sm font-bold text-gray-900">Admin Managed Incubator Ledger</h3>
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-900">Program details</h3>
+                      <p className="text-[11px] text-gray-500">Set by staff</p>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-extrabold uppercase bg-gray-200 text-gray-700 px-2.5 py-1 rounded-lg">
-                    Read-Only (Incubator Admin)
+                  <span className="text-[10px] font-extrabold uppercase bg-gray-200 text-gray-700 px-2.5 py-1 rounded-lg flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> Set by staff
                   </span>
                 </div>
 
@@ -3400,7 +3429,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
 
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase block">Program Stage</span>
-                    <p className="font-bold text-emerald-700 mt-0.5 uppercase">{applicant.stage || 'INCUBATION'}</p>
+                    <p className="font-bold text-emerald-700 mt-0.5">{formatStatusValue(applicant.stage || applicant.current_stage || 'INCUBATION')}</p>
                   </div>
 
                   <div>
@@ -3410,15 +3439,15 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                 </div>
               </div>
 
-              {/* Submit Footer Button */}
-              <div className="flex justify-end pt-2">
+              {/* Single Submit Footer Button (F-PRF-02) */}
+              <div className="flex justify-end pt-4 border-t border-gray-100">
                 <button
                   type="submit"
                   disabled={actionLoading}
                   className="px-6 py-3 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
                 >
                   {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  <span>{actionLoading ? 'Saving Profile...' : 'Save All Profile & Financial Edits'}</span>
+                  <span>{actionLoading ? 'Saving changes…' : 'Save changes'}</span>
                 </button>
               </div>
 
@@ -3677,7 +3706,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
 
                   <form onSubmit={handleRequestPivot} className="space-y-4">
                     <div>
-                      <label className="text-xs font-bold text-gray-700 block mb-1">Target New Industry *</label>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Proposed new industry</label>
                       <select
                         required
                         value={newPivotIndustry}
@@ -3827,7 +3856,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                               isAnonymous ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-900'
                             }`}>
                               {isAnonymous ? <EyeOff className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
-                              {isAnonymous ? '100% Anonymous' : 'Identified Response'}
+                              {isAnonymous ? 'Anonymous' : 'Named'}
                             </span>
 
                             <span className="text-[10px] font-black uppercase text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -4120,7 +4149,7 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                           activeSurveyModal.is_anonymous ? 'bg-amber-100 text-amber-900' : 'bg-blue-100 text-blue-900'
                         }`}>
                           {activeSurveyModal.is_anonymous ? <EyeOff className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
-                          {activeSurveyModal.is_anonymous ? '100% Anonymous Survey' : 'Identified Evaluation'}
+                          {activeSurveyModal.is_anonymous ? 'Anonymous' : 'Named'}
                         </span>
                         {activeSurveyModal.session_title && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">
@@ -4154,8 +4183,8 @@ export const CohortFounderDashboardPage: React.FC<CohortFounderDashboardPageProp
                       <div className="space-y-0.5">
                         <p className="font-extrabold">
                           {activeSurveyModal.is_anonymous
-                            ? 'Strict Anonymity Guaranteed'
-                            : 'Identified Survey Feedback'}
+                            ? 'Anonymous'
+                            : 'Named'}
                         </p>
                         <p className="text-[11px] leading-relaxed opacity-90">
                           {activeSurveyModal.is_anonymous

@@ -37,7 +37,7 @@ export const STAFF_TABS: StaffTabDefinition[] = [
   },
   {
     id: 'booking_types',
-    name: 'Booking Types',
+    name: 'Who can book',
     section: 'booking',
     check: (has) => has('MANAGE_BOOKING_TYPES')
   },

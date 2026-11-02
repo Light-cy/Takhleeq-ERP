@@ -16,6 +16,7 @@ import {
   Calendar,
   Sparkles
 } from 'lucide-react';
+import { formatDateTime } from '../../../utils/dateFormatter';
 
 interface FeedbackItem {
   id: number;
@@ -164,8 +165,8 @@ export const CohortFeedbackTab: React.FC<CohortFeedbackTabProps> = ({ cohortId }
   // Analytics Metrics
   const totalLogs = feedbackList.length;
   const avgRating = totalLogs > 0
-    ? (feedbackList.reduce((acc, curr) => acc + (curr.rating || 5), 0) / totalLogs).toFixed(1)
-    : '5.0';
+    ? (feedbackList.reduce((acc, curr) => acc + (curr.rating || 0), 0) / totalLogs).toFixed(1)
+    : '—';
   const anonymousCount = feedbackList.filter(f => f.is_anonymous).length;
   const identifiedCount = totalLogs - anonymousCount;
   const pendingCount = feedbackList.filter(f => f.status === 'SUBMITTED').length;
@@ -206,7 +207,11 @@ export const CohortFeedbackTab: React.FC<CohortFeedbackTabProps> = ({ cohortId }
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-black text-amber-950">{avgRating}</span>
-              <span className="text-xs font-bold text-amber-700">/ 5.0 Stars</span>
+              {totalLogs > 0 ? (
+                <span className="text-xs font-bold text-amber-700">/ 5.0 Stars</span>
+              ) : (
+                <span className="text-xs font-medium text-amber-700">No data yet</span>
+              )}
             </div>
           </div>
 
@@ -259,7 +264,7 @@ export const CohortFeedbackTab: React.FC<CohortFeedbackTabProps> = ({ cohortId }
             >
               <option value="ALL">All Privacy Modes</option>
               <option value="ANONYMOUS">🔒 Anonymous Only</option>
-              <option value="IDENTIFIED">👤 Non-Anonymous Only</option>
+              <option value="IDENTIFIED">👤 Named Only</option>
             </select>
 
             {/* Category Filter */}
@@ -357,21 +362,21 @@ export const CohortFeedbackTab: React.FC<CohortFeedbackTabProps> = ({ cohortId }
 
                   {/* Privacy Badge */}
                   {item.is_anonymous ? (
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 flex items-center gap-1 border border-amber-300/60">
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 flex items-center gap-1 border border-amber-300/60">
                       <EyeOff className="w-3 h-3" />
-                      100% Anonymous Founder
+                      Anonymous
                     </span>
                   ) : (
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 flex items-center gap-1 border border-blue-200">
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-blue-100 text-blue-900 flex items-center gap-1 border border-blue-200">
                       <UserCheck className="w-3 h-3 text-blue-600" />
-                      Public Submission
+                      Named
                     </span>
                   )}
                 </div>
 
                 <div className="flex items-center gap-2 text-[11px] text-gray-400 font-semibold">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>{new Date(item.created_at).toLocaleString()}</span>
+                  <span>{formatDateTime(item.created_at)}</span>
                 </div>
               </div>
 

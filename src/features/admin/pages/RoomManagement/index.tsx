@@ -164,7 +164,7 @@ export function RoomManagementPage({
                   <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Max Capacity</span>
                   <div className="flex items-center gap-1 font-extrabold text-gray-800">
                     <Users className="h-4 w-4 text-gray-400" />
-                    <span>{room.capacity} persons</span>
+                    <span>{room.capacity} seats</span>
                   </div>
                 </div>
 

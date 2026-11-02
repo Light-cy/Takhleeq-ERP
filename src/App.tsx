@@ -543,6 +543,35 @@ export default function App() {
           />
         );
       }
+
+      // Check if user is non-staff (ACC-01, ACC-02)
+      const isNonStaff = activeUser.role === 'Cohort Founder' || activeUser.role === 'UCP Member';
+      if (isNonStaff) {
+        const dashboardTarget = activeUser.role === 'Cohort Founder' ? '/founder-dashboard' : '/booking';
+        return (
+          <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center font-sans">
+            <div className="max-w-md w-full bg-white rounded-2xl border border-gray-150 p-8 shadow-md">
+              <div className="h-14 w-14 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center mx-auto mb-4 text-rose-600">
+                <ShieldAlert className="h-7 w-7" />
+              </div>
+              <h2 className="text-lg font-black text-gray-900 mb-2">
+                You don't have access to this page
+              </h2>
+              <p className="text-xs text-gray-600 leading-relaxed mb-6">
+                This area is for Takhleeq staff. If you think this is a mistake, email takhleeq@ucp.edu.pk.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate(dashboardTarget)}
+                className="w-full bg-primary hover:bg-primary-hover text-white py-3 px-4 rounded-xl font-bold text-xs transition-all shadow-sm cursor-pointer"
+              >
+                Go to my dashboard
+              </button>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <StaffLayout
           activeTab={activeTab}

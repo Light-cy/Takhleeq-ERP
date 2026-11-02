@@ -282,7 +282,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
   const attendanceNum = parseInt(expectedAttendance, 10);
   const isAttendanceOverCapacity = selectedRoomObj && !isNaN(attendanceNum) && attendanceNum > selectedRoomObj.capacity;
   const attendanceError = isAttendanceOverCapacity 
-    ? `Expected attendance exceeds the selected space's maximum capacity (${selectedRoomObj.capacity} persons).` 
+    ? `Expected attendance exceeds the selected space's maximum capacity (${selectedRoomObj.capacity} seats).` 
     : (attendanceNum < 0 ? "Expected attendance cannot be negative." : null);
 
   const getOperatingHoursError = () => {
@@ -742,7 +742,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                           required
                           value={phone}
                           onChange={e => setPhone(e.target.value)}
-                          placeholder="e.g. 03001234567"
+                          placeholder="e.g. 0300 1234567"
                           className={`w-full pl-9.5 pr-3 py-2.5 border rounded-xl text-xs font-medium transition-colors ${
                             phoneError 
                               ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:ring-1 focus:ring-rose-500 focus:border-rose-500' 
@@ -893,7 +893,7 @@ export function BookingFormPage({ rooms, selectedUserEmail, activeUser, jwtToken
                         <span>About the {selectedRoomObj.name}</span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] text-gray-600 font-medium">
-                        <div><strong>Capacity limit:</strong> {selectedRoomObj.capacity} persons</div>
+                        <div><strong>Capacity limit:</strong> {selectedRoomObj.capacity} seats</div>
                         <div><strong>Hours of use:</strong> {selectedRoomObj.operatingHours}</div>
                         <div><strong>Min duration:</strong> {selectedRoomObj.minBookingDuration} mins</div>
                         <div><strong>Max duration:</strong> {selectedRoomObj.maxBookingDuration} mins</div>

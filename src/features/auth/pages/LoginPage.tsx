@@ -28,7 +28,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
         return 'university';
       }
     }
-    return isStaff ? 'founder' : 'university';
+    return 'university';
   });
 
   const [founderEmail, setFounderEmail] = useState('');
@@ -245,7 +245,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
             <div>
               <h2 className="text-xl font-black tracking-tight uppercase">Takhleeq</h2>
               {isStaff ? (
-                <p className="text-[10px] text-accent font-extrabold uppercase tracking-widest mt-1">Staff Back-Office Portal</p>
+                <p className="text-[10px] text-accent font-extrabold uppercase tracking-widest mt-1">Staff sign-in</p>
               ) : (
                 <p className="text-[10px] text-white/80 font-bold uppercase tracking-widest mt-1">Sign in to Takhleeq</p>
               )}
@@ -257,7 +257,7 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
         <div className="p-8 space-y-5">
           
           {/* Booking context banner if redirected from booking form */}
-          {hasPendingBooking && (
+          {hasPendingBooking && !isStaff && (
             <div className="p-3.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-left flex items-start gap-2.5 shadow-2xs" id="booking-redirect-notice">
               <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div className="text-[11px] leading-relaxed">
@@ -269,34 +269,36 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
             </div>
           )}
 
-          {/* Login Type Tabs (LGN-08) */}
-          <div className="grid grid-cols-2 p-1 bg-gray-100 rounded-xl gap-1">
-            <button
-              type="button"
-              id="tab-university-account"
-              onClick={() => { setLoginMode('university'); setErrorMessage(null); }}
-              className={`py-2 px-3 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                loginMode === 'university'
-                  ? 'bg-white text-primary shadow-xs'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <GraduationCap className="h-3.5 w-3.5" />
-              <span>UCP account</span>
-            </button>
-            <button
-              type="button"
-              id="tab-founder"
-              onClick={() => { setLoginMode('founder'); setErrorMessage(null); }}
-              className={`py-2 px-3 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer ${
-                loginMode === 'founder'
-                  ? 'bg-white text-primary shadow-xs'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              Founder
-            </button>
-          </div>
+          {/* Login Type Tabs (LGN-08 - hidden on staff page STF-01) */}
+          {!isStaff && (
+            <div className="grid grid-cols-2 p-1 bg-gray-100 rounded-xl gap-1">
+              <button
+                type="button"
+                id="tab-university-account"
+                onClick={() => { setLoginMode('university'); setErrorMessage(null); }}
+                className={`py-2 px-3 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  loginMode === 'university'
+                    ? 'bg-white text-primary shadow-xs'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                <GraduationCap className="h-3.5 w-3.5" />
+                <span>UCP account</span>
+              </button>
+              <button
+                type="button"
+                id="tab-founder"
+                onClick={() => { setLoginMode('founder'); setErrorMessage(null); }}
+                className={`py-2 px-3 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer ${
+                  loginMode === 'founder'
+                    ? 'bg-white text-primary shadow-xs'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Founder
+              </button>
+            </div>
+          )}
 
           {errorMessage && !parsedBan && (
             <div className="p-3.5 bg-rose-50 border border-rose-100 text-rose-800 text-[11px] rounded-xl text-left leading-relaxed animate-fade-in flex gap-2">
@@ -454,14 +456,41 @@ export function LoginPage({ isStaff = false, onNavigate, onLoginSuccess }: Login
             </div>
           )}
 
-          {/* Guidelines notes (LGN-07: restricted to University Tab) */}
-          {loginMode === 'university' && (
-            <div className="text-center space-y-2 pt-3 border-t border-gray-50">
-              <p className="text-[10px] text-gray-400 font-medium leading-normal">
-                Use your @ucp.edu.pk account to book rooms.
+          {/* Footer notes (STF-02 / STF-03 / LGN-07) */}
+          <div className="text-center space-y-2 pt-3 border-t border-gray-100">
+            {isStaff ? (
+              <p className="text-xs text-gray-500 font-medium leading-normal">
+                For Takhleeq staff only. Students and founders:{' '}
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/login')}
+                  className="text-primary hover:underline font-semibold cursor-pointer"
+                >
+                  sign in here
+                </button>
+                .
               </p>
-            </div>
-          )}
+            ) : (
+              <>
+                {loginMode === 'university' && (
+                  <p className="text-[11px] text-gray-400 font-medium leading-normal">
+                    Use your @ucp.edu.pk account to book rooms.
+                  </p>
+                )}
+                <p className="text-xs text-gray-500 font-medium leading-normal">
+                  Takhleeq staff?{' '}
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('/staff/login')}
+                    className="text-primary hover:underline font-semibold cursor-pointer"
+                  >
+                    Sign in here
+                  </button>
+                  .
+                </p>
+              </>
+            )}
+          </div>
         </div>
       </div>
 

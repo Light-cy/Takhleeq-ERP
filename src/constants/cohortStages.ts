@@ -2,7 +2,7 @@ import { ApplicantStatus } from '../types/cohort.types';
 
 export interface CohortStage {
   key: ApplicantStatus;
-  label: string; // e.g. "1. APPLIED"
+  label: string; // e.g. "1. Applied"
   name: string; // e.g. "Applied"
   shortLabel: string;
   stepNumber: number;
@@ -13,110 +13,110 @@ export interface CohortStage {
 export const COHORT_STAGES: CohortStage[] = [
   {
     key: 'APPLIED',
-    label: '1. APPLIED',
+    label: '1. Applied',
     name: 'Applied',
     shortLabel: 'Applied',
     stepNumber: 1,
-    desc: 'Application Form Submitted',
+    desc: 'Application form submitted',
     type: 'linear'
   },
   {
     key: 'UNDER_REVIEW',
-    label: '2. UNDER REVIEW',
-    name: 'Under Review',
-    shortLabel: 'Under Review',
+    label: '2. Under review',
+    name: 'Under review',
+    shortLabel: 'Under review',
     stepNumber: 2,
-    desc: 'Desk Screening & Review',
+    desc: 'Desk screening and review',
     type: 'linear'
   },
   {
     key: 'SHORTLISTED_FOR_PRESENTATION',
-    label: '3. SHORTLISTED FOR PRESENTATION',
-    name: 'Shortlisted for Presentation',
-    shortLabel: 'Shortlisted for Pitch',
+    label: '3. Shortlisted for presentation',
+    name: 'Shortlisted for presentation',
+    shortLabel: 'Shortlisted for pitch',
     stepNumber: 3,
-    desc: 'Invited to Panel Presentation',
+    desc: 'Invited to panel presentation',
     type: 'linear'
   },
   {
     key: 'PRESENTATION_CONDUCTED',
-    label: '4. PRESENTATION CONDUCTED',
-    name: 'Presentation Conducted',
-    shortLabel: 'Pitch Conducted',
+    label: '4. Presentation completed',
+    name: 'Presentation completed',
+    shortLabel: 'Pitch completed',
     stepNumber: 4,
-    desc: 'Panel Evaluation Completed',
+    desc: 'Panel evaluation completed',
     type: 'linear'
   },
   {
     key: 'CONDITIONAL_ACCEPTED',
-    label: '5. CONDITIONAL ACCEPTED',
-    name: 'Conditional Accepted',
-    shortLabel: 'Conditional Accept',
+    label: '5. Conditional offer',
+    name: 'Conditional offer',
+    shortLabel: 'Conditional offer',
     stepNumber: 5,
-    desc: 'Conditional Offer Issued',
+    desc: 'Conditional admission offer issued',
     type: 'linear'
   },
   {
     key: 'ACCEPTED',
-    label: '6. ACCEPTED',
+    label: '6. Accepted',
     name: 'Accepted',
-    shortLabel: 'Accepted / Offer',
+    shortLabel: 'Accepted',
     stepNumber: 6,
-    desc: 'Seat Offered to Founder',
+    desc: 'Seat offered to founder',
     type: 'linear'
   },
   {
     key: 'CONFIRMED',
-    label: '7. CONFIRMED',
+    label: '7. Confirmed',
     name: 'Confirmed',
-    shortLabel: 'Seat Confirmed',
+    shortLabel: 'Seat confirmed',
     stepNumber: 7,
-    desc: 'Founder Accepted & Seat Reserved',
+    desc: 'Founder accepted and seat reserved',
     type: 'linear'
   },
   {
     key: 'ORIENTATION_CONDUCTED',
-    label: '8. ORIENTATION CONDUCTED',
-    name: 'Orientation Conducted',
-    shortLabel: 'Orientation Conducted',
+    label: '8. Orientation conducted',
+    name: 'Orientation conducted',
+    shortLabel: 'Orientation conducted',
     stepNumber: 8,
-    desc: 'Induction & Onboarding Session',
+    desc: 'Induction and onboarding session',
     type: 'linear'
   },
   {
     key: 'ENROLLED',
-    label: '9. ENROLLED',
+    label: '9. Enrolled',
     name: 'Enrolled',
-    shortLabel: 'Enrolled in Batch',
+    shortLabel: 'Enrolled in batch',
     stepNumber: 9,
-    desc: 'Active Cohort Venture',
+    desc: 'Active cohort venture',
     type: 'linear'
   },
   {
     key: 'WAITLISTED',
-    label: '10. WAITLISTED',
+    label: '10. Waitlisted',
     name: 'Waitlisted',
-    shortLabel: 'Waitlisted Pool',
+    shortLabel: 'Waitlisted',
     stepNumber: 10,
-    desc: 'Waitlisted for Available Seat',
+    desc: 'Waitlisted for available seat',
     type: 'alternate'
   },
   {
     key: 'BACKUP_CANDIDATE',
-    label: '11. BACKUP CANDIDATE',
-    name: 'Backup Candidate',
-    shortLabel: 'Backup List',
+    label: '11. Backup candidate',
+    name: 'Backup candidate',
+    shortLabel: 'Backup list',
     stepNumber: 11,
-    desc: 'Backup Pool Candidate',
+    desc: 'Backup pool candidate',
     type: 'alternate'
   },
   {
     key: 'REJECTED',
-    label: '12. REJECTED',
+    label: '12. Rejected',
     name: 'Rejected',
-    shortLabel: 'Not Selected',
+    shortLabel: 'Not selected',
     stepNumber: 12,
-    desc: 'Application Rejected / Not Selected',
+    desc: 'Application not selected',
     type: 'terminal'
   }
 ];
@@ -130,7 +130,7 @@ export const normalizeApplicantStatus = (rawStatus: any): ApplicantStatus => {
   if (s === 'SUBMITTED' || s === '1') return 'APPLIED';
   if (s === 'IN_REVIEW' || s === '2') return 'UNDER_REVIEW';
   if (s === 'SHORTLISTED' || s === '3') return 'SHORTLISTED_FOR_PRESENTATION';
-  if (s === '4') return 'PRESENTATION_CONDUCTED';
+  if (s === '4' || s === 'PRESENTATION_SCHEDULED' || s === 'PRESENTATION_COMPLETED') return 'PRESENTATION_CONDUCTED';
   if (s === '5') return 'CONDITIONAL_ACCEPTED';
   if (s === '6') return 'ACCEPTED';
   if (s === '7') return 'CONFIRMED';

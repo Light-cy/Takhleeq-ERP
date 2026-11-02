@@ -291,8 +291,8 @@ export function StaffReviewQueue({
                   <div className="text-xs space-y-2 text-gray-700">
                     <p className="leading-relaxed"><strong>Title:</strong> <span className="text-gray-900 font-bold">{selectedBooking.eventTitle}</span></p>
                     <p className="leading-relaxed text-gray-500"><strong>Description:</strong> {selectedBooking.eventDescription}</p>
-                    <p><strong>Attendance count:</strong> {selectedBooking.expectedAttendance} persons</p>
-                    <p><strong>Classification:</strong> {selectedBooking.bookingType}</p>
+                    <p><strong>Attendance:</strong> {selectedBooking.expectedAttendance} seats</p>
+                    <p><strong>Booked as:</strong> {selectedBooking.bookingType}</p>
                   </div>
                 </div>
 

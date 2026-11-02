@@ -537,8 +537,8 @@ export function TrackPage({ bookings, currentUserEmail, jwtToken, currentPath, o
                 <p><strong>Event Title:</strong> {viewingReceipt.eventTitle || 'Untitled Event'}</p>
                 <p><strong>Space / Facility:</strong> {viewingReceipt.room}</p>
                 <p><strong>Scheduled Slot:</strong> {viewingReceipt.date} @ {viewingReceipt.startTime} - {viewingReceipt.endTime}</p>
-                <p><strong>Classification:</strong> {viewingReceipt.bookingType}</p>
-                <p><strong>Expected Attendees:</strong> {viewingReceipt.expectedAttendance || 0} participants</p>
+                <p><strong>Booked as:</strong> {viewingReceipt.bookingType}</p>
+                <p><strong>Expected Attendees:</strong> {viewingReceipt.expectedAttendance || 0} seats</p>
                 {viewingReceipt.eventDescription && (
                   <p className="text-gray-500 pt-1"><strong>Description:</strong> {viewingReceipt.eventDescription}</p>
                 )}

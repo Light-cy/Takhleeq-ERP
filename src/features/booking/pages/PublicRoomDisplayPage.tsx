@@ -670,7 +670,7 @@ export function PublicRoomDisplayPage({
                       {selectedRoomModal.name}
                     </span>
                     <span className="text-[10px] bg-slate-800 text-slate-300 font-bold px-2.5 py-1 rounded-lg border border-slate-700">
-                      Capacity: {selectedRoomModal.capacity} Persons
+                      {selectedRoomModal.capacity} seats
                     </span>
                     <span className="text-[10px] bg-slate-800 text-slate-300 font-bold px-2.5 py-1 rounded-lg border border-slate-700">
                       Hours: {selectedRoomModal.operatingHours}

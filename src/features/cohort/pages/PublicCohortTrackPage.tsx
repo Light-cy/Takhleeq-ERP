@@ -37,11 +37,11 @@ export const PublicCohortTrackPage: React.FC<PublicCohortTrackPageProps> = ({ cu
   const [confirmingSeat, setConfirmingSeat] = useState(false);
 
   const fetchTrackingData = async (token: string) => {
-    const response = await fetch(`/api/applicants/track/${token.trim()}`);
+    const response = await fetch(`/api/applicants/track/${encodeURIComponent(token.trim())}`);
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || 'Failed to locate application records.');
+      throw new Error("We couldn't find that tracking ID. Check your confirmation email, or contact takhleeq@ucp.edu.pk.");
     }
 
     return data;
@@ -66,7 +66,7 @@ export const PublicCohortTrackPage: React.FC<PublicCohortTrackPageProps> = ({ cu
         .then(data => setApplicant(data))
         .catch(err => {
           console.error(err);
-          setError(err.message || 'Verification Error: Check your tracking token format and retry.');
+          setError("We couldn't find that tracking ID. Check your confirmation email, or contact takhleeq@ucp.edu.pk.");
         })
         .finally(() => setLoading(false));
     }
@@ -85,7 +85,7 @@ export const PublicCohortTrackPage: React.FC<PublicCohortTrackPageProps> = ({ cu
       setApplicant(data);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Verification Error: Check your tracking token format and retry.');
+      setError("We couldn't find that tracking ID. Check your confirmation email, or contact takhleeq@ucp.edu.pk.");
     } finally {
       setLoading(false);
     }
@@ -196,14 +196,10 @@ export const PublicCohortTrackPage: React.FC<PublicCohortTrackPageProps> = ({ cu
 
   return (
     <div className="flex-1 max-w-4xl mx-auto px-4 py-12 w-full" id="public-cohort-track-page">
-      <div className="text-center space-y-3 mb-10">
-        <div className="inline-flex items-center gap-2 bg-rose-50 text-primary text-[10px] font-black uppercase tracking-widest px-3.5 py-1 rounded-full border border-rose-100 shadow-3xs">
-          <Sparkles className="h-3 w-3 animate-pulse" />
-          Admissions Tracker
-        </div>
-        <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">Track Your Application Progress</h1>
+      <div className="text-center space-y-2 mb-10">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Track your application</h1>
         <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
-          Verify the real-time stage of your startup application or confirm your incubator cohort placement seat.
+          Enter the tracking ID from your confirmation email to see where your application is.
         </p>
       </div>
 
@@ -216,9 +212,9 @@ export const PublicCohortTrackPage: React.FC<PublicCohortTrackPageProps> = ({ cu
               type="text"
               required
               value={tokenInput}
-              onChange={(e) => setTokenInput(e.target.value.toUpperCase())}
-              placeholder="Enter Token (e.g. TK-STR-7821)"
-              className="w-full bg-gray-50 border border-gray-150 rounded-xl pl-11 pr-4 py-3.5 text-xs font-mono text-gray-800 placeholder-gray-400 focus:outline-none focus:border-primary focus:bg-white transition-all font-black"
+              onChange={(e) => setTokenInput(e.target.value)}
+              placeholder="Tracking ID (e.g. TK-STR-7821) or email"
+              className="w-full bg-gray-50 border border-gray-150 rounded-xl pl-11 pr-4 py-3.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-primary focus:bg-white transition-all font-medium"
             />
           </div>
           <button
@@ -226,7 +222,7 @@ export const PublicCohortTrackPage: React.FC<PublicCohortTrackPageProps> = ({ cu
             disabled={loading}
             className="bg-primary hover:bg-[#5A0F0F] text-white text-xs font-bold py-3.5 px-6 rounded-xl transition-all cursor-pointer shadow-3xs shrink-0 flex items-center justify-center gap-1.5 disabled:opacity-45"
           >
-            {loading ? 'Searching...' : 'Track'}
+            {loading ? 'Checking…' : 'Check status'}
             <ArrowRight className="h-4 w-4" />
           </button>
         </form>

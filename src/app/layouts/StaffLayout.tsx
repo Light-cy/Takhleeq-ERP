@@ -144,7 +144,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
             <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-white text-xs font-black font-mono">T</span>
             </div>
-            <span className="text-xs font-black uppercase tracking-wider text-gray-900">Takhleeq ERP Portal</span>
+            <span className="text-xs font-black uppercase tracking-wider text-gray-900">Takhleeq Portal · Staff</span>
           </div>
 
           <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Signed Back-office</p>
@@ -260,7 +260,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                     >
                       <span className="flex items-center gap-2">
                         <Layers className="h-3.5 w-3.5" />
-                        Booking Types
+                        Who can book
                       </span>
                       {!hasPermission('MANAGE_BOOKING_TYPES') && <Lock className="h-3 w-3 text-gray-400" />}
                     </button>
@@ -561,7 +561,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
         <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <span className="bg-[#8B1A1A] text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg">
-              Takhleeq Backoffice Console
+              Takhleeq Portal · Staff
             </span>
             <span className="h-4 w-px bg-gray-200" />
             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
@@ -576,7 +576,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                 : activeTab === 'rooms' 
                 ? 'Facility Spaces configurator' 
                 : activeTab === 'booking_types' || activeTab === 'types'
-                ? 'Booking Types & Classifications'
+                ? 'Who can book'
                 : activeTab === 'booking_analytics' || activeTab === 'analytics'
                 ? 'Booking Analytics'
                 : activeTab.startsWith('cohort') 
@@ -643,7 +643,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                   disabled={!hasPermission('MANAGE_BOOKING_TYPES')}
                   className={`w-full text-left font-black text-xs p-3 rounded-xl uppercase tracking-wider ${activeTab === 'booking_types' || activeTab === 'types' ? 'bg-primary text-white' : 'bg-gray-50 text-gray-700'} disabled:opacity-40`}
                 >
-                  Booking Types
+                  Who can book
                 </button>
                 <button 
                   onClick={() => handleTabClick('booking_analytics')}
