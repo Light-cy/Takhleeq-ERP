@@ -108,8 +108,9 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({
                 Room schedule
               </button>
             </>
-          </div>
-        )}
+          )}
+        </div>
+      )}
 
         <div className="flex items-center gap-2 text-xs">
           {activeUser ? (
