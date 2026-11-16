@@ -55,15 +55,21 @@ export function BookingFilterToolbar({
         }
       })
       .catch(() => {});
-  }, []);
+  }, [bookings]);
 
-  // Combine dynamic types with any types already present in bookings
+  // Only show types that exist (and are active) in System Booking Classifications
   const availableTypes = React.useMemo(() => {
     const set = new Set<string>();
     dynamicTypes.forEach(t => { if (t) set.add(t); });
-    bookings.forEach(b => { if (b.bookingType) set.add(b.bookingType); });
     return Array.from(set).sort();
-  }, [dynamicTypes, bookings]);
+  }, [dynamicTypes]);
+
+  // If the selected filter type was deleted, reset to "All Types"
+  React.useEffect(() => {
+    if (filterBookingType && dynamicTypes.length > 0 && !availableTypes.includes(filterBookingType)) {
+      setFilterBookingType('');
+    }
+  }, [availableTypes, filterBookingType, dynamicTypes.length]);
   return (
     <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-3xs space-y-4 text-left">
       <div className="flex items-center justify-between gap-1.5">
