@@ -27,8 +27,17 @@ export function GovBookingTypesTab({
 
   const fetchBTypes = () => {
     apiClient.get<any[]>('/api/booking-types')
-      .then(data => {
-        setBTypes(data);
+           .then(data => {
+        const normalized = (data || []).map((d: any) => {
+          const raw = d.isActive ?? d.is_active;
+          return {
+            ...d,
+            isActive: raw === undefined || raw === null
+              ? true
+              : raw === true || raw === 1 || raw === '1' || raw === 'true'
+          };
+        });
+        setBTypes(normalized);
       })
       .catch(err => {
         console.error('Error fetching booking types in admin:', err);
@@ -55,17 +64,19 @@ export function GovBookingTypesTab({
 
     try {
       if (editingBt) {
-        await apiClient.put(`/api/booking-types/${editingBt.id}`, {
+          await apiClient.put(`/api/booking-types/${editingBt.id}`, {
           name: btName.trim(),
           description: btDesc.trim(),
-          isActive: btActive
+          isActive: btActive,
+          is_active: btActive
         });
         setSuccessMsg(`Booking type '${btName.trim()}' updated successfully.`);
       } else {
-        await apiClient.post('/api/booking-types', {
+          await apiClient.post('/api/booking-types', {
           name: btName.trim(),
           description: btDesc.trim(),
-          isActive: btActive
+          isActive: btActive,
+          is_active: btActive
         });
         setSuccessMsg(`Booking type '${btName.trim()}' created successfully.`);
       }
