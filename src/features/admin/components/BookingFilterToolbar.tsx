@@ -101,7 +101,7 @@ export function BookingFilterToolbar({
       
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div>
-          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1.5">Room Space</label>
+          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1.5">Room</label>
           <select
             value={filterRoom}
             onChange={e => setFilterRoom(e.target.value)}
@@ -113,23 +113,23 @@ export function BookingFilterToolbar({
         </div>
 
         <div>
-          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1.5">Status State</label>
+          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1.5">Status</label>
           <select
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
             className="w-full p-2.5 border border-gray-150 rounded-xl text-xs bg-gray-50/50 text-gray-700 font-medium cursor-pointer focus:ring-1 focus:ring-primary focus:bg-white"
           >
             <option value="">All Statuses</option>
-            <option value="APPROVED">APPROVED</option>
-            <option value="PENDING REVIEW">PENDING REVIEW</option>
-            <option value="REJECTED BY STAFF">REJECTED BY STAFF</option>
-            <option value="CANCELLED">CANCELLED</option>
-            <option value="REJECTED (BAN)">REJECTED (BAN)</option>
+            <option value="APPROVED">Approved</option>
+            <option value="PENDING REVIEW">Pending</option>
+            <option value="REJECTED BY STAFF">Rejected</option>
+            <option value="CANCELLED">Cancelled</option>
+            <option value="REJECTED (BAN)">Blocked – user suspended</option>
           </select>
         </div>
 
         <div>
-          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1.5">Requester Type</label>
+          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1.5">Booking Type</label>
           <select
             value={filterBookingType}
             onChange={e => setFilterBookingType(e.target.value)}
