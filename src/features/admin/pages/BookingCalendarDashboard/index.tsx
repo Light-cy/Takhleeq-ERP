@@ -135,9 +135,8 @@ export function BookingCalendarDashboard({
       {/* Switch Navigation & Quick stats */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-3xs">
         <div>
-          <span className="text-accent text-[9px] font-black uppercase tracking-widest block">Administration Registry</span>
-          <h1 className="text-base font-black text-gray-900 uppercase tracking-wider mt-0.5">Space Reservation Register & Schedule</h1>
-          <p className="text-[11px] text-gray-500">Live operational timetables, administrative overrides, force rejections, and CSV snapshots.</p>
+          <h1 className="text-base font-black text-gray-900 uppercase tracking-wider mt-0.5">All Bookings</h1>
+          <p className="text-[11px] text-gray-500">Every booking request, with filters and export.</p>
         </div>
         
         <div className="flex items-center gap-2">
