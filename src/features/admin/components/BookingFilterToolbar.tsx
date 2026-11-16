@@ -1,6 +1,7 @@
 import React from 'react';
 import { Filter, Search, FileSpreadsheet } from 'lucide-react';
 import { Room, Booking } from '../../../types';
+import { apiClient } from '../../../shared/apiClient';
 
 interface BookingFilterToolbarProps {
   rooms: Room[];
@@ -48,16 +49,14 @@ export function BookingFilterToolbar({
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
-          const names = data
-            .filter((d: any) => d.isActive !== false && d.is_active !== false)
-            .map((d: any) => d.name);
+          const names = data.map((d: any) => d.name);
           setDynamicTypes(names);
         }
       })
       .catch(() => {});
   }, [bookings]);
 
-  // Only show types that exist (and are active) in System Booking Classifications
+  // Show all types in System Booking Classifications (active + inactive); deleted ones disappear
   const availableTypes = React.useMemo(() => {
     const set = new Set<string>();
     dynamicTypes.forEach(t => { if (t) set.add(t); });
