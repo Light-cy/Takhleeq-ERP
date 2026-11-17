@@ -170,7 +170,7 @@ export function BookingFilterToolbar({
 
       <div className="flex justify-between items-center border-t border-gray-100 pt-4">
         <span className="text-[11px] text-gray-400">
-          Displaying <strong>{filteredBookings.length}</strong> of <strong>{bookings.length}</strong> total reservations
+          Displaying <strong>{filteredBookings.length}</strong> of <strong>{bookings.length}</strong> total Bookings
         </span>
         <button
           type="button"
