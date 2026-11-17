@@ -260,7 +260,7 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
                     >
                       <span className="flex items-center gap-2">
                         <Layers className="h-3.5 w-3.5" />
-                        Who can book
+                        Booking Type
                       </span>
                       {!hasPermission('MANAGE_BOOKING_TYPES') && <Lock className="h-3 w-3 text-gray-400" />}
                     </button>
