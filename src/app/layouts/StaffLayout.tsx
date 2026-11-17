@@ -566,17 +566,17 @@ export const StaffLayout: React.FC<StaffLayoutProps> = ({
             <span className="h-4 w-px bg-gray-200" />
             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">
               {activeTab === 'queue' 
-                ? 'Operational Pending Reviews' 
+                ? 'Reviews Queue' 
                 : activeTab === 'register' 
-                ? 'Schedules & CSV Snapper' 
+                ? 'Booking Register' 
                 : activeTab === 'user_history'
-                ? 'User History & Requesters Dossier'
+                ? 'User History'
                 : activeTab === 'governance' 
                 ? 'Custom Role Compiler' 
                 : activeTab === 'rooms' 
-                ? 'Facility Spaces configurator' 
+                ? 'Room Management' 
                 : activeTab === 'booking_types' || activeTab === 'types'
-                ? 'Who can book'
+                ? 'Booking Type'
                 : activeTab === 'booking_analytics' || activeTab === 'analytics'
                 ? 'Booking Analytics'
                 : activeTab.startsWith('cohort') 
