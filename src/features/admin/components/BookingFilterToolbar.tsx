@@ -177,8 +177,7 @@ export function BookingFilterToolbar({
           onClick={handleExportData}
           className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-3xs"
         >
-          <FileSpreadsheet className="h-4 w-4" /> Export CSV Snapshot
-        </button>
+          <FileSpreadsheet className="h-4 w-4" /> Export CSV </button>
       </div>
     </div>
   );
