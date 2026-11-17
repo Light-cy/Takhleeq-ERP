@@ -257,18 +257,28 @@ export function BookingCalendarDashboard({
                           </button>
 
                           {/* Override Button */}
-                          <button
-                            onClick={() => startEditing(b)}
-                            disabled={isAlreadyRejectedOrCancelled || isPast}
-                            className={`border px-2.5 py-1.5 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all duration-200 whitespace-nowrap ${
-                              isAlreadyRejectedOrCancelled || isPast
-                                ? 'border-gray-150 text-gray-300 bg-gray-50/50 cursor-not-allowed'
-                                : 'text-primary hover:text-white hover:bg-primary border-primary/20 hover:border-primary cursor-pointer'
-                            }`}
-                            title={isPast ? 'Booking date/time has passed' : 'Modify room or timing parameters'}
+                          <span
+                            className={isAlreadyRejectedOrCancelled || isPast ? 'cursor-not-allowed' : ''}
+                            title={
+                              isPast
+                                ? "Past bookings can't be changed."
+                                : isAlreadyRejectedOrCancelled
+                                  ? "Rejected or cancelled bookings can't be changed."
+                                  : 'Modify room or timing parameters'
+                            }
                           >
-                            Override
-                          </button>
+                            <button
+                              onClick={() => startEditing(b)}
+                              disabled={isAlreadyRejectedOrCancelled || isPast}
+                              className={`border px-2.5 py-1.5 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all duration-200 whitespace-nowrap ${
+                                isAlreadyRejectedOrCancelled || isPast
+                                  ? 'border-gray-150 text-gray-300 bg-gray-50/50 pointer-events-none'
+                                  : 'text-primary hover:text-white hover:bg-primary border-primary/20 hover:border-primary cursor-pointer'
+                              }`}
+                            >
+                              Override
+                            </button>
+                          </span>
 
                           {/* Force Reject Button */}
                           {isAlreadyRejectedOrCancelled ? (
