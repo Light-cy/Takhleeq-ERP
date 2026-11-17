@@ -177,13 +177,12 @@ export function BookingCalendarDashboard({
             <thead>
               <tr className="border-b border-gray-155 text-[10px] font-black text-gray-400 uppercase bg-gray-50/50 font-sans">
                 <th className="py-3 px-6">ID</th>
-                <th className="py-3 px-6">Event Details</th>
-                <th className="py-3 px-6">Room Location</th>
-                <th className="py-3 px-6">Schedule Slot</th>
-                <th className="py-3 px-6">Requester</th>
-                <th className="py-3 px-6">User Type</th>
+                <th className="py-3 px-6">Event</th>
+                <th className="py-3 px-6">Room</th>
+                <th className="py-3 px-6">Date & Time</th>
+                <th className="py-3 px-6">Booked By</th>
+                <th className="py-3 px-6">Booking Type</th>
                 <th className="py-3 px-6">Approved By</th>
-                <th className="py-3 px-6">Approval Date</th>
                 <th className="py-3 px-6">Conflict Status</th>
                 <th className="py-3 px-6">Ban Status</th>
                 <th className="py-3 px-6">Status</th>
@@ -193,7 +192,7 @@ export function BookingCalendarDashboard({
             <tbody className="divide-y divide-gray-100">
               {filteredBookings.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-12 text-center text-xs text-gray-400">
+                  <td colSpan={11} className="py-12 text-center text-xs text-gray-400">
                     No reservation records match the active filter criteria.
                   </td>
                 </tr>
@@ -229,19 +228,14 @@ export function BookingCalendarDashboard({
                       </td>
                       <td className="py-4 px-6 font-semibold text-gray-800 whitespace-nowrap">{b.bookingType}</td>
                       <td className="py-4 px-6 font-semibold text-gray-800 whitespace-nowrap">{b.approvedBy || '—'}</td>
-                      <td className="py-4 px-6 font-mono text-gray-500 whitespace-nowrap">{b.approvalDate ? new Date(b.approvalDate).toLocaleDateString() : '—'}</td>
                       <td className="py-4 px-6 whitespace-nowrap">
-                        {b.conflictStatus === 'CONFLICT DETECTED' ? (
-                          <span className="bg-rose-50 text-rose-800 border border-rose-100 text-[9px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap">CONFLICT DETECTED</span>
-                        ) : (
-                          <span className="bg-green-50 text-green-800 border border-green-100 text-[9px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap">NO CONFLICT</span>
+                        {b.conflictStatus === 'Conflict Detected' && (
+                          <span className="bg-rose-50 text-rose-800 border border-rose-100 text-[9px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap">Conflict Detected</span>
                         )}
                       </td>
                       <td className="py-4 px-6 whitespace-nowrap">
-                        {isBanned ? (
+                        {isBanned && (
                           <span className="bg-red-100 text-red-800 border border-red-200 text-[9px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap">BANNED</span>
-                        ) : (
-                          <span className="bg-gray-100 text-gray-800 border border-gray-200 text-[9px] font-bold px-2 py-0.5 rounded uppercase whitespace-nowrap">CLEAR</span>
                         )}
                       </td>
                       <td className="py-4 px-6 whitespace-nowrap">
