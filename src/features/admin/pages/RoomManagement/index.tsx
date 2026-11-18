@@ -174,18 +174,18 @@ export function RoomManagementPage({
 
               <div className="grid grid-cols-2 gap-3.5 border-b pb-4.5 border-gray-50">
                 <div className="space-y-0.5">
-                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Min Booking Block</span>
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Minimum Time</span>
                   <p className="font-bold text-gray-800 font-mono">{room.minBookingDuration} mins</p>
                 </div>
 
                 <div className="space-y-0.5">
-                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Max Booking Block</span>
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Maximum Time</span>
                   <p className="font-bold text-gray-800 font-mono">{room.maxBookingDuration} mins</p>
                 </div>
               </div>
 
               <div className="space-y-1">
-                <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Official Guideline Purpose</span>
+                <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Official Guidelines</span>
                 <p className="text-[11px] text-gray-500 leading-normal font-medium">{room.purpose}</p>
               </div>
 
@@ -238,7 +238,7 @@ export function RoomManagementPage({
                   onClick={() => startEditing(room)}
                   className="text-primary hover:text-white hover:bg-primary border border-primary/20 hover:border-primary font-bold px-3 py-1.5 rounded-xl text-[10px] uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1"
                 >
-                  <Edit3 className="h-3.5 w-3.5" /> Configure
+                  <Edit3 className="h-3.5 w-3.5" /> EDIT
                 </button>
                 <button
                   onClick={() => setDeletingRoom(room)}
@@ -415,13 +415,13 @@ export function RoomManagementPage({
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="edit-room-modal">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="bg-primary text-white p-5 font-black text-sm flex items-center justify-between shrink-0">
-              <span className="uppercase tracking-wider">Configure Room: {editingRoom.name}</span>
+              <span className="uppercase tracking-wider">{editingRoom.name}</span>
               <button onClick={() => setEditingRoom(null)} className="text-white hover:text-accent font-bold cursor-pointer text-sm">✕</button>
             </div>
 
             <form onSubmit={handleEditSubmit} className="p-6 space-y-4 text-left overflow-y-auto">
               <div>
-                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Room Name/Number <span className="text-red-500">*</span></label>
+                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Room Name <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   required
@@ -443,7 +443,7 @@ export function RoomManagementPage({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Operating Block <span className="text-red-500">*</span></label>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Operating Time <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     required
@@ -456,7 +456,7 @@ export function RoomManagementPage({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Min Block (Mins) <span className="text-red-500">*</span></label>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Minimum Booking Time (Mins) <span className="text-red-500">*</span></label>
                   <input
                     type="number"
                     required
@@ -466,7 +466,7 @@ export function RoomManagementPage({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Max Block (Mins) <span className="text-red-500">*</span></label>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Maximum Booking Time (Mins) <span className="text-red-500">*</span></label>
                   <input
                     type="number"
                     required
@@ -492,7 +492,7 @@ export function RoomManagementPage({
               <div className="space-y-1.5 pt-2 border-t border-gray-100">
                 <div className="flex items-center justify-between">
                   <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider">
-                    Permitted Booking Categories ({roomAllowedBookingTypes.length})
+                    Permitted Booking Types ({roomAllowedBookingTypes.length})
                   </label>
                   <div className="flex items-center gap-2">
                     <button
