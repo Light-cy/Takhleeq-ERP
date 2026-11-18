@@ -492,7 +492,7 @@ export function RoomManagementPage({
               <div className="space-y-1.5 pt-2 border-t border-gray-100">
                 <div className="flex items-center justify-between">
                   <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider">
-                    Permitted Booking Types ({roomAllowedBookingTypes.length})
+                    Allowed Booking Types ({roomAllowedBookingTypes.length})
                   </label>
                   <div className="flex items-center gap-2">
                     <button
@@ -556,7 +556,7 @@ export function RoomManagementPage({
                   disabled={processing}
                   className="px-5 py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 uppercase tracking-wider"
                 >
-                  {processing ? 'Saving...' : 'Commit Changes'}
+                  {processing ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>
