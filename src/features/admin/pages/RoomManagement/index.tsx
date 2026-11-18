@@ -122,14 +122,14 @@ export function RoomManagementPage({
       {/* Grid header action bar */}
       <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-3xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Facility Spaces Register ({rooms.length})</h3>
-          <p className="text-[11px] text-gray-400">Configure co-working zones, departmental boards, capacities, and active operating hours.</p>
+          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Rooms ({rooms.length})</h3>
+          <p className="text-[11px] text-gray-400">Set Room capacity, Operating Hours and Booking Type for each room.</p>
         </div>
         <button
           onClick={startAdding}
           className="bg-primary hover:bg-primary/95 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer uppercase tracking-wider transition-colors"
         >
-          <Plus className="h-4.5 w-4.5" /> Add Space Room
+          <Plus className="h-4.5 w-4.5" /> Add Room
         </button>
       </div>
 
@@ -150,11 +150,6 @@ export function RoomManagementPage({
                 <MapPin className="h-4.5 w-4.5 text-primary" />
                 <span className="font-extrabold text-gray-900 text-xs uppercase tracking-wide">{room.name}</span>
               </div>
-              <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full transition-colors duration-300 ${
-                room.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-500'
-              }`}>
-                {room.isActive ? 'Active' : 'Disabled'}
-              </span>
             </div>
 
             {/* Core parameters details */}
@@ -225,15 +220,15 @@ export function RoomManagementPage({
                 }`}
                 title="Toggle reservation availability status"
               >
-                {room.isActive ? (
+               {room.isActive ? (
                   <>
                     <ToggleRight className="h-6 w-6 text-emerald-600 shrink-0" />
-                    <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">Online</span>
+                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 transition-colors duration-300">Active</span>
                   </>
                 ) : (
                   <>
                     <ToggleLeft className="h-6 w-6 text-gray-400 shrink-0" />
-                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider">Offline</span>
+                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-gray-200 text-gray-500 transition-colors duration-300">Disabled</span>
                   </>
                 )}
               </button>
