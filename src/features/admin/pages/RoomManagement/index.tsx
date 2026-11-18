@@ -443,7 +443,7 @@ export function RoomManagementPage({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Operating Time <span className="text-red-500">*</span></label>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Operating Hours <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     required
@@ -478,7 +478,7 @@ export function RoomManagementPage({
               </div>
 
               <div>
-                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Official Guideline Purpose <span className="text-red-500">*</span></label>
+                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Official Guidelines <span className="text-red-500">*</span></label>
                 <textarea
                   required
                   rows={2}
