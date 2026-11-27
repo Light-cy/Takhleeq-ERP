@@ -138,7 +138,7 @@ export function GovBookingTypesTab({
 
         <form onSubmit={handleCreateOrUpdateBt} className="space-y-4">
           <div>
-            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Name<span className="text-red-500">*</span></label>
+            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Name</label>
             <input
               type="text"
               required
