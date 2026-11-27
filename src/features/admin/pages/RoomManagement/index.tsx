@@ -243,7 +243,7 @@ export function RoomManagementPage({
                 <button
                   onClick={() => setDeletingRoom(room)}
                   className="text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 font-bold px-3 py-1.5 rounded-xl text-[10px] uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1"
-                  title="Delete this space room permanently"
+                  title="Delete Room"
                 >
                   <Trash2 className="h-3.5 w-3.5" /> Delete
                 </button>
@@ -329,7 +329,7 @@ export function RoomManagementPage({
                   rows={2}
                   value={roomPurpose}
                   onChange={e => setRoomPurpose(e.target.value)}
-                  placeholder="e.g. Restricted strictly to formal advisory pitching clinics and presentation mock webinars..."
+                  placeholder="e.g. Confirmation required. Must follow allocated time. Cancellation at least 1 hour in advance or flagged as policy violation. Room returned in original condition. Furniture not to be altered without permission."
                   className="w-full p-2.5 border border-gray-150 rounded-xl text-xs bg-gray-50/50 focus:bg-white focus:ring-1 focus:ring-primary"
                 />
               </div>
