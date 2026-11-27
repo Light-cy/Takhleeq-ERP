@@ -402,7 +402,7 @@ export function BookingOperationalAnalytics({
                       }}
                       className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      <FileSpreadsheet className="h-3.5 w-3.5" /> Export Filtered CSV ({filtered.length})
+                      <FileSpreadsheet className="h-3.5 w-3.5" /> Export CSV ({filtered.length})
                     </button>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
