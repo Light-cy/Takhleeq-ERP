@@ -132,16 +132,13 @@ export function GovBookingTypesTab({
       <div className="lg:col-span-5 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5 h-fit">
         <div className="space-y-1">
           <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">
-            {editingBt ? 'Modify Booking Type' : 'Register Booking Type'}
+            {editingBt ? 'Modify Booking Type' : 'Create New Booking Type'}
           </h3>
-          <p className="text-[11px] text-gray-500">
-            {editingBt ? 'Update the active properties of the selected classification.' : 'Create a new organizational classification for submitting booking requests.'}
-          </p>
         </div>
 
         <form onSubmit={handleCreateOrUpdateBt} className="space-y-4">
           <div>
-            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Classification Name <span className="text-red-500">*</span></label>
+            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Name<span className="text-red-500">*</span></label>
             <input
               type="text"
               required
@@ -153,7 +150,7 @@ export function GovBookingTypesTab({
           </div>
 
           <div>
-            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Scope / Usage Description</label>
+            <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Description</label>
             <textarea
               value={btDesc}
               onChange={e => setBtDesc(e.target.value)}
@@ -191,7 +188,7 @@ export function GovBookingTypesTab({
               disabled={processing}
               className="flex-1 bg-primary hover:bg-primary/95 text-white font-bold py-3 px-4 rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
             >
-              {processing ? 'Saving...' : editingBt ? 'Update Type' : 'Register Type'}
+              {processing ? 'Saving...' : editingBt ? 'Update' : 'Register'}
             </button>
           </div>
         </form>
@@ -200,16 +197,15 @@ export function GovBookingTypesTab({
       {/* Booking Types List Table */}
       <div className="lg:col-span-7 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-4">
         <div className="space-y-1">
-          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">System Booking Classifications</h3>
-          <p className="text-[11px] text-gray-500">Organizations and groups authorized to book facility rooms.</p>
+          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Registered Booking Types</h3>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-gray-150 text-[9px] font-black text-gray-400 uppercase bg-gray-50/50">
-                <th className="py-2.5 px-3">Classification</th>
-                <th className="py-2.5 px-3">Scope Description</th>
+                <th className="py-2.5 px-3">Name</th>
+                <th className="py-2.5 px-3">Description</th>
                 <th className="py-2.5 px-3 text-center">Status</th>
                 <th className="py-2.5 px-3 text-right">Actions</th>
               </tr>
