@@ -258,13 +258,13 @@ export function RoomManagementPage({
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="add-room-modal">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="bg-primary text-white p-5 font-black text-sm flex items-center justify-between shrink-0">
-              <span className="uppercase tracking-wider">Register New Space Room</span>
+              <span className="uppercase tracking-wider">Register New Room</span>
               <button onClick={() => setShowAddModal(false)} className="text-white hover:text-accent font-bold cursor-pointer text-sm">✕</button>
             </div>
 
             <form onSubmit={handleAddSubmit} className="p-6 space-y-4 text-left overflow-y-auto">
               <div>
-                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Room Name/Number <span className="text-red-500">*</span></label>
+                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Room Name<span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   required
@@ -287,7 +287,7 @@ export function RoomManagementPage({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Operating Block <span className="text-red-500">*</span></label>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Operating Hours<span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     required
@@ -301,7 +301,7 @@ export function RoomManagementPage({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Min Block (Mins) <span className="text-red-500">*</span></label>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Minimum Booking Time (Mins)<span className="text-red-500">*</span></label>
                   <input
                     type="number"
                     required
@@ -311,7 +311,7 @@ export function RoomManagementPage({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Max Block (Mins) <span className="text-red-500">*</span></label>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Maximum Booking Time (Mins)<span className="text-red-500">*</span></label>
                   <input
                     type="number"
                     required
@@ -323,7 +323,7 @@ export function RoomManagementPage({
               </div>
 
               <div>
-                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Official Guideline Purpose <span className="text-red-500">*</span></label>
+                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Official Guidelines<span className="text-red-500">*</span></label>
                 <textarea
                   required
                   rows={2}
@@ -338,7 +338,7 @@ export function RoomManagementPage({
               <div className="space-y-1.5 pt-2 border-t border-gray-100">
                 <div className="flex items-center justify-between">
                   <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider">
-                    Permitted Booking Categories ({roomAllowedBookingTypes.length})
+                    Allowed Booking Types ({roomAllowedBookingTypes.length})
                   </label>
                   <div className="flex items-center gap-2">
                     <button
@@ -402,7 +402,7 @@ export function RoomManagementPage({
                   disabled={processing}
                   className="px-5 py-2.5 bg-primary hover:bg-primary/95 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50 uppercase tracking-wider"
                 >
-                  {processing ? 'Saving...' : 'Register Space'}
+                  {processing ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>
