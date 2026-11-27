@@ -238,7 +238,7 @@ export function GovBookingTypesTab({
                       <button
                         onClick={() => setDeletingBt({ id: bt.id, name: bt.name })}
                         className="text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg border border-transparent hover:border-rose-100 transition-colors cursor-pointer"
-                        title="Purge booking type"
+                        title="Delete booking type"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -265,7 +265,7 @@ export function GovBookingTypesTab({
             <div className="bg-rose-600 text-white p-4 font-black text-xs flex items-center justify-between">
               <span className="uppercase tracking-wider flex items-center gap-1.5">
                 <AlertTriangle className="h-4 w-4" />
-                Purge Booking Type
+                Delete Booking Type
               </span>
               <button onClick={() => setDeletingBt(null)} className="text-white hover:text-rose-200 font-bold cursor-pointer text-xs">✕</button>
             </div>
@@ -297,7 +297,7 @@ export function GovBookingTypesTab({
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-lg text-[10px] cursor-pointer disabled:opacity-50 uppercase tracking-wider flex items-center gap-1.5"
                 >
                   <Trash2 className="h-3 w-3" />
-                  {processing ? 'Purging...' : 'Purge Type'}
+                  {processing ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </div>
