@@ -158,7 +158,7 @@ export function BookingOperationalAnalytics({
         doc.text('3. Recent Booking Activity Ledger', 10, afterRoomY);
       }
 
-      const recentBookingsHead = [['Requester', 'Room', 'Date', 'Time Slot', 'Type', 'Status']];
+      const recentBookingsHead = [['Name', 'Room', 'Date', 'Time Slot', 'Type', 'Status']];
       const recentBookingsBody = bookings.slice(0, 25).map(b => [
         `${b.name || 'User'}\n(${b.email || 'N/A'})`,
         b.room || 'General',
@@ -208,15 +208,14 @@ export function BookingOperationalAnalytics({
       <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-3xs space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-gray-100 pb-3">
           <div>
-            <span className="text-[9px] font-black text-primary uppercase tracking-widest block">Facility Management</span>
-            <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider mt-0.5">Booking & Space Utilization Analytics</h3>
+            <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider mt-0.5">Analytics Dashboard</h3>
           </div>
           <button
             onClick={exportAnalyticsPDF}
             disabled={isExporting}
             className="px-3.5 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer flex items-center gap-1.5 transition-colors disabled:opacity-50"
           >
-            <FileText className="h-4 w-4" /> {isExporting ? 'Generating PDF...' : 'Export Analytics PDF'}
+            <FileText className="h-4 w-4" /> {isExporting ? 'Generating PDF...' : 'Export PDF'}
           </button>
         </div>
 
@@ -244,13 +243,12 @@ export function BookingOperationalAnalytics({
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
         {/* Left Sub-Tabs Navigation */}
         <div className="space-y-1.5 bg-white p-4.5 rounded-2xl border border-gray-100 shadow-3xs lg:col-span-1">
-          <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block px-3 pb-2.5 border-b border-gray-100 mb-2">Analytics Views</span>
           {[
-            { id: 'analytics', name: 'Operational Overview', desc: 'KPIs, Room Popularity & Splits', icon: BarChart2 },
-            { id: 'bookings', name: 'Booking Report', desc: 'Filter, Inspect & Export Slots', icon: FileText },
-            { id: 'utilization', name: 'Room Utilization', desc: 'Occupancy & Capacity Metrics', icon: TrendingUp },
-            { id: 'peak', name: 'Peak Usage Analysis', desc: 'Busiest Hours & High Demand', icon: Clock },
-            { id: 'trends', name: 'Velocity Trends', desc: 'Time Series & Aggregations', icon: PieChart }
+            { id: 'analytics', name: 'Operational Overview', icon: BarChart2 },
+            { id: 'bookings', name: 'Bookings', icon: FileText },
+            { id: 'utilization', name: 'Room Utilization', icon: TrendingUp },
+            { id: 'peak', name: 'Peak Usage Analysis', icon: Clock },
+            { id: 'trends', name: 'Velocity Trends', icon: PieChart }
           ].map(tab => {
             const Icon = tab.icon;
             const isActive = selectedTab === tab.id;
@@ -292,8 +290,7 @@ export function BookingOperationalAnalytics({
                   {/* Space Popularity */}
                   <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-3xs space-y-4">
                     <div>
-                      <h4 className="text-xs font-black uppercase tracking-wider text-gray-900">Room Space Popularity</h4>
-                      <p className="text-[10px] text-gray-400 mt-0.5">Approved booking distribution across facilities.</p>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-gray-900">Room Popularity</h4>
                     </div>
                     <div className="space-y-3 pt-2">
                       {rooms.length === 0 ? (
@@ -324,8 +321,7 @@ export function BookingOperationalAnalytics({
                   {/* Purpose Classification Split */}
                   <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-3xs space-y-4">
                     <div>
-                      <h4 className="text-xs font-black uppercase tracking-wider text-gray-900">Booking Purpose Split</h4>
-                      <p className="text-[10px] text-gray-400 mt-0.5">Distribution by reservation category.</p>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-gray-900">Booking Types</h4>
                     </div>
                     <div className="space-y-3 pt-2">
                       {purposeArray.length === 0 ? (
@@ -381,7 +377,7 @@ export function BookingOperationalAnalytics({
               <div className="space-y-4">
                 <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-3xs space-y-3">
                   <div className="flex justify-between items-center">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-gray-900">Custom Booking Filter</h4>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-gray-900">Bookings</h4>
                     <button
                       onClick={() => {
                         const headers = ['Requester Name', 'Email', 'Room', 'Date', 'Start Time', 'End Time', 'Booking Type', 'Status'];
@@ -412,7 +408,7 @@ export function BookingOperationalAnalytics({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                     <input 
                       type="text" 
-                      placeholder="Search requester or title..." 
+                      placeholder="Search for Name or Email." 
                       value={bookingSearch}
                       onChange={e => { setBookingSearch(e.target.value); setBookingPage(1); }}
                       className="px-3 py-1.5 border border-gray-150 rounded-lg bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -445,10 +441,10 @@ export function BookingOperationalAnalytics({
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-gray-150 text-[10px] font-black text-gray-400 uppercase bg-gray-50/50">
-                        <th className="py-3 px-4">Requester</th>
+                        <th className="py-3 px-4">Name</th>
                         <th className="py-3 px-4">Room & Date</th>
                         <th className="py-3 px-4">Time Slot</th>
-                        <th className="py-3 px-4">Purpose</th>
+                        <th className="py-3 px-4">Booking Type</th>
                         <th className="py-3 px-4 text-right">Status</th>
                       </tr>
                     </thead>
