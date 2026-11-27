@@ -547,8 +547,7 @@ export function BookingOperationalAnalytics({
           {/* TAB 4: PEAK USAGE */}
           {selectedTab === 'peak' && (
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-3xs space-y-4">
-              <h4 className="text-xs font-black uppercase tracking-wider text-gray-900">Peak Demand Analysis</h4>
-              <p className="text-xs text-gray-500 font-medium">Hourly reservation concentration across typical operating hours.</p>
+              <h4 className="text-xs font-black uppercase tracking-wider text-gray-900">Peak Usage Analysis</h4>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 {['09:00 - 11:00', '11:00 - 13:00', '13:00 - 15:00', '15:00 - 17:00'].map(slot => {
                   const count = bookings.filter(b => b.status === 'APPROVED').length;
@@ -568,7 +567,6 @@ export function BookingOperationalAnalytics({
           {selectedTab === 'trends' && (
             <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-3xs space-y-4">
               <h4 className="text-xs font-black uppercase tracking-wider text-gray-900">Booking Velocity & Trends</h4>
-              <p className="text-xs text-gray-500 font-medium">Overall system load progression and historical request patterns.</p>
               <div className="bg-gray-50/60 p-4 rounded-xl border border-gray-150 text-center py-10">
                 <PieChart className="h-8 w-8 text-primary mx-auto mb-2 opacity-80" />
                 <p className="text-xs font-bold text-gray-700">Aggregated Velocity Trend Active</p>
